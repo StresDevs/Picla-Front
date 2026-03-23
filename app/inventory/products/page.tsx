@@ -10,10 +10,16 @@ import { PageHeader } from '@/components/common/page-header'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { mockCategories, mockBranches } from '@/lib/mock/data'
-import { getProducts, saveProducts } from '@/lib/mock/runtime-store'
+import { getEffectiveProductPrice, getProducts, normalizePriceTiers, saveProducts } from '@/lib/mock/runtime-store'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
-import { Boxes, Plus, Search, SlidersHorizontal, Tags } from 'lucide-react'
-import type { Part } from '@/types/database'
+import { Boxes, Plus, Search, SlidersHorizontal, Tags, Trash2 } from 'lucide-react'
+import type { Part, ProductPriceTier } from '@/types/database'
+
+interface TierFormData {
+  id: string
+  minQty: string
+  price: string
+}
 
 interface ProductFormData {
   name: string
@@ -22,8 +28,16 @@ interface ProductFormData {
   imageUrl: string
   cost: string
   price: string
+  kitPrice: string
   branchId: string
+  tiers: TierFormData[]
 }
+
+const createTier = (minQty = '1', price = ''): TierFormData => ({
+  id: `tier-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+  minQty,
+  price,
+})
 
 const emptyProductForm: ProductFormData = {
   name: '',
@@ -32,7 +46,9 @@ const emptyProductForm: ProductFormData = {
   imageUrl: '',
   cost: '',
   price: '',
+  kitPrice: '',
   branchId: 'branch-1',
+  tiers: [createTier('1', '')],
 }
 
 export default function InventoryProductsPage() {
@@ -55,17 +71,59 @@ export default function InventoryProductsPage() {
         part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         part.code.toLowerCase().includes(searchTerm.toLowerCase())
       const byCategory = selectedCategory === 'all' || part.category === selectedCategory
-      const byMin = !minPrice || part.price >= Number(minPrice)
-      const byMax = !maxPrice || part.price <= Number(maxPrice)
+      const referencePrice = getEffectiveProductPrice(part, 1)
+      const byMin = !minPrice || referencePrice >= Number(minPrice)
+      const byMax = !maxPrice || referencePrice <= Number(maxPrice)
 
       return byTerm && byCategory && byMin && byMax
     })
   }, [parts, searchTerm, selectedCategory, minPrice, maxPrice])
 
+  const addTier = () => {
+    setProductForm((prev) => ({
+      ...prev,
+      tiers: [...prev.tiers, createTier()],
+    }))
+  }
+
+  const updateTier = (id: string, patch: Partial<TierFormData>) => {
+    setProductForm((prev) => ({
+      ...prev,
+      tiers: prev.tiers.map((tier) => (tier.id === id ? { ...tier, ...patch } : tier)),
+    }))
+  }
+
+  const removeTier = (id: string) => {
+    setProductForm((prev) => {
+      const next = prev.tiers.filter((tier) => tier.id !== id)
+      return {
+        ...prev,
+        tiers: next.length > 0 ? next : [createTier('1', '')],
+      }
+    })
+  }
+
   const createProduct = () => {
-    if (!productForm.name || !productForm.code || !productForm.category || !productForm.cost || !productForm.price || !productForm.branchId) {
+    if (!productForm.name || !productForm.code || !productForm.category || !productForm.cost || !productForm.price || !productForm.kitPrice || !productForm.branchId) {
       return
     }
+
+    const additionalTiers: ProductPriceTier[] = productForm.tiers
+      .filter((tier) => Number(tier.minQty) > 1 && Number(tier.price) > 0)
+      .map((tier) => ({
+        id: tier.id,
+        min_quantity: Number(tier.minQty),
+        price: Number(tier.price),
+      }))
+
+    const mergedTiers = normalizePriceTiers([
+      {
+        id: `tier-base-${Date.now()}`,
+        min_quantity: 1,
+        price: Number(productForm.price),
+      },
+      ...additionalTiers,
+    ])
 
     const now = new Date().toISOString()
     const newProduct: Part = {
@@ -77,6 +135,8 @@ export default function InventoryProductsPage() {
       image_url: productForm.imageUrl || '/placeholder.svg',
       cost: Number(productForm.cost),
       price: Number(productForm.price),
+      kit_price: Number(productForm.kitPrice),
+      price_tiers: mergedTiers,
       branch_id: productForm.branchId,
       created_at: now,
       updated_at: now,
@@ -85,16 +145,25 @@ export default function InventoryProductsPage() {
     const next = [newProduct, ...parts]
     setParts(next)
     saveProducts(next)
-    setProductForm(emptyProductForm)
+    setProductForm({ ...emptyProductForm, tiers: [createTier('1', '')] })
     setIsCreateOpen(false)
   }
+
+  const isProductFormValid =
+    !!productForm.name &&
+    !!productForm.code &&
+    !!productForm.category &&
+    !!productForm.cost &&
+    !!productForm.price &&
+    !!productForm.kitPrice &&
+    !!productForm.branchId
 
   return (
     <MainLayout>
       <div className="space-y-6">
         <PageHeader
           title="Inventario"
-          description="Catálogo de productos por sucursal"
+          description="Catalogo de productos y precios por volumen"
           action={
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
@@ -103,29 +172,31 @@ export default function InventoryProductsPage() {
                   Nuevo Producto
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-2xl">
+              <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                   <DialogTitle>Registrar Producto</DialogTitle>
-                  <DialogDescription>Completa nombre, código, categoría, fotografía, costo, precio y sucursal asignada.</DialogDescription>
+                  <DialogDescription>
+                    Completa los datos base y agrega escalas de precio por cantidad para venta por mayor.
+                  </DialogDescription>
                 </DialogHeader>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Nombre</label>
-                    <Input value={productForm.name} onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Ej. Filtro de Aceite" />
+                    <label className="text-sm font-medium text-foreground">Nombre</label>
+                    <Input value={productForm.name} onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Ej. Bujia Iridium" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Código</label>
+                    <label className="text-sm font-medium text-foreground">Codigo</label>
                     <Input value={productForm.code} onChange={(event) => setProductForm((prev) => ({ ...prev, code: event.target.value }))} placeholder="REP-900" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Categoría</label>
+                    <label className="text-sm font-medium text-foreground">Categoria</label>
                     <Select value={productForm.category || 'none'} onValueChange={(value) => setProductForm((prev) => ({ ...prev, category: value === 'none' ? '' : value }))}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecciona categoría" />
+                        <SelectValue placeholder="Selecciona categoria" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none" disabled>Selecciona una categoría</SelectItem>
+                        <SelectItem value="none" disabled>Selecciona una categoria</SelectItem>
                         {mockCategories.map((category) => (
                           <SelectItem key={category} value={category}>{category}</SelectItem>
                         ))}
@@ -133,7 +204,7 @@ export default function InventoryProductsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Sucursal asignada</label>
+                    <label className="text-sm font-medium text-foreground">Sucursal asignada</label>
                     <Select value={productForm.branchId} onValueChange={(value) => setProductForm((prev) => ({ ...prev, branchId: value }))}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona sucursal" />
@@ -146,22 +217,73 @@ export default function InventoryProductsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <label className="text-sm font-medium">Fotografía (URL)</label>
+                    <label className="text-sm font-medium text-foreground">Fotografia (URL)</label>
                     <Input value={productForm.imageUrl} onChange={(event) => setProductForm((prev) => ({ ...prev, imageUrl: event.target.value }))} placeholder="https://... o /products/nombre.jpg" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Precio de compra</label>
+                    <label className="text-sm font-medium text-foreground">Precio de compra</label>
                     <Input type="number" step="0.01" value={productForm.cost} onChange={(event) => setProductForm((prev) => ({ ...prev, cost: event.target.value }))} placeholder="0.00" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Precio de venta</label>
+                    <label className="text-sm font-medium text-foreground">Precio de venta base (1 unidad)</label>
                     <Input type="number" step="0.01" value={productForm.price} onChange={(event) => setProductForm((prev) => ({ ...prev, price: event.target.value }))} placeholder="0.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Precio de kit</label>
+                    <Input type="number" step="0.01" value={productForm.kitPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, kitPrice: event.target.value }))} placeholder="0.00" />
                   </div>
                 </div>
 
+                <Card className="mt-2 border-border/70">
+                  <CardHeader>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <CardTitle className="text-base">Precios por mayor</CardTitle>
+                        <CardDescription>
+                          Define precios por rango: desde X unidades el precio unitario cambia.
+                        </CardDescription>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={addTier}>
+                        <Plus className="mr-1 h-4 w-4" /> Escala
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {productForm.tiers.map((tier, index) => (
+                      <div key={tier.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/60 p-2">
+                        <div className="md:col-span-5 space-y-1">
+                          <label className="text-xs text-foreground">Desde cantidad</label>
+                          <Input
+                            type="number"
+                            min={2}
+                            value={tier.minQty}
+                            onChange={(event) => updateTier(tier.id, { minQty: event.target.value })}
+                            placeholder={index === 0 ? '2' : '6'}
+                          />
+                        </div>
+                        <div className="md:col-span-5 space-y-1">
+                          <label className="text-xs text-foreground">Precio por unidad</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={tier.price}
+                            onChange={(event) => updateTier(tier.id, { price: event.target.value })}
+                            placeholder={index === 0 ? '9.00' : '8.00'}
+                          />
+                        </div>
+                        <div className="md:col-span-2 flex items-end justify-end">
+                          <Button variant="destructive" size="sm" onClick={() => removeTier(tier.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
                 <div className="flex justify-end gap-2">
                   <Button variant="destructive" onClick={() => setIsCreateOpen(false)}>Cancelar</Button>
-                  <Button onClick={createProduct} disabled={!productForm.name || !productForm.code || !productForm.category || !productForm.cost || !productForm.price || !productForm.branchId}>Guardar Producto</Button>
+                  <Button onClick={createProduct} disabled={!isProductFormValid}>Guardar Producto</Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -174,9 +296,9 @@ export default function InventoryProductsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-primary" />
-              Filtros de Catálogo
+              Filtros de Catalogo
             </CardTitle>
-            <CardDescription>Vista tipo catálogo para pruebas sin BDD</CardDescription>
+            <CardDescription>Vista tipo catalogo para pruebas front con mock</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -184,17 +306,17 @@ export default function InventoryProductsPage() {
                 <label className="text-sm font-medium">Buscar</label>
                 <div className="relative">
                   <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                  <Input className="pl-9" placeholder="Nombre o código" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <Input className="pl-9" placeholder="Nombre o codigo" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Categoría</label>
+                <label className="text-sm font-medium">Categoria</label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas las categorías</SelectItem>
+                    <SelectItem value="all">Todas las categorias</SelectItem>
                     {mockCategories.map((cat) => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
@@ -202,11 +324,11 @@ export default function InventoryProductsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Precio mínimo</label>
+                <label className="text-sm font-medium">Precio minimo</label>
                 <Input type="number" placeholder="0" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Precio máximo</label>
+                <label className="text-sm font-medium">Precio maximo</label>
                 <Input type="number" placeholder="999" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} />
               </div>
             </div>
@@ -214,13 +336,15 @@ export default function InventoryProductsPage() {
         </Card>
 
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Catálogo de productos</h2>
+          <h2 className="text-lg font-semibold">Catalogo de productos</h2>
           <Badge className="bg-primary/15 text-primary">{filteredParts.length} items</Badge>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
           {filteredParts.map((part) => {
             const branchName = mockBranches.find((branch) => branch.id === part.branch_id)?.name ?? part.branch_id
+            const tiers = [...(part.price_tiers || [])].sort((a, b) => a.min_quantity - b.min_quantity)
+
             return (
               <article key={part.id} className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 hover:border-primary/60 transition-all duration-300 hover:-translate-y-1">
                 <div className="relative aspect-[3/4] overflow-hidden">
@@ -240,7 +364,24 @@ export default function InventoryProductsPage() {
                     <div className="text-xs text-muted-foreground flex items-center gap-1">
                       <Tags className="w-3 h-3" /> Compra ${part.cost.toFixed(2)}
                     </div>
-                    <p className="text-lg font-bold text-primary">${part.price.toFixed(2)}</p>
+                    <p className="text-lg font-bold text-primary">${getEffectiveProductPrice(part, 1).toFixed(2)}</p>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Precio kit: <span className="font-semibold text-foreground">${(part.kit_price || part.price).toFixed(2)}</span>
+                  </div>
+                  <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-[11px]">
+                    {tiers.length <= 1 ? (
+                      <span className="text-muted-foreground">Sin escalas de mayoreo</span>
+                    ) : (
+                      <div className="space-y-1">
+                        {tiers.map((tier) => (
+                          <div key={tier.id} className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Desde {tier.min_quantity} und</span>
+                            <span className="font-medium">${tier.price.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <Button className="w-full" size="sm">
                     <Boxes className="w-4 h-4 mr-2" /> Ver detalle

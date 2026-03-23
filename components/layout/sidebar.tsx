@@ -10,6 +10,7 @@ import {
   FileText,
   Clock,
   Settings,
+  ClipboardList,
   Menu,
   X,
   DollarSign,
@@ -21,6 +22,8 @@ import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
 import { ThemeSwitcher } from './theme-switcher'
 import { signOutEmployee } from '@/lib/supabase/auth'
+import { Switch } from '@/components/ui/switch'
+import { getAdminMode, setAdminMode } from '@/lib/mock/runtime-store'
 
 interface MenuItem {
   label: string
@@ -44,11 +47,12 @@ const menuItems: MenuItem[] = [
     icon: Package,
     subItems: [
       { label: 'Productos', href: '/inventory/products' },
+      { label: 'Kits', href: '/inventory/kits' },
       { label: 'Ingresos', href: '/inventory/entries' },
       { label: 'Salidas', href: '/inventory/exits' },
       { label: 'Transferencias', href: '/inventory/transfers' },
       { label: 'Anulaciones', href: '/inventory/voids' },
-      { label: 'Kardex', href: '/inventory/kardex' },
+      { label: 'Historial', href: '/inventory/history' },
       { label: 'Control', href: '/inventory/control' },
     ],
   },
@@ -68,6 +72,15 @@ const menuItems: MenuItem[] = [
     label: 'Caja',
     href: '/cash',
     icon: DollarSign,
+  },
+  {
+    label: 'Cotizaciones',
+    href: '/cotizaciones/cotizacion',
+    icon: ClipboardList,
+    subItems: [
+      { label: 'Cotización', href: '/cotizaciones/cotizacion' },
+      { label: 'Historial de Cotizaciones', href: '/cotizaciones/historial' },
+    ],
   },
   {
     label: 'Gestión',
@@ -117,8 +130,13 @@ const menuItems: MenuItem[] = [
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
+  const [isAdminMode, setIsAdminMode] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+
+  useEffect(() => {
+    setIsAdminMode(getAdminMode())
+  }, [])
 
   useEffect(() => {
     const sectionToExpand = menuItems
@@ -148,11 +166,16 @@ export function Sidebar() {
     router.replace('/login')
   }
 
+  const toggleAdminMode = (enabled: boolean) => {
+    setIsAdminMode(enabled)
+    setAdminMode(enabled)
+  }
+
   return (
     <>
       {/* Mobile Menu Button */}
       <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-14 px-4 bg-sidebar/90 backdrop-blur-md border-b border-sidebar-border lg:hidden">
-        <div className="font-bold text-lg text-sidebar-foreground tracking-tight">Repuestos</div>
+        <div className="font-bold text-lg text-sidebar-foreground tracking-tight">Picla</div>
         <Button
           variant="ghost"
           size="sm"
@@ -165,9 +188,9 @@ export function Sidebar() {
 
       {/* Sidebar - Persistente en desktop */}
       <aside
-        className={`top-14 left-0 z-50 w-72 bg-sidebar/92 border-r border-sidebar-border transform transition-transform duration-200 lg:translate-x-0 overflow-y-auto max-h-[calc(100vh-56px)] backdrop-blur-xl ${
-          isOpen ? 'translate-x-0 fixed' : '-translate-x-full lg:translate-x-0'
-        } lg:sticky lg:top-0 lg:h-svh`}
+        className={`fixed inset-y-14 left-0 z-50 w-[88vw] max-w-[22rem] bg-sidebar/95 border-r border-sidebar-border transform transition-transform duration-200 ease-out overflow-y-auto h-[calc(100svh-56px)] backdrop-blur-xl lg:relative lg:inset-y-0 lg:left-auto lg:w-72 lg:max-w-none lg:h-svh lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
       >
         <div className="flex flex-col min-h-full pt-6 px-4 pb-4">
           {/* Hidden on Mobile, shown on Desktop */}
@@ -176,7 +199,7 @@ export function Sidebar() {
               Sistema Integral
             </p>
             <h1 className="text-xl font-bold text-sidebar-foreground leading-tight">
-              Gestión de Repuestos
+              Picla
             </h1>
           </div>
 
@@ -196,7 +219,7 @@ export function Sidebar() {
                         onClick={() => toggleExpanded(item.label)}
                         className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                           isActive
-                            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-primary/25'
+                            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-red-950/35'
                             : 'text-sidebar-foreground hover:bg-sidebar-accent/75'
                         }`}
                       >
@@ -222,7 +245,7 @@ export function Sidebar() {
                                 className={`w-full justify-start text-xs rounded-lg ${
                                   isSubActive
                                     ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-                                    : 'text-sidebar-foreground hover:bg-sidebar-accent/80'
+                                    : 'text-sidebar-foreground hover:bg-sidebar-accent/90'
                                 }`}
                               >
                                 <Link
@@ -243,7 +266,7 @@ export function Sidebar() {
                       variant={isActive ? 'default' : 'ghost'}
                       className={`w-full justify-start gap-3 rounded-xl py-2.5 ${
                         isActive
-                          ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-primary/25'
+                          ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-red-950/35'
                           : 'bg-transparent text-sidebar-foreground shadow-none hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
                       }`}
                     >
@@ -263,6 +286,29 @@ export function Sidebar() {
 
           {/* Bottom Section */}
           <div className="space-y-2 border-t border-sidebar-border/80 pt-4 mt-4">
+            <div className="space-y-2 rounded-xl border border-sidebar-border/70 px-3 py-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-sidebar-foreground">Modo Admin</p>
+                <Switch
+                  checked={isAdminMode}
+                  onCheckedChange={(checked) => toggleAdminMode(checked)}
+                />
+              </div>
+              <div>
+                <p className={`text-xs ${isAdminMode ? 'text-emerald-300' : 'text-sidebar-foreground/70'}`}>
+                  Estado: {isAdminMode ? 'Activo' : 'Inactivo'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                className="w-full"
+                variant={isAdminMode ? 'outline' : 'default'}
+                onClick={() => toggleAdminMode(!isAdminMode)}
+              >
+                {isAdminMode ? 'Desactivar modo admin' : 'Activar modo admin'}
+              </Button>
+            </div>
             <ThemeSwitcher />
             <Button
               variant="ghost"

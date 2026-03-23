@@ -112,7 +112,7 @@ export default function LoginPage() {
                 className="h-11 w-full font-semibold text-white shadow-[0_14px_30px_-14px_hsl(var(--primary)/0.9)] hover:brightness-110"
                 disabled={isLoading}
               >
-                {isLoading ? 'Validando...' : 'Iniciar sesión'}
+                {isLoading ? 'Iniciando Sesión...' : 'Iniciar sesión'}
               </Button>
             </form>
           </div>
@@ -126,6 +126,8 @@ export default function LoginPage() {
                 <ShieldCheck className="h-7 w-7" />
               </div>
               <h3 className="text-4xl font-extrabold leading-tight tracking-tight">BIENVENIDO A PICLA</h3>
+                <p className="mt-4 text-lg text-white/90">Credenciales temporales:</p>
+                <p className="mt-1 text-sm text-white/70">Correo: admin@picla.com | Contraseña: Admin123</p>
             </div>
           </div>
         </div>

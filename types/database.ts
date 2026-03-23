@@ -43,6 +43,32 @@ export interface Part {
   cost: number
   image_url: string
   branch_id: string
+  kit_price?: number
+  price_tiers?: ProductPriceTier[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ProductPriceTier {
+  id: string
+  min_quantity: number
+  price: number
+}
+
+export interface ProductKitItem {
+  id: string
+  part_id: string
+  quantity: number
+  kit_price: number
+}
+
+export interface ProductKit {
+  id: string
+  code: string
+  name: string
+  description: string
+  branch_id: string
+  items: ProductKitItem[]
   created_at: string
   updated_at: string
 }
@@ -125,7 +151,7 @@ export interface ProductTransfer {
   from_branch_id: string
   to_branch_id: string
   quantity: number
-  status: 'pending' | 'completed' | 'rejected'
+  status: 'pending' | 'completed' | 'rejected' | 'anulled' | 'returned' | 'replenished'
   user_id: string
   transfer_date: string
   received_date: string | null

@@ -133,6 +133,24 @@ export default function SettingsPage() {
               />
               <p className="text-xs text-muted-foreground">Este valor se usa en POS cuando el pago se realiza en USD.</p>
             </div>
+            <div className="space-y-2">
+              <Label className="text-foreground">Límite de créditos abiertos/vencidos por cliente</Label>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={settings?.max_open_credits_per_customer ?? 2}
+                onChange={(event) => {
+                  const parsed = Math.floor(Number(event.target.value))
+                  setSettings((prev) => prev ? {
+                    ...prev,
+                    max_open_credits_per_customer: Number.isFinite(parsed) && parsed > 0 ? parsed : 1,
+                  } : prev)
+                }}
+                className="bg-input border-border text-foreground"
+              />
+              <p className="text-xs text-muted-foreground">Se bloquea la creación de nuevos créditos cuando el cliente alcance o supere este límite.</p>
+            </div>
           </div>
           <Button className="w-full md:w-auto" onClick={handleSaveSettings}>Guardar Cambios</Button>
         </CardContent>

@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const items = [
+  { label: 'Kits', href: '/inventory/kits' },
   { label: 'Ingresos', href: '/inventory/entries' },
   { label: 'Salidas', href: '/inventory/exits' },
   { label: 'Transferencias', href: '/inventory/transfers' },
   { label: 'Anulaciones', href: '/inventory/voids' },
-  { label: 'Kardex', href: '/inventory/kardex' },
+  { label: 'Historial', href: '/inventory/history' },
   { label: 'Control', href: '/inventory/control' },
 ]
 
