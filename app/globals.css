@@ -1,0 +1,221 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Light Mode - Oceanic Blue + Mint */
+  --background: 206 100% 98%;
+  --foreground: 212 34% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 212 34% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 212 34% 14%;
+  --primary: 205 88% 47%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 165 56% 46%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 205 56% 94%;
+  --muted-foreground: 212 20% 38%;
+  --accent: 174 58% 45%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 205 52% 88%;
+  --input: 206 72% 97%;
+  --ring: 205 88% 47%;
+  --chart-1: 205 88% 47%;
+  --chart-2: 174 58% 45%;
+  --chart-3: 196 79% 58%;
+  --chart-4: 158 55% 48%;
+  --chart-5: 220 82% 60%;
+  --radius: 0.85rem;
+  --sidebar: 205 84% 96%;
+  --sidebar-foreground: 212 34% 14%;
+  --sidebar-primary: 205 88% 47%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 176 39% 88%;
+  --sidebar-accent-foreground: 175 70% 24%;
+  --sidebar-border: 205 52% 88%;
+  --sidebar-ring: 205 88% 47%;
+}
+
+.dark {
+  /* Dark Mode - Deep Blue + Teal */
+  --background: 214 42% 11%;
+  --foreground: 204 40% 96%;
+  --card: 214 34% 15%;
+  --card-foreground: 0 0% 96%;
+  --popover: 214 34% 14%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 200 91% 62%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 171 58% 50%;
+  --secondary-foreground: 173 100% 8%;
+  --muted: 213 24% 23%;
+  --muted-foreground: 204 20% 76%;
+  --accent: 171 58% 52%;
+  --accent-foreground: 173 100% 8%;
+  --destructive: 0 84% 65%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 213 22% 25%;
+  --input: 214 26% 18%;
+  --ring: 200 91% 62%;
+  --chart-1: 200 91% 62%;
+  --chart-2: 171 58% 50%;
+  --chart-3: 191 86% 62%;
+  --chart-4: 160 61% 52%;
+  --chart-5: 225 83% 68%;
+  --sidebar: 214 40% 13%;
+  --sidebar-foreground: 0 0% 96%;
+  --sidebar-primary: 200 91% 62%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 214 22% 21%;
+  --sidebar-accent-foreground: 172 68% 71%;
+  --sidebar-border: 213 22% 25%;
+  --sidebar-ring: 200 91% 62%;
+}
+
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 10% 10%, hsl(202 100% 88% / 0.5), transparent 32%),
+      radial-gradient(circle at 88% 15%, hsl(170 72% 84% / 0.45), transparent 36%),
+      linear-gradient(145deg, hsl(206 100% 99%), hsl(203 70% 95%));
+    background-attachment: fixed;
+  }
+
+  .dark body {
+    background-image:
+      radial-gradient(circle at 14% 10%, hsl(197 100% 40% / 0.2), transparent 34%),
+      radial-gradient(circle at 88% 20%, hsl(168 70% 36% / 0.2), transparent 38%),
+      linear-gradient(145deg, hsl(214 42% 11%), hsl(216 38% 10%));
+  }
+
+  [data-slot='card'] {
+    box-shadow: 0 12px 30px hsl(204 70% 32% / 0.08);
+    backdrop-filter: blur(2px);
+  }
+
+  .dark [data-slot='card'] {
+    box-shadow: 0 16px 34px hsl(213 60% 4% / 0.36);
+  }
+
+  [data-slot='table-row']:hover {
+    background-color: hsl(var(--primary) / 0.06);
+  }
+
+  .surface-panel {
+    @apply rounded-2xl border border-border/70;
+    background: linear-gradient(165deg, hsl(var(--card) / 0.86), hsl(var(--card) / 0.76));
+    box-shadow: 0 10px 28px hsl(204 70% 30% / 0.08);
+  }
+
+  .dark .surface-panel {
+    background: linear-gradient(165deg, hsl(var(--card) / 0.88), hsl(var(--card) / 0.8));
+    box-shadow: 0 14px 32px hsl(213 70% 3% / 0.4);
+  }
+
+  .page-fade {
+    animation: page-fade-in 260ms ease-out;
+  }
+
+  button,
+  a,
+  [role='button'],
+  [data-slot='button'],
+  [data-slot='select-trigger'],
+  [data-slot='select-item'],
+  [data-slot='dropdown-menu-item'],
+  [data-slot='dropdown-menu-sub-trigger'],
+  [data-slot='popover-trigger'] {
+    cursor: pointer;
+  }
+
+  button:not(:disabled):hover,
+  a:hover,
+  [role='button']:hover,
+  [data-slot='button']:not(:disabled):hover,
+  [data-slot='select-trigger']:hover,
+  [data-slot='select-item']:hover,
+  [data-slot='dropdown-menu-item']:hover,
+  [data-slot='dropdown-menu-sub-trigger']:hover,
+  [data-slot='popover-trigger']:hover {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.18), 0 0 14px hsl(var(--primary) / 0.12);
+  }
+
+  [data-slot='dialog-content'],
+  [data-slot='select-content'],
+  [data-slot='popover-content'],
+  [data-slot='dropdown-menu-content'] {
+    background-color: hsl(var(--card)) !important;
+    opacity: 1 !important;
+    backdrop-filter: none !important;
+  }
+
+  [data-slot='select-content'] {
+    z-index: 220 !important;
+  }
+
+  @keyframes page-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
