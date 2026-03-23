@@ -235,7 +235,7 @@ export function Sidebar() {
                       </button>
                       {isExpanded && (
                         <div className="space-y-1 pl-4 mt-1">
-                          {item.subItems.map((subItem) => {
+                          {item.subItems?.map((subItem) => {
                             const isSubActive = pathname === subItem.href
                             return (
                               <Button

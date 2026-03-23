@@ -133,7 +133,7 @@ export default function DashboardPage() {
                       backgroundColor: 'hsl(0, 0%, 98%)',
                       border: '1px solid hsl(0, 0%, 92%)',
                     }}
-                    className="dark:bg-[hsl(0,0%,12%)] dark:border-[hsl(0,0%,20%)]"
+                    wrapperClassName="dark:bg-[hsl(0,0%,12%)] dark:border-[hsl(0,0%,20%)]"
                   />
                   <Legend />
                   <Line
@@ -219,7 +219,7 @@ export default function DashboardPage() {
                     backgroundColor: 'hsl(0, 0%, 98%)',
                     border: '1px solid hsl(0, 0%, 92%)',
                   }}
-                  className="dark:bg-[hsl(0,0%,12%)] dark:border-[hsl(0,0%,20%)]"
+                  wrapperClassName="dark:bg-[hsl(0,0%,12%)] dark:border-[hsl(0,0%,20%)]"
                 />
                 <Legend />
                 <Bar
