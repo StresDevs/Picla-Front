@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { mockBranches } from '@/lib/mock/data'
-import { getUsers, saveUsers } from '@/lib/mock/runtime-store'
+import { getUsers, isUserWithinAssignedSchedule, saveUsers } from '@/lib/mock/runtime-store'
 import { ManagementSubnav } from '@/components/modules/management/management-subnav'
 
 interface User {
@@ -20,7 +20,9 @@ interface User {
   full_name: string
   password_hash: string
   branch_id: string
-  role: 'admin' | 'manager' | 'employee'
+  role: 'admin' | 'manager' | 'employee' | 'read_only'
+  shift_start: string
+  shift_end: string
   is_active: boolean
   created_at: string
   updated_at: string
@@ -31,7 +33,9 @@ interface UserFormData {
   email: string
   password: string
   branchId: string
-  role: 'admin' | 'manager' | 'employee'
+  role: 'admin' | 'manager' | 'employee' | 'read_only'
+  shiftStart: string
+  shiftEnd: string
 }
 
 const emptyUserForm: UserFormData = {
@@ -40,6 +44,8 @@ const emptyUserForm: UserFormData = {
   password: '',
   branchId: 'branch-1',
   role: 'employee',
+  shiftStart: '08:00',
+  shiftEnd: '18:00',
 }
 
 export default function ManagementUsersPage() {
@@ -69,6 +75,8 @@ export default function ManagementUsersPage() {
               password_hash: userForm.password,
               branch_id: userForm.branchId,
               role: userForm.role,
+              shift_start: userForm.shiftStart,
+              shift_end: userForm.shiftEnd,
               updated_at: new Date().toISOString(),
             }
           : user,
@@ -84,6 +92,8 @@ export default function ManagementUsersPage() {
           password_hash: userForm.password,
           branch_id: userForm.branchId,
           role: userForm.role,
+          shift_start: userForm.shiftStart,
+          shift_end: userForm.shiftEnd,
           is_active: true,
           created_at: now,
           updated_at: now,
@@ -113,6 +123,9 @@ export default function ManagementUsersPage() {
             <CardTitle>Usuarios</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-xl border border-amber-400/35 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+              Control de horario: la validación definitiva se implementará en backend. Este módulo deja el horario asignado y la validación mock en frontend para pruebas.
+            </div>
             <div className="flex justify-end">
               <Dialog>
                 <DialogTrigger asChild>
@@ -150,14 +163,25 @@ export default function ManagementUsersPage() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Rol</label>
-                      <Select value={userForm.role} onValueChange={(value) => setUserForm((prev) => ({ ...prev, role: value as 'admin' | 'manager' | 'employee' }))}>
+                      <Select value={userForm.role} onValueChange={(value) => setUserForm((prev) => ({ ...prev, role: value as 'admin' | 'manager' | 'employee' | 'read_only' }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="admin">Administrador</SelectItem>
                           <SelectItem value="manager">Gerente</SelectItem>
                           <SelectItem value="employee">Empleado</SelectItem>
+                          <SelectItem value="read_only">Solo lectura</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Horario inicio</label>
+                      <Input type="time" value={userForm.shiftStart} onChange={(e) => setUserForm((prev) => ({ ...prev, shiftStart: e.target.value }))} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Horario fin</label>
+                      <Input type="time" value={userForm.shiftEnd} onChange={(e) => setUserForm((prev) => ({ ...prev, shiftEnd: e.target.value }))} />
                     </div>
                   </div>
 
@@ -175,6 +199,23 @@ export default function ManagementUsersPage() {
                 { key: 'email', label: 'Correo', render: (v) => String(v) },
                 { key: 'branch_id', label: 'Sucursal', render: (v) => mockBranches.find((branch) => branch.id === String(v))?.name ?? String(v) },
                 { key: 'role', label: 'Rol', render: (v) => <Badge className="bg-primary/15 text-primary">{String(v)}</Badge> },
+                {
+                  key: 'shift_start',
+                  label: 'Horario',
+                  render: (_, row) => `${String(row.shift_start)} - ${String(row.shift_end)}`,
+                },
+                {
+                  key: 'id',
+                  label: 'Acceso ahora',
+                  render: (_, row) => {
+                    const allowed = isUserWithinAssignedSchedule({
+                      role: row.role,
+                      shift_start: row.shift_start,
+                      shift_end: row.shift_end,
+                    })
+                    return <Badge className={allowed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}>{allowed ? 'Permitido' : 'Fuera de horario'}</Badge>
+                  },
+                },
                 { key: 'is_active', label: 'Estado', render: (v) => <Badge className={Boolean(v) ? 'bg-green-500' : 'bg-gray-500'}>{Boolean(v) ? 'Activo' : 'Inactivo'}</Badge> },
                 {
                   key: 'id',
@@ -191,6 +232,8 @@ export default function ManagementUsersPage() {
                           password: user.password_hash,
                           branchId: user.branch_id,
                           role: user.role,
+                          shiftStart: user.shift_start,
+                          shiftEnd: user.shift_end,
                         })
                       }}>Editar</Button>
                       <Button size="sm" variant="destructive" onClick={() => handleDelete(String(id))}>Eliminar</Button>

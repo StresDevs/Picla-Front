@@ -35,6 +35,17 @@ export interface TransferHistoryRecord {
   event_date: string
 }
 
+export interface InventorySnapshotRecord {
+  id: string
+  snapshot_date: string
+  branch_id: string
+  part_id: string
+  part_name: string
+  category: string
+  opening_stock: number
+  recorded_at: string
+}
+
 export interface ReturnRecord {
   id: string
   part_id: string
@@ -100,6 +111,7 @@ export interface QuotationRecord {
   branch_id: string
   branch_name: string
   quoted_by: string
+  expires_at: string
   items: QuotationItemRecord[]
   total_amount: number
   status: QuotationStatus
@@ -117,16 +129,34 @@ export interface AppSettingsRecord {
   max_open_credits_per_customer: number
 }
 
-interface UserRecord {
+export type AppUserRole = 'admin' | 'manager' | 'employee' | 'read_only'
+
+export interface UserRecord {
   id: string
   email: string
   full_name: string
   password_hash: string
   branch_id: string
-  role: 'admin' | 'manager' | 'employee'
+  role: AppUserRole
+  shift_start: string
+  shift_end: string
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+export interface DeviceSessionRecord {
+  id: string
+  user_email: string
+  user_name: string
+  role: AppUserRole
+  branch_id: string
+  device_name: string
+  browser: string
+  os: string
+  ip_address: string
+  login_at: string
+  status: 'active' | 'closed'
 }
 
 interface CustomerRecord {
@@ -172,9 +202,13 @@ const KEYS = {
   quotations: 'mock_quotations_v1',
   settings: 'mock_settings_v1',
   adminMode: 'mock_admin_mode_v1',
+  inventorySnapshots: 'mock_inventory_snapshots_v1',
+  readOnlyMode: 'mock_read_only_mode_v1',
+  deviceSessions: 'mock_device_sessions_v1',
 }
 
 export const ADMIN_MODE_EVENT = 'mock-admin-mode-changed'
+export const READ_ONLY_MODE_EVENT = 'mock-read-only-mode-changed'
 
 function hasWindow() {
   return typeof window !== 'undefined'
@@ -347,6 +381,82 @@ function getSeedKits(): ProductKit[] {
   return kits
 }
 
+function getSeedInventorySnapshots(): InventorySnapshotRecord[] {
+  const products = getProducts().slice(0, 6)
+  const branches = mockBranches.slice(0, 3)
+  const daysBack = [0, 1, 2, 3, 4]
+
+  const snapshots: InventorySnapshotRecord[] = []
+
+  const getDayIso = (daysAgo: number) => {
+    const date = new Date()
+    date.setHours(7, 30, 0, 0)
+    date.setDate(date.getDate() - daysAgo)
+    return date.toISOString()
+  }
+
+  daysBack.forEach((daysAgo) => {
+    branches.forEach((branch, branchIndex) => {
+      products.forEach((product, productIndex) => {
+        const baseQty = 120 - productIndex * 9 - daysAgo * 5 + branchIndex * 4
+        const opening_stock = Math.max(12, Math.round(baseQty))
+
+        snapshots.push({
+          id: `snap-${branch.id}-${product.id}-${daysAgo}`,
+          snapshot_date: getDayIso(daysAgo),
+          branch_id: branch.id,
+          part_id: product.id,
+          part_name: product.name,
+          category: product.category,
+          opening_stock,
+          recorded_at: getDayIso(daysAgo),
+        })
+      })
+    })
+  })
+
+  return snapshots.sort(
+    (a, b) => new Date(b.snapshot_date).getTime() - new Date(a.snapshot_date).getTime()
+  )
+}
+
+function getSeedDeviceSessions(): DeviceSessionRecord[] {
+  const users = getUsers()
+  const employee = users.find((item) => item.role === 'employee')
+  const readOnly = users.find((item) => item.role === 'read_only')
+
+  const now = Date.now()
+
+  return [
+    {
+      id: 'dev-seed-001',
+      user_email: employee?.email || 'empleado@picla.com',
+      user_name: employee?.full_name || 'Empleado Demo',
+      role: employee?.role || 'employee',
+      branch_id: employee?.branch_id || 'branch-1',
+      device_name: 'Desktop Oficina',
+      browser: 'Chrome 124',
+      os: 'Windows',
+      ip_address: '192.168.1.18',
+      login_at: new Date(now - 1000 * 60 * 40).toISOString(),
+      status: 'active',
+    },
+    {
+      id: 'dev-seed-002',
+      user_email: readOnly?.email || 'consulta@picla.com',
+      user_name: readOnly?.full_name || 'Usuario Solo Lectura',
+      role: readOnly?.role || 'read_only',
+      branch_id: readOnly?.branch_id || 'branch-2',
+      device_name: 'Tablet Mostrador',
+      browser: 'Edge 123',
+      os: 'Android',
+      ip_address: '192.168.1.39',
+      login_at: new Date(now - 1000 * 60 * 60 * 15).toISOString(),
+      status: 'closed',
+    },
+  ]
+}
+
 function getSeedCredits(): CreditRecord[] {
   const customers = getCustomers()
   const now = Date.now()
@@ -504,6 +614,21 @@ function seedTransfersIfNeeded() {
   writeJSON(KEYS.transferHistory, seedHistory)
 }
 
+function seedInventorySnapshotsIfNeeded() {
+  const existingSnapshots = readJSON<InventorySnapshotRecord[] | null>(KEYS.inventorySnapshots, null)
+  if (existingSnapshots && existingSnapshots.length > 0) return
+
+  const seed = getSeedInventorySnapshots()
+  writeJSON(KEYS.inventorySnapshots, seed)
+}
+
+function seedDeviceSessionsIfNeeded() {
+  const existingSessions = readJSON<DeviceSessionRecord[] | null>(KEYS.deviceSessions, null)
+  if (existingSessions && existingSessions.length > 0) return
+
+  writeJSON(KEYS.deviceSessions, getSeedDeviceSessions())
+}
+
 function toTransferRecord(input: NewTransferInput): ProductTransferRecord {
   return {
     id: `trf-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
@@ -595,6 +720,83 @@ export function setAdminMode(enabled: boolean) {
   }
 }
 
+export function getReadOnlyMode() {
+  return readJSON<boolean>(KEYS.readOnlyMode, false)
+}
+
+export function setReadOnlyMode(enabled: boolean) {
+  writeJSON(KEYS.readOnlyMode, enabled)
+
+  if (hasWindow()) {
+    window.dispatchEvent(new CustomEvent<boolean>(READ_ONLY_MODE_EVENT, { detail: enabled }))
+  }
+}
+
+function normalizeUserRecord(user: UserRecord): UserRecord {
+  return {
+    ...user,
+    role: user.role || 'employee',
+    shift_start: user.shift_start || '08:00',
+    shift_end: user.shift_end || '18:00',
+  }
+}
+
+function toMinutes(value: string) {
+  const [hours, minutes] = value.split(':').map(Number)
+  const safeHours = Number.isFinite(hours) ? Math.max(0, Math.min(23, hours)) : 0
+  const safeMinutes = Number.isFinite(minutes) ? Math.max(0, Math.min(59, minutes)) : 0
+  return safeHours * 60 + safeMinutes
+}
+
+export function isUserWithinAssignedSchedule(user: Pick<UserRecord, 'role' | 'shift_start' | 'shift_end'>, at = new Date()) {
+  if (user.role === 'admin' || user.role === 'manager') return true
+
+  const currentMinutes = at.getHours() * 60 + at.getMinutes()
+  const start = toMinutes(user.shift_start || '08:00')
+  const end = toMinutes(user.shift_end || '18:00')
+
+  if (start <= end) {
+    return currentMinutes >= start && currentMinutes <= end
+  }
+
+  return currentMinutes >= start || currentMinutes <= end
+}
+
+export function canUserAccessNowByEmail(email: string, at = new Date()) {
+  const users = getUsers()
+  const user = users.find((item) => item.email.toLowerCase() === email.toLowerCase())
+
+  if (!user) {
+    return {
+      allowed: true,
+      reason: 'Usuario no registrado en mock local; validación final se hará en backend.',
+      user: null,
+    }
+  }
+
+  if (!user.is_active) {
+    return {
+      allowed: false,
+      reason: 'El usuario está inactivo.',
+      user,
+    }
+  }
+
+  if (!isUserWithinAssignedSchedule(user, at)) {
+    return {
+      allowed: false,
+      reason: `Acceso fuera de horario permitido (${user.shift_start} - ${user.shift_end}).`,
+      user,
+    }
+  }
+
+  return {
+    allowed: true,
+    reason: 'Acceso permitido por validación mock.',
+    user,
+  }
+}
+
 export function getEffectiveProductPrice(product: Part, quantity: number) {
   const tiers = [...(product.price_tiers || [])].sort((a, b) => a.min_quantity - b.min_quantity)
   if (tiers.length === 0) return product.price
@@ -629,6 +831,34 @@ export function normalizePriceTiers(tiers: ProductPriceTier[]): ProductPriceTier
 export function getTransfers(): ProductTransferRecord[] {
   seedTransfersIfNeeded()
   return readJSON<ProductTransferRecord[]>(KEYS.transfers, [])
+}
+
+export function getInventorySnapshots(): InventorySnapshotRecord[] {
+  seedInventorySnapshotsIfNeeded()
+  return readJSON<InventorySnapshotRecord[]>(KEYS.inventorySnapshots, [])
+}
+
+export function addInventorySnapshots(records: InventorySnapshotRecord[]) {
+  const current = getInventorySnapshots()
+  writeJSON(KEYS.inventorySnapshots, [...records, ...current])
+}
+
+export function getDeviceSessions(): DeviceSessionRecord[] {
+  seedDeviceSessionsIfNeeded()
+  return readJSON<DeviceSessionRecord[]>(KEYS.deviceSessions, [])
+}
+
+export function addDeviceSession(record: Omit<DeviceSessionRecord, 'id' | 'login_at'> & { login_at?: string }) {
+  const now = record.login_at || new Date().toISOString()
+  const created: DeviceSessionRecord = {
+    ...record,
+    id: `dev-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    login_at: now,
+  }
+
+  const current = getDeviceSessions()
+  writeJSON(KEYS.deviceSessions, [created, ...current])
+  return created
 }
 
 export function saveTransfers(transfers: ProductTransferRecord[]) {
@@ -813,17 +1043,36 @@ export function createCredit(input: {
 
 export function getQuotations(): QuotationRecord[] {
   seedQuotationsIfNeeded()
-  return readJSON<QuotationRecord[]>(KEYS.quotations, [])
+  const quotations = readJSON<QuotationRecord[]>(KEYS.quotations, [])
+  const normalized = quotations.map((quotation) => ({
+    ...quotation,
+    expires_at: quotation.expires_at || new Date(new Date(quotation.created_at).getTime() + 1000 * 60 * 60 * 24 * 7).toISOString(),
+  }))
+
+  writeJSON(KEYS.quotations, normalized)
+  return normalized
 }
 
 export function saveQuotations(quotations: QuotationRecord[]) {
   writeJSON(KEYS.quotations, quotations)
 }
 
+const MAX_ACTIVE_QUOTATIONS_PER_USER = 3
+
+export function getMaxActiveQuotationsPerUser() {
+  return MAX_ACTIVE_QUOTATIONS_PER_USER
+}
+
+export function isQuotationActive(quotation: Pick<QuotationRecord, 'status' | 'expires_at'>, now = new Date()) {
+  if (quotation.status !== 'active') return false
+  return new Date(quotation.expires_at).getTime() >= now.getTime()
+}
+
 export function createQuotation(input: {
   customer_id: string
   branch_id: string
   quoted_by: string
+  expires_at: string
   items: Array<{ part_id: string; quantity: number; unit_price: number }>
 }) {
   const customers = getCustomers()
@@ -841,6 +1090,37 @@ export function createQuotation(input: {
 
   if (!input.items.length) {
     return { ok: false as const, error: 'Debe agregar al menos un producto a la cotización' }
+  }
+
+  if (!input.expires_at) {
+    return { ok: false as const, error: 'Debes definir una fecha límite para la cotización.' }
+  }
+
+  const expiration = new Date(input.expires_at)
+  if (Number.isNaN(expiration.getTime())) {
+    return { ok: false as const, error: 'La fecha límite de cotización no es válida.' }
+  }
+
+  const nowDate = new Date()
+  const expirationEndOfDay = new Date(expiration)
+  expirationEndOfDay.setHours(23, 59, 59, 999)
+
+  if (expirationEndOfDay.getTime() < nowDate.getTime()) {
+    return { ok: false as const, error: 'La fecha límite debe ser hoy o una fecha futura.' }
+  }
+
+  const current = getQuotations()
+  const activeByUser = current.filter(
+    (quotation) =>
+      quotation.quoted_by.trim().toLowerCase() === input.quoted_by.trim().toLowerCase() &&
+      isQuotationActive(quotation)
+  ).length
+
+  if (activeByUser >= MAX_ACTIVE_QUOTATIONS_PER_USER) {
+    return {
+      ok: false as const,
+      error: `El usuario ${input.quoted_by} ya alcanzó el límite de ${MAX_ACTIVE_QUOTATIONS_PER_USER} cotizaciones activas.`,
+    }
   }
 
   const quotationItems: QuotationItemRecord[] = input.items.map((item) => {
@@ -870,6 +1150,7 @@ export function createQuotation(input: {
     branch_id: branch.id,
     branch_name: branch.name,
     quoted_by: input.quoted_by,
+    expires_at: expirationEndOfDay.toISOString(),
     items: quotationItems,
     total_amount: total,
     status: 'active',
@@ -877,7 +1158,6 @@ export function createQuotation(input: {
     updated_at: now,
   }
 
-  const current = getQuotations()
   saveQuotations([created, ...current])
 
   return { ok: true as const, quotation: created }
@@ -893,6 +1173,10 @@ export function cancelQuotation(quotationId: string) {
 
   if (current[index].status !== 'active') {
     return { ok: false as const, error: 'Solo se pueden anular cotizaciones activas' }
+  }
+
+  if (!isQuotationActive(current[index])) {
+    return { ok: false as const, error: 'La cotización ya venció y no se puede anular como activa.' }
   }
 
   const next = [...current]
@@ -924,6 +1208,10 @@ export function convertQuotationToSale(input: {
   const quotation = quotations[index]
   if (quotation.status !== 'active') {
     return { ok: false as const, error: 'Solo cotizaciones activas se pueden convertir en venta' }
+  }
+
+  if (!isQuotationActive(quotation)) {
+    return { ok: false as const, error: 'La cotización está vencida y no puede convertirse en venta.' }
   }
 
   const safeExchangeRate = input.exchange_rate > 0 ? input.exchange_rate : 1
@@ -965,7 +1253,11 @@ export function convertQuotationToSale(input: {
 
 export function getUsers(): UserRecord[] {
   const seeded = readJSON<UserRecord[] | null>(KEYS.users, null)
-  if (seeded && seeded.length > 0) return seeded
+  if (seeded && seeded.length > 0) {
+    const normalized = seeded.map((item) => normalizeUserRecord(item))
+    writeJSON(KEYS.users, normalized)
+    return normalized
+  }
 
   const now = new Date().toISOString()
   const initial: UserRecord[] = [
@@ -976,6 +1268,34 @@ export function getUsers(): UserRecord[] {
       password_hash: '******',
       branch_id: 'branch-1',
       role: 'admin',
+      shift_start: '00:00',
+      shift_end: '23:59',
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: 'usr-2',
+      email: 'empleado@picla.com',
+      full_name: 'Operador Mostrador',
+      password_hash: '******',
+      branch_id: 'branch-1',
+      role: 'employee',
+      shift_start: '08:00',
+      shift_end: '18:00',
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: 'usr-3',
+      email: 'consulta@picla.com',
+      full_name: 'Consulta Inventarios',
+      password_hash: '******',
+      branch_id: 'branch-2',
+      role: 'read_only',
+      shift_start: '07:00',
+      shift_end: '17:00',
       is_active: true,
       created_at: now,
       updated_at: now,
@@ -987,7 +1307,7 @@ export function getUsers(): UserRecord[] {
 }
 
 export function saveUsers(users: UserRecord[]) {
-  writeJSON(KEYS.users, users)
+  writeJSON(KEYS.users, users.map((item) => normalizeUserRecord(item)))
 }
 
 export function getCustomers(): CustomerRecord[] {

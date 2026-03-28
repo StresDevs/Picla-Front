@@ -35,7 +35,7 @@ export default function InventoryVoidsPage() {
 
   const applyAction = () => {
     if (!selectedTransferId || !reason.trim()) {
-      setFeedback('Debes seleccionar una transferencia y registrar un motivo.')
+      setFeedback('Debes seleccionar un traspaso y registrar un motivo.')
       return
     }
 
@@ -61,7 +61,7 @@ export default function InventoryVoidsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Anulaciones, Devoluciones y Reposiciones"
-          description="Aplica acciones sobre envios registrados dejando motivo obligatorio"
+          description="Aplica acciones sobre traspasos registrados dejando motivo obligatorio"
         />
         <InventorySubnav />
 
@@ -69,18 +69,18 @@ export default function InventoryVoidsPage() {
           <CardHeader>
             <CardTitle>Centro de acciones</CardTitle>
             <CardDescription>
-              Selecciona la transferencia, tipo de operacion y motivo para registrar la trazabilidad.
+              Selecciona el traspaso, tipo de operacion y motivo para registrar la trazabilidad.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Transferencia objetivo</Label>
+                <Label>Traspaso objetivo</Label>
                 <Select value={selectedTransferId || 'none'} onValueChange={(value) => setSelectedTransferId(value === 'none' ? '' : value)}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona transferencia" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecciona traspaso" /></SelectTrigger>
                   <SelectContent>
                     {actionableTransfers.length === 0 ? (
-                      <SelectItem value="none" disabled>No hay transferencias disponibles</SelectItem>
+                      <SelectItem value="none" disabled>No hay traspasos disponibles</SelectItem>
                     ) : (
                       actionableTransfers.map((transfer) => (
                         <SelectItem key={transfer.id} value={transfer.id}>
@@ -130,7 +130,7 @@ export default function InventoryVoidsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Transferencias registradas</CardTitle>
+            <CardTitle>Traspasos registrados</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {transfers.map((item) => (

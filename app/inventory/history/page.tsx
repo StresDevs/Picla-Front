@@ -15,7 +15,8 @@ import { getTransferHistory, getTransferFilterOptions } from '@/lib/mock/runtime
 export default function InventoryHistoryPage() {
   const [events, setEvents] = useState(getTransferHistory())
   const [eventType, setEventType] = useState('all')
-  const [dateFilter, setDateFilter] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [branchFilter, setBranchFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
@@ -27,11 +28,13 @@ export default function InventoryHistoryPage() {
   const options = useMemo(() => getTransferFilterOptions(), [events])
 
   const filteredEvents = useMemo(() => {
+    const start = startDate ? new Date(`${startDate}T00:00:00`) : null
+    const end = endDate ? new Date(`${endDate}T23:59:59.999`) : null
+
     return events.filter((event) => {
       const byType = eventType === 'all' || event.event_type === eventType
-      const byDate =
-        !dateFilter ||
-        new Date(event.event_date).toISOString().slice(0, 10) === dateFilter
+      const eventTime = new Date(event.event_date).getTime()
+      const byDateRange = (!start || eventTime >= start.getTime()) && (!end || eventTime <= end.getTime())
       const byCategory = categoryFilter === 'all' || event.category === categoryFilter
       const byBranch =
         branchFilter === 'all' ||
@@ -39,16 +42,16 @@ export default function InventoryHistoryPage() {
         event.to_branch_id === branchFilter
       const byProduct = productFilter === 'all' || event.part_name === productFilter
 
-      return byType && byDate && byCategory && byBranch && byProduct
+      return byType && byDateRange && byCategory && byBranch && byProduct
     })
-  }, [events, eventType, dateFilter, categoryFilter, branchFilter, productFilter])
+  }, [events, eventType, startDate, endDate, categoryFilter, branchFilter, productFilter])
 
   return (
     <MainLayout>
       <div className="space-y-6">
         <PageHeader
-          title="Historial de Transferencias"
-          description="Eventos de envios, anulaciones, devoluciones y reposiciones"
+          title="Historial de Traspasos"
+          description="Eventos de traspasos, anulaciones, devoluciones y reposiciones"
         />
         <InventorySubnav />
 
@@ -56,7 +59,7 @@ export default function InventoryHistoryPage() {
           <CardHeader>
             <CardTitle>Filtros de historial</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Tipo</label>
               <Select value={eventType} onValueChange={setEventType}>
@@ -72,8 +75,13 @@ export default function InventoryHistoryPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Dia</label>
-              <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+              <label className="text-sm font-medium">Desde</label>
+              <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Hasta</label>
+              <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
             </div>
 
             <div className="space-y-2">
@@ -119,7 +127,7 @@ export default function InventoryHistoryPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Historial de devoluciones y movimientos</CardTitle>
+            <CardTitle>Historial de traspasos y movimientos</CardTitle>
           </CardHeader>
           <CardContent>
             <DataTable
@@ -158,7 +166,7 @@ export default function InventoryHistoryPage() {
                 { key: 'reason', label: 'Motivo', render: (v) => String(v) },
               ]}
               data={filteredEvents}
-              emptyMessage="No hay movimientos que cumplan los filtros"
+              emptyMessage="No hay traspasos que cumplan los filtros"
             />
           </CardContent>
         </Card>

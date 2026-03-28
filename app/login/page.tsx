@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { signInEmployee, getCurrentSession } from '@/lib/supabase/auth'
+import { addDeviceSession, getUsers } from '@/lib/mock/runtime-store'
 import { CarFront, KeyRound, Mail, ShieldCheck } from 'lucide-react'
 
 export default function LoginPage() {
@@ -26,6 +27,37 @@ export default function LoginPage() {
     void checkSession()
   }, [router])
 
+  const inferDeviceMetadata = () => {
+    const userAgent = navigator.userAgent || ''
+    const browser = userAgent.includes('Edg')
+      ? 'Edge'
+      : userAgent.includes('Chrome')
+      ? 'Chrome'
+      : userAgent.includes('Firefox')
+      ? 'Firefox'
+      : userAgent.includes('Safari')
+      ? 'Safari'
+      : 'Desconocido'
+
+    const os = userAgent.includes('Windows')
+      ? 'Windows'
+      : userAgent.includes('Android')
+      ? 'Android'
+      : userAgent.includes('iPhone') || userAgent.includes('iPad')
+      ? 'iOS'
+      : userAgent.includes('Mac')
+      ? 'macOS'
+      : userAgent.includes('Linux')
+      ? 'Linux'
+      : 'Desconocido'
+
+    return {
+      browser,
+      os,
+      device_name: `${browser} en ${os}`,
+    }
+  }
+
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError(null)
@@ -39,6 +71,22 @@ export default function LoginPage() {
         setIsLoading(false)
         return
       }
+
+      const users = getUsers()
+      const matchedUser = users.find((item) => item.email.toLowerCase() === email.toLowerCase())
+
+      const metadata = inferDeviceMetadata()
+      addDeviceSession({
+        user_email: email,
+        user_name: matchedUser?.full_name || email,
+        role: matchedUser?.role || 'employee',
+        branch_id: matchedUser?.branch_id || 'branch-1',
+        browser: metadata.browser,
+        os: metadata.os,
+        device_name: metadata.device_name,
+        ip_address: 'Pendiente backend',
+        status: 'active',
+      })
 
       router.replace('/dashboard')
     } catch {

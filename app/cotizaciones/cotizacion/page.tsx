@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Search, Trash2, ReceiptText } from 'lucide-react'
-import { createQuotation, getCustomers, getProducts } from '@/lib/mock/runtime-store'
+import { createQuotation, getCustomers, getMaxActiveQuotationsPerUser, getProducts } from '@/lib/mock/runtime-store'
 import { mockBranches } from '@/lib/mock/data'
 
 interface QuoteCartItem {
@@ -31,6 +31,11 @@ export default function QuotationPage() {
   const [customerId, setCustomerId] = useState('')
   const [branchId, setBranchId] = useState(mockBranches[0]?.id || 'branch-1')
   const [quotedBy, setQuotedBy] = useState('Usuario Demo')
+  const [expiresAt, setExpiresAt] = useState(() => {
+    const date = new Date()
+    date.setDate(date.getDate() + 7)
+    return date.toISOString().slice(0, 10)
+  })
   const [feedback, setFeedback] = useState<string | null>(null)
 
   const filteredProducts = useMemo(() => {
@@ -97,6 +102,7 @@ export default function QuotationPage() {
       customer_id: customerId,
       branch_id: branchId,
       quoted_by: quotedBy.trim(),
+      expires_at: expiresAt,
       items: cart.map((item) => ({
         part_id: item.part_id,
         quantity: item.quantity,
@@ -156,6 +162,15 @@ export default function QuotationPage() {
             <div className="space-y-2">
               <Label>Cotizado por</Label>
               <Input value={quotedBy} onChange={(event) => setQuotedBy(event.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Vigencia hasta</Label>
+              <Input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+            </div>
+
+            <div className="md:col-span-3 rounded-xl border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-primary">
+              Regla mock: un usuario puede tener hasta {getMaxActiveQuotationsPerUser()} cotizaciones activas al mismo tiempo.
             </div>
           </CardContent>
         </Card>

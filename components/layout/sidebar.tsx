@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
   BarChart3,
   ShoppingCart,
@@ -19,11 +19,11 @@ import {
   LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ThemeSwitcher } from './theme-switcher'
 import { signOutEmployee } from '@/lib/supabase/auth'
 import { Switch } from '@/components/ui/switch'
-import { getAdminMode, setAdminMode } from '@/lib/mock/runtime-store'
+import { getAdminMode, getReadOnlyMode, setAdminMode, setReadOnlyMode } from '@/lib/mock/runtime-store'
 
 interface MenuItem {
   label: string
@@ -50,9 +50,10 @@ const menuItems: MenuItem[] = [
       { label: 'Kits', href: '/inventory/kits' },
       { label: 'Ingresos', href: '/inventory/entries' },
       { label: 'Salidas', href: '/inventory/exits' },
-      { label: 'Transferencias', href: '/inventory/transfers' },
+      { label: 'Traspasos', href: '/inventory/transfers' },
       { label: 'Anulaciones', href: '/inventory/voids' },
-      { label: 'Historial', href: '/inventory/history' },
+      { label: 'Historial de traspasos', href: '/inventory/history' },
+      { label: 'Historial inventario', href: '/inventory/stock-history' },
       { label: 'Control', href: '/inventory/control' },
     ],
   },
@@ -88,6 +89,7 @@ const menuItems: MenuItem[] = [
     icon: Users,
     subItems: [
       { label: 'Usuarios', href: '/management/users' },
+      { label: 'Dispositivos', href: '/management/devices' },
       { label: 'Clientes', href: '/management/customers' },
       { label: 'Sucursales', href: '/management/branches' },
     ],
@@ -131,12 +133,30 @@ export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
   const [isAdminMode, setIsAdminMode] = useState(false)
+  const [isReadOnlyMode, setIsReadOnlyMode] = useState(false)
   const pathname = usePathname()
-  const router = useRouter()
 
   useEffect(() => {
     setIsAdminMode(getAdminMode())
+    setIsReadOnlyMode(getReadOnlyMode())
   }, [])
+
+  const visibleMenuItems = useMemo(() => {
+    if (!isReadOnlyMode) return menuItems
+
+    return [
+      {
+        label: 'Inventario',
+        href: '/inventory/control',
+        icon: Package,
+        subItems: [
+          { label: 'Control', href: '/inventory/control' },
+          { label: 'Historial de traspasos', href: '/inventory/history' },
+          { label: 'Historial inventario', href: '/inventory/stock-history' },
+        ],
+      },
+    ]
+  }, [isReadOnlyMode])
 
   useEffect(() => {
     const sectionToExpand = menuItems
@@ -169,6 +189,11 @@ export function Sidebar() {
   const toggleAdminMode = (enabled: boolean) => {
     setIsAdminMode(enabled)
     setAdminMode(enabled)
+  }
+
+  const toggleReadOnlyMode = (enabled: boolean) => {
+    setIsReadOnlyMode(enabled)
+    setReadOnlyMode(enabled)
   }
 
   return (
@@ -205,7 +230,7 @@ export function Sidebar() {
 
           {/* Navigation Items */}
           <nav className="flex-1 space-y-1">
-            {menuItems.map((item) => {
+            {visibleMenuItems.map((item) => {
               const Icon = item.icon
               const isActive = item.href ? pathname.startsWith(item.href.split('/').slice(0, 2).join('/')) : false
               const isExpanded = expandedItems.includes(item.label)
@@ -307,6 +332,29 @@ export function Sidebar() {
                 onClick={() => toggleAdminMode(!isAdminMode)}
               >
                 {isAdminMode ? 'Desactivar modo admin' : 'Activar modo admin'}
+              </Button>
+            </div>
+            <div className="space-y-2 rounded-xl border border-sidebar-border/70 px-3 py-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-sidebar-foreground">Modo solo lectura</p>
+                <Switch
+                  checked={isReadOnlyMode}
+                  onCheckedChange={(checked) => toggleReadOnlyMode(checked)}
+                />
+              </div>
+              <div>
+                <p className={`text-xs ${isReadOnlyMode ? 'text-emerald-300' : 'text-sidebar-foreground/70'}`}>
+                  Estado: {isReadOnlyMode ? 'Activo (solo inventario)' : 'Inactivo'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                className="w-full"
+                variant={isReadOnlyMode ? 'outline' : 'default'}
+                onClick={() => toggleReadOnlyMode(!isReadOnlyMode)}
+              >
+                {isReadOnlyMode ? 'Desactivar solo lectura' : 'Activar solo lectura'}
               </Button>
             </div>
             <ThemeSwitcher />

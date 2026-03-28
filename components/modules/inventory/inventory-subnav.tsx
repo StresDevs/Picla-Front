@@ -7,9 +7,10 @@ const items = [
   { label: 'Kits', href: '/inventory/kits' },
   { label: 'Ingresos', href: '/inventory/entries' },
   { label: 'Salidas', href: '/inventory/exits' },
-  { label: 'Transferencias', href: '/inventory/transfers' },
+  { label: 'Traspasos', href: '/inventory/transfers' },
   { label: 'Anulaciones', href: '/inventory/voids' },
-  { label: 'Historial', href: '/inventory/history' },
+  { label: 'Historial de traspasos', href: '/inventory/history' },
+  { label: 'Historial inventario', href: '/inventory/stock-history' },
   { label: 'Control', href: '/inventory/control' },
 ]
 

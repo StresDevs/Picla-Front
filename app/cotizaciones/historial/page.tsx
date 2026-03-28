@@ -13,6 +13,7 @@ import {
   cancelQuotation,
   convertQuotationToSale,
   getAppSettings,
+  isQuotationActive,
   getQuotations,
   type QuotationRecord,
 } from '@/lib/mock/runtime-store'
@@ -35,12 +36,14 @@ export default function QuotationsHistoryPage() {
   const [feedback, setFeedback] = useState<string | null>(null)
 
   const totals = useMemo(() => {
-    const active = quotations.filter((item) => item.status === 'active').length
+    const active = quotations.filter((item) => isQuotationActive(item)).length
+    const expired = quotations.filter((item) => item.status === 'active' && !isQuotationActive(item)).length
     const converted = quotations.filter((item) => item.status === 'converted').length
     const cancelled = quotations.filter((item) => item.status === 'cancelled').length
 
     return {
       active,
+      expired,
       converted,
       cancelled,
       amount: quotations.reduce((sum, item) => sum + item.total_amount, 0),
@@ -127,8 +130,9 @@ export default function QuotationsHistoryPage() {
         />
         <QuotationsSubnav />
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Activas</p><p className="mt-1 text-3xl font-semibold text-foreground">{totals.active}</p></CardContent></Card>
+          <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Vencidas</p><p className="mt-1 text-3xl font-semibold text-amber-400">{totals.expired}</p></CardContent></Card>
           <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Convertidas</p><p className="mt-1 text-3xl font-semibold text-foreground">{totals.converted}</p></CardContent></Card>
           <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Anuladas</p><p className="mt-1 text-3xl font-semibold text-foreground">{totals.cancelled}</p></CardContent></Card>
           <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Monto cotizado</p><p className="mt-1 text-3xl font-semibold text-primary">Bs {totals.amount.toFixed(2)}</p></CardContent></Card>
@@ -142,7 +146,11 @@ export default function QuotationsHistoryPage() {
             {quotations.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No hay cotizaciones registradas.</p>
             ) : (
-              quotations.map((quotation) => (
+              quotations.map((quotation) => {
+                const isActiveAndValid = isQuotationActive(quotation)
+                const isExpired = quotation.status === 'active' && !isActiveAndValid
+
+                return (
                 <article key={quotation.id} className="rounded-xl border border-border/70 bg-card/70 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -151,17 +159,22 @@ export default function QuotationsHistoryPage() {
                         Sucursal: {quotation.branch_name} | Usuario: {quotation.quoted_by}
                       </p>
                       <p className="text-xs text-muted-foreground">{new Date(quotation.created_at).toLocaleString('es-BO')}</p>
+                      <p className="text-xs text-muted-foreground">Vigente hasta: {new Date(quotation.expires_at).toLocaleDateString('es-BO')}</p>
                     </div>
                     <Badge
                       className={
-                        quotation.status === 'active'
+                        isExpired
+                          ? 'bg-amber-500/20 text-amber-400'
+                          : quotation.status === 'active'
                           ? 'bg-secondary/20 text-secondary-foreground'
                           : quotation.status === 'converted'
                             ? 'bg-emerald-500/20 text-emerald-400'
                             : 'bg-destructive/20 text-destructive'
                       }
                     >
-                      {quotation.status === 'active'
+                      {isExpired
+                        ? 'Vencida'
+                        : quotation.status === 'active'
                         ? 'Activa'
                         : quotation.status === 'converted'
                           ? 'Convertida'
@@ -179,20 +192,21 @@ export default function QuotationsHistoryPage() {
                       variant="destructive"
                       size="sm"
                       onClick={() => handleCancel(quotation.id)}
-                      disabled={quotation.status !== 'active'}
+                      disabled={!isActiveAndValid}
                     >
                       Anular cotización
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => openConvertDialog(quotation)}
-                      disabled={quotation.status !== 'active'}
+                      disabled={!isActiveAndValid}
                     >
                       Convertir en venta
                     </Button>
                   </div>
                 </article>
-              ))
+                )
+              })
             )}
             {feedback ? <p className="text-xs text-primary">{feedback}</p> : null}
           </CardContent>

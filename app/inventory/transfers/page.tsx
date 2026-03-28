@@ -153,24 +153,24 @@ export default function InventoryTransfersPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <PageHeader title="Transferencias" description="Envios unitarios o masivos entre sucursales (modo mock)" />
+        <PageHeader title="Traspasos" description="Traspasos unitarios o masivos entre sucursales (modo mock)" />
         <InventorySubnav />
 
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <CardTitle>Nuevo envio</CardTitle>
+                <CardTitle>Nuevo traspaso</CardTitle>
                 <CardDescription>
-                  Crea traspasos individuales o arma un envio masivo con multiples productos.
+                  Crea traspasos individuales o arma un traspaso masivo con multiples productos.
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <Button variant={mode === 'single' ? 'default' : 'outline'} onClick={() => setMode('single')}>
-                  Envio simple
+                  Traspaso simple
                 </Button>
                 <Button variant={mode === 'bulk' ? 'default' : 'outline'} onClick={() => setMode('bulk')}>
-                  Envio masivo
+                  Traspaso masivo
                 </Button>
               </div>
             </div>
@@ -227,7 +227,7 @@ export default function InventoryTransfersPage() {
             ) : (
               <div className="space-y-3 rounded-xl border border-border/70 p-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-medium">Listado de envio masivo</h3>
+                  <h3 className="font-medium">Listado de traspaso masivo</h3>
                   <Button variant="outline" size="sm" onClick={addBulkLine}>
                     <Plus className="mr-1 h-4 w-4" /> Agregar producto
                   </Button>
@@ -272,9 +272,9 @@ export default function InventoryTransfersPage() {
             <div className="flex justify-end gap-2">
               <Button variant="destructive" onClick={resetForm}>Cancelar</Button>
               {mode === 'single' ? (
-                <Button onClick={registerSingleTransfer} disabled={!canCreateSingle}>Registrar envio</Button>
+                <Button onClick={registerSingleTransfer} disabled={!canCreateSingle}>Registrar traspaso</Button>
               ) : (
-                <Button onClick={registerBulkTransfer} disabled={!canCreateBulk}>Registrar envio masivo</Button>
+                <Button onClick={registerBulkTransfer} disabled={!canCreateBulk}>Registrar traspaso masivo</Button>
               )}
             </div>
           </CardContent>
@@ -284,7 +284,7 @@ export default function InventoryTransfersPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Boxes className="h-4 w-4 text-primary" />
-              Envíos recientes
+              Traspasos recientes
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -323,7 +323,7 @@ export default function InventoryTransfersPage() {
                 },
               ]}
               data={transfers}
-              emptyMessage="No hay transferencias todavía"
+              emptyMessage="No hay traspasos todavía"
             />
           </CardContent>
         </Card>
