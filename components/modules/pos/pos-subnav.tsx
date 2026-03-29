@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 
 const items = [
   { label: 'Ventas', href: '/pos/sales' },
+  { label: 'Historial Ventas', href: '/pos/sales-history' },
   { label: 'Anulación Ventas', href: '/pos/void-sales' },
   { label: 'Venta Adelantada', href: '/pos/advance-sales' },
   { label: 'Por Entregar', href: '/pos/deliveries' },

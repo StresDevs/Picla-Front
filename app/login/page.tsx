@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { signInEmployee, getCurrentSession } from '@/lib/supabase/auth'
-import { addDeviceSession, getUsers } from '@/lib/mock/runtime-store'
+import { addDeviceSession, getUsers, setActiveUserContext } from '@/lib/mock/runtime-store'
 import { CarFront, KeyRound, Mail, ShieldCheck } from 'lucide-react'
 
 export default function LoginPage() {
@@ -74,6 +74,12 @@ export default function LoginPage() {
 
       const users = getUsers()
       const matchedUser = users.find((item) => item.email.toLowerCase() === email.toLowerCase())
+
+      setActiveUserContext({
+        role: matchedUser?.role || 'employee',
+        user_name: matchedUser?.full_name || email,
+        branch_id: matchedUser?.branch_id || 'branch-1',
+      })
 
       const metadata = inferDeviceMetadata()
       addDeviceSession({

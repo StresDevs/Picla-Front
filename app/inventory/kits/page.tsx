@@ -26,6 +26,7 @@ interface KitForm {
   code: string
   name: string
   description: string
+  category: string
   branch_id: string
   items: KitItemForm[]
 }
@@ -45,6 +46,7 @@ export default function InventoryKitsPage() {
     code: '',
     name: '',
     description: '',
+    category: 'General',
     branch_id: 'branch-1',
     items: [],
   })
@@ -111,6 +113,7 @@ export default function InventoryKitsPage() {
       code: form.code,
       name: form.name,
       description: form.description,
+      category: form.category,
       branch_id: form.branch_id,
       items,
     })
@@ -121,6 +124,7 @@ export default function InventoryKitsPage() {
       code: '',
       name: '',
       description: '',
+      category: 'General',
       branch_id: form.branch_id,
       items: [createKitItemForm(products[0]?.id || '', String(products[0]?.kit_price || products[0]?.price || ''))],
     })
@@ -178,6 +182,10 @@ export default function InventoryKitsPage() {
                   <div className="space-y-2 md:col-span-2">
                     <label className="text-sm font-medium text-foreground">Descripcion</label>
                     <Input value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Incluye bujias y cables con descuento" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Categoría</label>
+                    <Input value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))} placeholder="General / Servicio / Temporada" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">Sucursal</label>
@@ -266,6 +274,7 @@ export default function InventoryKitsPage() {
                   <Badge className="bg-primary/15 text-primary">Bs {kit.total.toFixed(2)}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">{kit.description || 'Sin descripcion'}</p>
+                <p className="text-xs text-emerald-600">Categoría: {kit.category || 'General'}</p>
                 <div className="space-y-1 text-xs">
                   {kit.detail.map((item) => (
                     <div key={item.id} className="flex justify-between gap-2">

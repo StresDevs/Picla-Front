@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { QuotationsSubnav } from '@/components/modules/quotations/quotations-subnav'
@@ -11,7 +11,16 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Search, Trash2, ReceiptText } from 'lucide-react'
-import { createQuotation, getCustomers, getMaxActiveQuotationsPerUser, getProducts } from '@/lib/mock/runtime-store'
+import {
+  ACTIVE_ROLE_EVENT,
+  canRoleAdjustQuotationPrices,
+  createQuotation,
+  getActiveUserContext,
+  getCustomers,
+  getMaxActiveQuotationsPerUser,
+  getProducts,
+  type AppUserRole,
+} from '@/lib/mock/runtime-store'
 import { mockBranches } from '@/lib/mock/data'
 
 interface QuoteCartItem {
@@ -30,13 +39,32 @@ export default function QuotationPage() {
   const [cart, setCart] = useState<QuoteCartItem[]>([])
   const [customerId, setCustomerId] = useState('')
   const [branchId, setBranchId] = useState(mockBranches[0]?.id || 'branch-1')
-  const [quotedBy, setQuotedBy] = useState('Usuario Demo')
+  const [quotedBy, setQuotedBy] = useState(() => getActiveUserContext().user_name)
+  const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
   const [expiresAt, setExpiresAt] = useState(() => {
     const date = new Date()
     date.setDate(date.getDate() + 7)
     return date.toISOString().slice(0, 10)
   })
   const [feedback, setFeedback] = useState<string | null>(null)
+
+  useEffect(() => {
+    const syncContext = () => {
+      const context = getActiveUserContext()
+      setActiveRole(context.role)
+      setQuotedBy(context.user_name)
+      setBranchId((prev) => prev || context.branch_id)
+    }
+
+    syncContext()
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
+    window.addEventListener('focus', syncContext)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, syncContext)
+      window.removeEventListener('focus', syncContext)
+    }
+  }, [])
 
   const filteredProducts = useMemo(() => {
     return products.filter(
@@ -79,6 +107,33 @@ export default function QuotationPage() {
   const updateQty = (itemId: string, value: string) => {
     const qty = Math.max(1, Math.floor(Number(value || 1)))
     setCart((prev) => prev.map((item) => (item.id === itemId ? { ...item, quantity: qty } : item)))
+  }
+
+  const updateUnitPrice = (itemId: string, value: string) => {
+    if (!canRoleAdjustQuotationPrices(activeRole)) return
+
+    const typed = Number(value)
+    if (!typed || typed <= 0) return
+
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.id !== itemId) return item
+
+        const part = products.find((product) => product.id === item.part_id)
+        if (!part) {
+          return { ...item, unit_price: Number(typed.toFixed(2)) }
+        }
+
+        const minQuotationPrice = part.quotation_min_price ?? Number((part.price * 0.9).toFixed(2))
+        const maxQuotationPrice = part.quotation_max_price ?? Number((part.price * 1.2).toFixed(2))
+        const bounded = Math.max(minQuotationPrice, Math.min(maxQuotationPrice, typed))
+
+        return {
+          ...item,
+          unit_price: Number(bounded.toFixed(2)),
+        }
+      }),
+    )
   }
 
   const removeItem = (itemId: string) => {
@@ -244,10 +299,32 @@ export default function QuotationPage() {
                             value={item.quantity}
                             onChange={(event) => updateQty(item.id, event.target.value)}
                           />
-                          <div className="h-9 rounded-md border border-border/70 bg-muted/10 px-3 py-2 text-sm">
-                            Bs {item.unit_price.toFixed(2)}
-                          </div>
+
+                          {canRoleAdjustQuotationPrices(activeRole) ? (
+                            <Input
+                              type="number"
+                              min={0.01}
+                              step="0.01"
+                              value={item.unit_price}
+                              onBlur={(event) => updateUnitPrice(item.id, event.target.value)}
+                            />
+                          ) : (
+                            <div className="h-9 rounded-md border border-border/70 bg-muted/10 px-3 py-2 text-sm">
+                              Bs {item.unit_price.toFixed(2)}
+                            </div>
+                          )}
                         </div>
+                        {(() => {
+                          const part = products.find((product) => product.id === item.part_id)
+                          if (!part) return null
+                          const minQuotationPrice = part.quotation_min_price ?? Number((part.price * 0.9).toFixed(2))
+                          const maxQuotationPrice = part.quotation_max_price ?? Number((part.price * 1.2).toFixed(2))
+                          return (
+                            <p className="text-[11px] text-muted-foreground">
+                              Rango cotización: Bs {minQuotationPrice.toFixed(2)} - Bs {maxQuotationPrice.toFixed(2)}
+                            </p>
+                          )
+                        })()}
                         <p className="text-sm font-semibold text-primary">
                           Bs {(item.quantity * item.unit_price).toFixed(2)}
                         </p>
@@ -255,6 +332,10 @@ export default function QuotationPage() {
                     ))}
                   </div>
                 )}
+
+                {!canRoleAdjustQuotationPrices(activeRole) ? (
+                  <p className="text-xs text-muted-foreground">Solo empleados, encargados y administradores pueden ajustar precios en la cotización.</p>
+                ) : null}
 
                 <div className="border-t border-border pt-3">
                   <p className="text-sm text-muted-foreground">Total cotización</p>

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
+  CheckCircle2,
   Plus,
   Trash2,
   DollarSign,
@@ -21,8 +22,27 @@ import {
   PackageSearch,
   ShieldCheck,
 } from 'lucide-react'
-import { ADMIN_MODE_EVENT, addSale, getAdminMode, getAppSettings, getCustomers, getKits, getProducts, setAdminMode } from '@/lib/mock/runtime-store'
+import {
+  ACTIVE_ROLE_EVENT,
+  addSale,
+  addTemporaryKitAudit,
+  approveQueuedSale,
+  canRoleCompleteSale,
+  canRoleEditKitInPOS,
+  createQueuedSale,
+  getActiveUserContext,
+  getAppSettings,
+  getCustomers,
+  getKits,
+  getProducts,
+  getQueuedSales,
+  linkTemporaryKitToSale,
+  rejectQueuedSale,
+  type AppUserRole,
+  type QueuedSaleRecord,
+} from '@/lib/mock/runtime-store'
 import { printMockInvoice } from '@/lib/mock/invoice'
+import { mockBranches } from '@/lib/mock/data'
 import type { Part, ProductKit } from '@/types/database'
 
 interface Customer {
@@ -54,8 +74,10 @@ interface KitCartItem {
   id: string
   type: 'kit'
   kitId: string
+  temporaryKitAuditId?: string
   name: string
   code: string
+  category?: string
   quantity: number
   items: KitSaleItem[]
 }
@@ -72,10 +94,15 @@ export default function POSSalesPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [parts, setParts] = useState<Part[]>([])
   const [kits, setKits] = useState<ProductKit[]>([])
+  const [queuedSales, setQueuedSales] = useState<QueuedSaleRecord[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [catalogType, setCatalogType] = useState<'products' | 'kits'>('products')
-  const [isAdminMode, setIsAdminMode] = useState(false)
+  const [activeRole, setActiveRole] = useState<AppUserRole>('employee')
+  const [activeUserName, setActiveUserName] = useState('Usuario Demo')
+  const [activeBranchId, setActiveBranchId] = useState('branch-1')
+  const [kitCategoryFilter, setKitCategoryFilter] = useState('all')
+  const [feedback, setFeedback] = useState<string | null>(null)
 
   const [selectedPayment, setSelectedPayment] = useState<'cash' | 'qr' | 'credit'>('cash')
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
@@ -88,36 +115,52 @@ export default function POSSalesPage() {
   const [kitDraftItems, setKitDraftItems] = useState<KitSaleItem[]>([])
   const [kitDiscountMode, setKitDiscountMode] = useState<'manual' | 'automatic'>('manual')
   const [kitDiscountPercent, setKitDiscountPercent] = useState(0)
+  const [isTemporaryKitOpen, setIsTemporaryKitOpen] = useState(false)
+  const [temporaryKitName, setTemporaryKitName] = useState('')
+  const [temporaryKitCategory, setTemporaryKitCategory] = useState('Temporal')
+  const [temporaryKitItems, setTemporaryKitItems] = useState<KitSaleItem[]>([])
 
   useEffect(() => {
     setParts(getProducts())
     setKits(getKits())
+    setQueuedSales(getQueuedSales())
     setCustomers(getCustomers())
-    setIsAdminMode(getAdminMode())
 
     const settings = getAppSettings()
     setExchangeRate(settings.usd_to_bob_rate)
     setPaymentCurrency(settings.default_currency)
 
-    const syncAdminMode = () => setIsAdminMode(getAdminMode())
-
-    const onAdminModeChanged = (event: Event) => {
-      const customEvent = event as CustomEvent<boolean>
-      if (typeof customEvent.detail === 'boolean') {
-        setIsAdminMode(customEvent.detail)
-      } else {
-        syncAdminMode()
-      }
+    const syncActiveContext = () => {
+      const context = getActiveUserContext()
+      setActiveRole(context.role)
+      setActiveUserName(context.user_name)
+      setActiveBranchId(context.branch_id)
+      setQueuedSales(getQueuedSales())
     }
 
-    window.addEventListener(ADMIN_MODE_EVENT, onAdminModeChanged)
-    window.addEventListener('focus', syncAdminMode)
+    syncActiveContext()
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncActiveContext)
+    window.addEventListener('focus', syncActiveContext)
+
+    if (parts.length > 0) {
+      const part = parts[0]
+      setTemporaryKitItems([
+        {
+          id: `tmp-kit-${Date.now()}`,
+          partId: part.id,
+          name: part.name,
+          quantity: 1,
+          baseKitPrice: part.kit_price || part.price,
+          salePrice: part.kit_price || part.price,
+        },
+      ])
+    }
 
     return () => {
-      window.removeEventListener(ADMIN_MODE_EVENT, onAdminModeChanged)
-      window.removeEventListener('focus', syncAdminMode)
+      window.removeEventListener(ACTIVE_ROLE_EVENT, syncActiveContext)
+      window.removeEventListener('focus', syncActiveContext)
     }
-  }, [])
+  }, [parts.length])
 
   const productsById = useMemo(() => new Map(parts.map((part) => [part.id, part])), [parts])
 
@@ -132,10 +175,23 @@ export default function POSSalesPage() {
   const filteredKits = useMemo(() => {
     return kits.filter(
       (kit) =>
-        kit.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        kit.code.toLowerCase().includes(searchTerm.toLowerCase()),
+        (kitCategoryFilter === 'all' || (kit.category || 'General') === kitCategoryFilter) &&
+        (kit.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          kit.code.toLowerCase().includes(searchTerm.toLowerCase())),
     )
-  }, [kits, searchTerm])
+  }, [kits, searchTerm, kitCategoryFilter])
+
+  const kitCategories = useMemo(() => {
+    return ['all', ...new Set(kits.map((kit) => kit.category || 'General'))]
+  }, [kits])
+
+  const canCompleteSale = canRoleCompleteSale(activeRole)
+  const canConfigureKit = canRoleEditKitInPOS(activeRole)
+  const canQueueSale = activeRole === 'read_only'
+  const queuedPending = useMemo(
+    () => queuedSales.filter((item) => item.status === 'queued'),
+    [queuedSales],
+  )
 
   const openKitConfigurator = (kit: ProductKit) => {
     const draft: KitSaleItem[] = kit.items.map((kitItem) => {
@@ -207,6 +263,7 @@ export default function POSSalesPage() {
       kitId: activeKit.id,
       name: activeKit.name,
       code: activeKit.code,
+      category: activeKit.category || 'General',
       quantity: 1,
       items: kitDraftItems,
     }
@@ -215,12 +272,99 @@ export default function POSSalesPage() {
     setIsKitDialogOpen(false)
   }
 
+  const addKitDraftLine = () => {
+    if (!canConfigureKit) return
+    const fallback = parts[0]
+    if (!fallback) return
+
+    setKitDraftItems((prev) => [
+      ...prev,
+      {
+        id: `draft-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+        partId: fallback.id,
+        name: fallback.name,
+        quantity: 1,
+        baseKitPrice: fallback.kit_price || fallback.price,
+        salePrice: fallback.kit_price || fallback.price,
+      },
+    ])
+  }
+
+  const removeKitDraftLine = (lineId: string) => {
+    if (!canConfigureKit) return
+    setKitDraftItems((prev) => (prev.length <= 1 ? prev : prev.filter((line) => line.id !== lineId)))
+  }
+
+  const addTemporaryKitItem = () => {
+    if (!canConfigureKit) return
+    const fallback = parts[0]
+    if (!fallback) return
+
+    setTemporaryKitItems((prev) => [
+      ...prev,
+      {
+        id: `tmp-line-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+        partId: fallback.id,
+        name: fallback.name,
+        quantity: 1,
+        baseKitPrice: fallback.kit_price || fallback.price,
+        salePrice: fallback.kit_price || fallback.price,
+      },
+    ])
+  }
+
+  const removeTemporaryKitItem = (id: string) => {
+    if (!canConfigureKit) return
+    setTemporaryKitItems((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  const updateTemporaryKitItem = (id: string, patch: Partial<KitSaleItem>) => {
+    if (!canConfigureKit) return
+    setTemporaryKitItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+  }
+
+  const createTemporaryKitForCart = () => {
+    if (!canConfigureKit) return
+    if (!temporaryKitName.trim() || temporaryKitItems.length === 0) return
+
+    const validItems = temporaryKitItems.filter((item) => item.quantity > 0 && item.salePrice > 0)
+    if (validItems.length === 0) return
+
+    const estimatedTotal = validItems.reduce((sum, item) => sum + item.salePrice * item.quantity, 0)
+    const audit = addTemporaryKitAudit({
+      name: temporaryKitName.trim(),
+      category: temporaryKitCategory.trim() || 'Temporal',
+      branch_id: activeBranchId,
+      created_by_name: activeUserName,
+      created_by_role: activeRole,
+      items_count: validItems.length,
+      estimated_total: Number(estimatedTotal.toFixed(2)),
+    })
+
+    const cartItem: KitCartItem = {
+      id: `cart-temp-kit-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+      type: 'kit',
+      kitId: `temp-kit-${audit.id}`,
+      temporaryKitAuditId: audit.id,
+      name: temporaryKitName.trim(),
+      code: `TEMP-${new Date().getTime()}`,
+      category: temporaryKitCategory.trim() || 'Temporal',
+      quantity: 1,
+      items: validItems,
+    }
+
+    setCart((prev) => [...prev, cartItem])
+    setIsTemporaryKitOpen(false)
+    setTemporaryKitName('')
+    setTemporaryKitCategory('Temporal')
+  }
+
   const removeFromCart = (id: string) => {
     setCart((prev) => prev.filter((item) => item.id !== id))
   }
 
   const updateProductPrice = (itemId: string, newPrice: string) => {
-    if (!isAdminMode) return
+    if (!canCompleteSale) return
     const price = Number(newPrice)
     if (!price || price <= 0) return
 
@@ -269,7 +413,34 @@ export default function POSSalesPage() {
   }
 
   const handleCompleteSale = () => {
-    if (!cart.length) return
+    if (!cart.length) {
+      setFeedback('Agrega productos o kits al carrito antes de continuar.')
+      return
+    }
+
+    const lines = cart.flatMap((item) => {
+      if (item.type === 'product') {
+        return [
+          {
+            id: item.id,
+            type: 'product' as const,
+            name: item.name,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            total_price: item.unitPrice * item.quantity,
+          },
+        ]
+      }
+
+      return item.items.map((line) => ({
+        id: `${item.id}-${line.id}`,
+        type: 'kit' as const,
+        name: `${item.name} - ${line.name}`,
+        quantity: line.quantity * item.quantity,
+        unit_price: line.salePrice,
+        total_price: line.salePrice * line.quantity * item.quantity,
+      }))
+    })
 
     const saleId = `sale-${Date.now()}`
     const customerName = selectedCustomer
@@ -278,10 +449,41 @@ export default function POSSalesPage() {
 
     const paymentMethodLabel = PAYMENT_METHODS.find((method) => method.id === selectedPayment)?.label || selectedPayment
 
+    if (canQueueSale) {
+      createQueuedSale({
+        branch_id: activeBranchId,
+        created_by_name: activeUserName,
+        created_by_role: activeRole,
+        payment_method: selectedPayment,
+        sale_currency: paymentCurrency,
+        exchange_rate: safeExchangeRate,
+        total_amount_bob: Number(totalInBob.toFixed(2)),
+        total_amount_usd: Number(totalInUsd.toFixed(2)),
+        customer_name: customerName,
+        lines: lines.map((line) => ({
+          ...line,
+          total_price: Number(line.total_price.toFixed(2)),
+          unit_price: Number(line.unit_price.toFixed(2)),
+        })),
+      })
+
+      setQueuedSales(getQueuedSales())
+      setCart([])
+      setSelectedCustomer(null)
+      setFeedback('Venta encolada correctamente. Queda pendiente de aprobación por encargado/admin.')
+      return
+    }
+
+    if (!canCompleteSale) {
+      setFeedback('Tu rol no puede confirmar ventas. Solo encargado y admin tienen este permiso.')
+      return
+    }
+
     addSale({
       id: saleId,
-      branch_id: 'branch-1',
-      user_name: 'Usuario Demo',
+      branch_id: activeBranchId,
+      user_name: activeUserName,
+      user_role: activeRole,
       total_amount: totalInBob,
       payment_method: selectedPayment,
       sale_currency: paymentCurrency,
@@ -293,44 +495,68 @@ export default function POSSalesPage() {
     })
 
     if (printInvoiceOnSale) {
-      const lines = cart.flatMap((item) => {
-        if (item.type === 'product') {
-          return [
-            {
-              name: item.name,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-            },
-          ]
-        }
-
-        return item.items.map((line) => ({
-          name: `${item.name} - ${line.name}`,
-          quantity: line.quantity * item.quantity,
-          unitPrice: line.salePrice,
-        }))
-      })
-
       printMockInvoice({
         invoiceNumber: saleId,
         customerName,
-        branchName: 'Sucursal Centro',
-        cashierName: 'Usuario Demo',
+        branchName: mockBranches.find((branch) => branch.id === activeBranchId)?.name || activeBranchId,
+        cashierName: activeUserName,
         paymentMethod: paymentMethodLabel,
         currency: paymentCurrency,
         total: amountToCharge,
-        lines,
+        lines: lines.map((line) => ({
+          name: line.name,
+          quantity: line.quantity,
+          unitPrice: line.unit_price,
+        })),
       })
     }
 
+    cart
+      .filter((item): item is KitCartItem => item.type === 'kit' && Boolean(item.temporaryKitAuditId))
+      .forEach((item) => {
+        if (item.temporaryKitAuditId) {
+          linkTemporaryKitToSale({
+            temp_kit_id: item.temporaryKitAuditId,
+            sale_id: saleId,
+          })
+        }
+      })
+
     setCart([])
     setSelectedCustomer(null)
+    setFeedback(`Venta ${saleId} registrada correctamente.`)
   }
 
-  const handleToggleAdminMode = () => {
-    const next = !isAdminMode
-    setIsAdminMode(next)
-    setAdminMode(next)
+  const handleApproveQueuedSale = (queuedSaleId: string) => {
+    const result = approveQueuedSale({
+      queued_sale_id: queuedSaleId,
+      approved_by: activeUserName,
+      approved_by_role: activeRole,
+    })
+
+    if (!result.ok) {
+      setFeedback(result.error)
+      return
+    }
+
+    setQueuedSales(getQueuedSales())
+    setFeedback(`Venta en cola ${queuedSaleId} aprobada como ${result.sale.id}.`)
+  }
+
+  const handleRejectQueuedSale = (queuedSaleId: string) => {
+    const result = rejectQueuedSale({
+      queued_sale_id: queuedSaleId,
+      rejected_by: activeUserName,
+      rejected_by_role: activeRole,
+    })
+
+    if (!result.ok) {
+      setFeedback(result.error)
+      return
+    }
+
+    setQueuedSales(getQueuedSales())
+    setFeedback(`Venta en cola ${queuedSaleId} rechazada.`)
   }
 
   return (
@@ -341,22 +567,29 @@ export default function POSSalesPage() {
         <Card>
           <CardContent className="pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2">
-              <ShieldCheck className={`h-5 w-5 ${isAdminMode ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+              <ShieldCheck className={`h-5 w-5 ${canCompleteSale ? 'text-emerald-500' : canQueueSale ? 'text-amber-500' : 'text-muted-foreground'}`} />
               <div>
-                <p className="text-sm font-semibold">Modo Admin POS</p>
-                <p className="text-xs text-muted-foreground">Control rápido para habilitar/deshabilitar edición de precios</p>
+                <p className="text-sm font-semibold">Rol activo: {activeRole}</p>
+                <p className="text-xs text-muted-foreground">
+                  {canCompleteSale
+                    ? 'Puede confirmar ventas y aprobar cola.'
+                    : canQueueSale
+                    ? 'Puede encolar ventas para aprobación de encargado/admin.'
+                    : 'Solo consulta operativa en POS; no puede confirmar ventas.'}
+                </p>
               </div>
             </div>
-            <Button
-              type="button"
-              onClick={handleToggleAdminMode}
-              variant={isAdminMode ? 'outline' : 'default'}
-              className="w-full sm:w-auto"
-            >
-              {isAdminMode ? 'Desactivar modo admin' : 'Activar modo admin'}
-            </Button>
+            <div className="text-xs text-muted-foreground rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+              Usuario: {activeUserName}
+            </div>
           </CardContent>
         </Card>
+
+        {feedback ? (
+          <div className="rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-sm text-primary">
+            {feedback}
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           <section className="xl:col-span-3 space-y-4">
@@ -379,6 +612,28 @@ export default function POSSalesPage() {
                   <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                   <Input className="pl-9" placeholder={catalogType === 'products' ? 'Buscar producto por nombre o código' : 'Buscar kit por nombre o código'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
+
+                {catalogType === 'kits' ? (
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="w-full md:max-w-xs">
+                      <Select value={kitCategoryFilter} onValueChange={setKitCategoryFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Categoría" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {kitCategories.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category === 'all' ? 'Todas las categorías' : category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={() => setIsTemporaryKitOpen(true)} disabled={!canConfigureKit}>
+                      <Plus className="mr-2 h-4 w-4" /> Kit temporal
+                    </Button>
+                  </div>
+                ) : null}
 
                 {catalogType === 'products' ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-5 gap-4">
@@ -423,6 +678,7 @@ export default function POSSalesPage() {
                             </div>
                             <Badge className="bg-primary/15 text-primary">Bs {kitTotal.toFixed(2)}</Badge>
                           </div>
+                          <p className="text-xs text-emerald-500">Categoría: {kit.category || 'General'}</p>
                           <p className="text-sm text-muted-foreground line-clamp-2">{kit.description || 'Sin descripción'}</p>
                           <div className="text-xs text-muted-foreground">{kit.items.length} componentes</div>
                           <Button className="w-full" onClick={() => openKitConfigurator(kit)}>
@@ -475,7 +731,7 @@ export default function POSSalesPage() {
                               {item.type === 'product' ? (
                                 <div>
                                   <p className="text-[11px] text-muted-foreground">Precio unitario</p>
-                                  {isAdminMode ? (
+                                  {canCompleteSale ? (
                                     <Input
                                       type="number"
                                       step="0.01"
@@ -517,8 +773,8 @@ export default function POSSalesPage() {
                       ))}
                     </div>
 
-                    {!isAdminMode ? (
-                      <p className="text-xs text-muted-foreground">Solo admin puede editar precios manualmente.</p>
+                    {!canCompleteSale ? (
+                      <p className="text-xs text-muted-foreground">Solo encargado o admin pueden editar precios y confirmar venta.</p>
                     ) : null}
 
                     <div className="border-t border-border pt-3">
@@ -587,13 +843,57 @@ export default function POSSalesPage() {
                       Imprimir factura al completar venta
                     </label>
 
-                    <Button className="w-full" size="lg" onClick={handleCompleteSale} disabled={selectedPayment === 'credit' && !selectedCustomer}>Completar venta</Button>
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleCompleteSale}
+                      disabled={(selectedPayment === 'credit' && !selectedCustomer) || (!canCompleteSale && !canQueueSale)}
+                    >
+                      {canCompleteSale ? 'Completar venta' : canQueueSale ? 'Enviar venta a cola' : 'Sin permiso para vender'}
+                    </Button>
                   </>
                 )}
               </CardContent>
             </Card>
           </aside>
         </div>
+
+        {canCompleteSale ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Ventas en cola (solo lectura)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {queuedPending.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay ventas pendientes de aprobación.</p>
+              ) : (
+                queuedPending.map((queuedSale) => (
+                  <div key={queuedSale.id} className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{queuedSale.id}</p>
+                        <p className="text-xs text-muted-foreground">Creada por {queuedSale.created_by_name} ({queuedSale.created_by_role})</p>
+                        <p className="text-xs text-muted-foreground">Cliente: {queuedSale.customer_name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-primary">Bs {queuedSale.total_amount_bob.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">{queuedSale.lines.length} líneas</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => handleApproveQueuedSale(queuedSale.id)}>
+                        <CheckCircle2 className="mr-2 h-4 w-4" /> Aprobar
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleRejectQueuedSale(queuedSale.id)}>
+                        Rechazar
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
 
       <Dialog open={isKitDialogOpen} onOpenChange={setIsKitDialogOpen}>
@@ -610,6 +910,9 @@ export default function POSSalesPage() {
               <Button variant={kitDiscountMode === 'automatic' ? 'default' : 'outline'} onClick={() => setKitDiscountMode('automatic')}>
                 Modo automático
               </Button>
+              <Button variant="outline" onClick={addKitDraftLine} disabled={!canConfigureKit}>
+                <Plus className="mr-2 h-4 w-4" /> Agregar línea
+              </Button>
             </div>
 
             {kitDiscountMode === 'automatic' ? (
@@ -625,10 +928,10 @@ export default function POSSalesPage() {
                     max={100}
                     value={kitDiscountPercent}
                     onChange={(event) => {
-                      if (!isAdminMode) return
+                      if (!canConfigureKit) return
                       applyAutomaticDiscount(Number(event.target.value || 0))
                     }}
-                    disabled={!isAdminMode}
+                    disabled={!canConfigureKit}
                   />
                   <input
                     type="range"
@@ -636,18 +939,18 @@ export default function POSSalesPage() {
                     max={100}
                     value={kitDiscountPercent}
                     onChange={(event) => {
-                      if (!isAdminMode) return
+                      if (!canConfigureKit) return
                       applyAutomaticDiscount(Number(event.target.value))
                     }}
                     className="w-full"
-                    disabled={!isAdminMode}
+                    disabled={!canConfigureKit}
                   />
                 </CardContent>
               </Card>
             ) : null}
 
-            {!isAdminMode ? (
-              <p className="text-xs text-foreground/80">Modo admin inactivo: los precios se muestran en solo lectura.</p>
+            {!canConfigureKit ? (
+              <p className="text-xs text-foreground/80">Solo encargado o admin pueden aumentar/quitar productos del kit en POS.</p>
             ) : null}
 
             <div className="space-y-2">
@@ -657,6 +960,7 @@ export default function POSSalesPage() {
                     <Select
                       value={item.partId}
                       onValueChange={(value) => {
+                        if (!canConfigureKit) return
                         const part = productsById.get(value)
                         if (!part) return
                         setKitDraftItems((prev) =>
@@ -689,7 +993,9 @@ export default function POSSalesPage() {
                       type="number"
                       min={1}
                       value={item.quantity}
+                      disabled={!canConfigureKit}
                       onChange={(event) => {
+                        if (!canConfigureKit) return
                         const qty = Number(event.target.value || 1)
                         setKitDraftItems((prev) =>
                           prev.map((line) => (line.id === item.id ? { ...line, quantity: qty } : line))
@@ -703,7 +1009,7 @@ export default function POSSalesPage() {
                     </div>
                   </div>
                   <div className="md:col-span-3">
-                    {isAdminMode ? (
+                    {canConfigureKit ? (
                       <Input
                         type="number"
                         step="0.01"
@@ -726,6 +1032,11 @@ export default function POSSalesPage() {
                       </div>
                     )}
                   </div>
+                  <div className="md:col-span-12 flex justify-end">
+                    <Button size="sm" variant="destructive" onClick={() => removeKitDraftLine(item.id)} disabled={!canConfigureKit || kitDraftItems.length <= 1}>
+                      <Trash2 className="mr-2 h-4 w-4" /> Quitar línea
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -738,6 +1049,99 @@ export default function POSSalesPage() {
             <div className="flex justify-end gap-2">
               <Button variant="destructive" onClick={() => setIsKitDialogOpen(false)}>Cancelar</Button>
               <Button onClick={addKitToCart}><Boxes className="mr-2 h-4 w-4" /> Agregar kit al carrito</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isTemporaryKitOpen} onOpenChange={setIsTemporaryKitOpen}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Crear kit temporal (solo para esta venta)</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Nombre del kit temporal</p>
+                <Input value={temporaryKitName} onChange={(event) => setTemporaryKitName(event.target.value)} placeholder="Ej. Combo express de frenos" disabled={!canConfigureKit} />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Categoría</p>
+                <Input value={temporaryKitCategory} onChange={(event) => setTemporaryKitCategory(event.target.value)} placeholder="Temporal" disabled={!canConfigureKit} />
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-border/70 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Productos del kit temporal</p>
+                <Button variant="outline" size="sm" onClick={addTemporaryKitItem} disabled={!canConfigureKit}>
+                  <Plus className="mr-2 h-4 w-4" /> Agregar
+                </Button>
+              </div>
+
+              {temporaryKitItems.map((item) => (
+                <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/60 p-2">
+                  <div className="md:col-span-5">
+                    <Select
+                      value={item.partId}
+                      onValueChange={(value) => {
+                        const part = productsById.get(value)
+                        if (!part) return
+                        updateTemporaryKitItem(item.id, {
+                          partId: part.id,
+                          name: part.name,
+                          baseKitPrice: part.kit_price || part.price,
+                          salePrice: part.kit_price || part.price,
+                        })
+                      }}
+                      disabled={!canConfigureKit}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {parts.map((part) => (
+                          <SelectItem key={part.id} value={part.id}>{part.name} ({part.code})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      disabled={!canConfigureKit}
+                      onChange={(event) => updateTemporaryKitItem(item.id, { quantity: Number(event.target.value || 1) })}
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <Input
+                      type="number"
+                      min={0.01}
+                      step="0.01"
+                      value={item.salePrice}
+                      disabled={!canConfigureKit}
+                      onChange={(event) => updateTemporaryKitItem(item.id, { salePrice: Number(event.target.value || 0) })}
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex items-center justify-end">
+                    <Button size="sm" variant="destructive" onClick={() => removeTemporaryKitItem(item.id)} disabled={!canConfigureKit || temporaryKitItems.length <= 1}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {!canConfigureKit ? (
+              <p className="text-xs text-muted-foreground">Solo encargado o admin pueden crear kits temporales.</p>
+            ) : null}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="destructive" onClick={() => setIsTemporaryKitOpen(false)}>Cancelar</Button>
+              <Button onClick={createTemporaryKitForCart} disabled={!canConfigureKit || !temporaryKitName.trim() || temporaryKitItems.length === 0}>
+                Crear y agregar al carrito
+              </Button>
             </div>
           </div>
         </DialogContent>

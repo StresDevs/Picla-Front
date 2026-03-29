@@ -96,7 +96,7 @@ export default function InventoryTransfersPage() {
       to_branch_id: toBranch,
       quantity: qty,
       user_name: 'Usuario Demo',
-      notes: notes || 'Envio unitario',
+      notes: notes || 'Traspaso unitario',
     })
 
     setTransfers(getTransfers())
@@ -126,7 +126,7 @@ export default function InventoryTransfersPage() {
         to_branch_id: toBranch,
         quantity: row.quantity,
         user_name: 'Usuario Demo',
-        notes: notes || 'Envio masivo',
+        notes: notes || 'Traspaso masivo',
       }))
     )
 

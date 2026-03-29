@@ -16,11 +16,13 @@ export interface User {
   full_name: string
   password_hash: string
   branch_id: string
-  role: 'admin' | 'manager' | 'employee'
+  role: 'admin' | 'manager' | 'employee' | 'read_only'
   is_active: boolean
   created_at: string
   updated_at: string
 }
+
+export type ProductTrackingMode = 'none' | 'serial' | 'lot'
 
 export interface Customer {
   id: string
@@ -44,6 +46,9 @@ export interface Part {
   image_url: string
   branch_id: string
   kit_price?: number
+  quotation_min_price?: number
+  quotation_max_price?: number
+  tracking_mode?: ProductTrackingMode
   price_tiers?: ProductPriceTier[]
   created_at: string
   updated_at: string
@@ -67,6 +72,7 @@ export interface ProductKit {
   code: string
   name: string
   description: string
+  category?: string
   branch_id: string
   items: ProductKitItem[]
   created_at: string

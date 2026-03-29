@@ -66,7 +66,7 @@ export default function InventoryHistoryPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="envio">Envio</SelectItem>
+                  <SelectItem value="traspaso">Traspaso</SelectItem>
                   <SelectItem value="anulacion">Anulacion</SelectItem>
                   <SelectItem value="devolucion">Devolucion</SelectItem>
                   <SelectItem value="reposicion">Reposicion</SelectItem>
@@ -111,11 +111,11 @@ export default function InventoryHistoryPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Producto</label>
+              <label className="text-sm font-medium">Item</label>
               <Select value={productFilter} onValueChange={setProductFilter}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="all">Todos los items</SelectItem>
                   {options.productNames.map((productName) => (
                     <SelectItem key={productName} value={productName}>{productName}</SelectItem>
                   ))}
@@ -139,7 +139,7 @@ export default function InventoryHistoryPage() {
                   render: (v) => {
                     const value = String(v)
                     const className =
-                      value === 'envio'
+                      value === 'traspaso'
                         ? 'bg-emerald-600 text-white'
                         : value === 'anulacion'
                         ? 'bg-rose-600 text-white'

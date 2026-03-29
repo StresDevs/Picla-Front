@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/common/page-header'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { mockCategories, mockBranches } from '@/lib/mock/data'
-import { getEffectiveProductPrice, getProducts, normalizePriceTiers, saveProducts } from '@/lib/mock/runtime-store'
+import { addInventoryCrudLog, getActiveUserContext, getEffectiveProductPrice, getProducts, normalizePriceTiers, saveProducts } from '@/lib/mock/runtime-store'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
 import { Boxes, Plus, Search, SlidersHorizontal, Tags, Trash2 } from 'lucide-react'
 import type { Part, ProductPriceTier } from '@/types/database'
@@ -29,6 +29,9 @@ interface ProductFormData {
   cost: string
   price: string
   kitPrice: string
+  quotationMinPrice: string
+  quotationMaxPrice: string
+  trackingMode: 'none' | 'serial' | 'lot'
   branchId: string
   tiers: TierFormData[]
 }
@@ -47,6 +50,9 @@ const emptyProductForm: ProductFormData = {
   cost: '',
   price: '',
   kitPrice: '',
+  quotationMinPrice: '',
+  quotationMaxPrice: '',
+  trackingMode: 'none',
   branchId: 'branch-1',
   tiers: [createTier('1', '')],
 }
@@ -108,6 +114,14 @@ export default function InventoryProductsPage() {
       return
     }
 
+    const referencePrice = Number(productForm.price)
+    const minQuotationPrice = Number(productForm.quotationMinPrice || Number((referencePrice * 0.9).toFixed(2)))
+    const maxQuotationPrice = Number(productForm.quotationMaxPrice || Number((referencePrice * 1.2).toFixed(2)))
+
+    if (minQuotationPrice <= 0 || maxQuotationPrice < minQuotationPrice) {
+      return
+    }
+
     const additionalTiers: ProductPriceTier[] = productForm.tiers
       .filter((tier) => Number(tier.minQty) > 1 && Number(tier.price) > 0)
       .map((tier) => ({
@@ -136,6 +150,9 @@ export default function InventoryProductsPage() {
       cost: Number(productForm.cost),
       price: Number(productForm.price),
       kit_price: Number(productForm.kitPrice),
+      quotation_min_price: Number(minQuotationPrice.toFixed(2)),
+      quotation_max_price: Number(maxQuotationPrice.toFixed(2)),
+      tracking_mode: productForm.trackingMode,
       price_tiers: mergedTiers,
       branch_id: productForm.branchId,
       created_at: now,
@@ -145,6 +162,15 @@ export default function InventoryProductsPage() {
     const next = [newProduct, ...parts]
     setParts(next)
     saveProducts(next)
+    addInventoryCrudLog({
+      entity_type: 'product',
+      action: 'create',
+      entity_id: newProduct.id,
+      entity_name: newProduct.name,
+      branch_id: newProduct.branch_id,
+      user_name: getActiveUserContext().user_name,
+      details: `Rango cotización Bs ${newProduct.quotation_min_price?.toFixed(2)} - Bs ${newProduct.quotation_max_price?.toFixed(2)} | Tracking ${newProduct.tracking_mode}`,
+    })
     setProductForm({ ...emptyProductForm, tiers: [createTier('1', '')] })
     setIsCreateOpen(false)
   }
@@ -156,6 +182,8 @@ export default function InventoryProductsPage() {
     !!productForm.cost &&
     !!productForm.price &&
     !!productForm.kitPrice &&
+    (!productForm.quotationMinPrice || Number(productForm.quotationMinPrice) > 0) &&
+    (!productForm.quotationMaxPrice || Number(productForm.quotationMaxPrice) >= Number(productForm.quotationMinPrice || 0)) &&
     !!productForm.branchId
 
   return (
@@ -231,6 +259,27 @@ export default function InventoryProductsPage() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">Precio de kit</label>
                     <Input type="number" step="0.01" value={productForm.kitPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, kitPrice: event.target.value }))} placeholder="0.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Precio mínimo cotización</label>
+                    <Input type="number" step="0.01" value={productForm.quotationMinPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, quotationMinPrice: event.target.value }))} placeholder="Opcional (auto 90%)" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Precio máximo cotización</label>
+                    <Input type="number" step="0.01" value={productForm.quotationMaxPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, quotationMaxPrice: event.target.value }))} placeholder="Opcional (auto 120%)" />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-medium text-foreground">Tracking unitario</label>
+                    <Select value={productForm.trackingMode} onValueChange={(value: 'none' | 'serial' | 'lot') => setProductForm((prev) => ({ ...prev, trackingMode: value }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sin tracking unitario</SelectItem>
+                        <SelectItem value="serial">Por número de serie</SelectItem>
+                        <SelectItem value="lot">Por lote</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
@@ -368,6 +417,12 @@ export default function InventoryProductsPage() {
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Precio kit: <span className="font-semibold text-foreground">${(part.kit_price || part.price).toFixed(2)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Cotización: <span className="font-semibold text-foreground">Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Tracking: <span className="font-semibold text-foreground">{part.tracking_mode || 'none'}</span>
                   </div>
                   <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-[11px]">
                     {tiers.length <= 1 ? (

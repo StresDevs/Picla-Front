@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { QuotationsSubnav } from '@/components/modules/quotations/quotations-subnav'
@@ -10,11 +10,14 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
+  ACTIVE_ROLE_EVENT,
   cancelQuotation,
   convertQuotationToSale,
+  getActiveUserContext,
   getAppSettings,
   isQuotationActive,
   getQuotations,
+  type AppUserRole,
   type QuotationRecord,
 } from '@/lib/mock/runtime-store'
 import { printMockInvoice } from '@/lib/mock/invoice'
@@ -34,6 +37,25 @@ export default function QuotationsHistoryPage() {
   const [exchangeRate, setExchangeRate] = useState(() => getAppSettings().usd_to_bob_rate)
   const [printInvoice, setPrintInvoice] = useState(true)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
+  const [activeUserName, setActiveUserName] = useState(() => getActiveUserContext().user_name)
+
+  useEffect(() => {
+    const syncContext = () => {
+      const context = getActiveUserContext()
+      setActiveRole(context.role)
+      setActiveUserName(context.user_name)
+    }
+
+    syncContext()
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
+    window.addEventListener('focus', syncContext)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, syncContext)
+      window.removeEventListener('focus', syncContext)
+    }
+  }, [])
 
   const totals = useMemo(() => {
     const active = quotations.filter((item) => isQuotationActive(item)).length
@@ -65,6 +87,10 @@ export default function QuotationsHistoryPage() {
   }
 
   const openConvertDialog = (quotation: QuotationRecord) => {
+    if (activeRole !== 'admin') {
+      setFeedback('Solo administradores pueden convertir una cotización en venta.')
+      return
+    }
     setSelectedQuotation(quotation)
     setIsDialogOpen(true)
     setFeedback(null)
@@ -84,7 +110,8 @@ export default function QuotationsHistoryPage() {
       sale_currency: paymentCurrency,
       exchange_rate: safeExchangeRate,
       paid_amount: amountToPay,
-      user_name: 'Usuario Demo',
+      user_name: activeUserName,
+      user_role: activeRole,
     })
 
     if (!result.ok) {
@@ -97,7 +124,7 @@ export default function QuotationsHistoryPage() {
         invoiceNumber: result.sale.id,
         customerName: selectedQuotation.customer_name,
         branchName: selectedQuotation.branch_name,
-        cashierName: 'Usuario Demo',
+        cashierName: activeUserName,
         paymentMethod: PAYMENT_METHODS.find((item) => item.id === paymentMethod)?.label || paymentMethod,
         currency: paymentCurrency,
         total: amountToPay,
@@ -199,7 +226,7 @@ export default function QuotationsHistoryPage() {
                     <Button
                       size="sm"
                       onClick={() => openConvertDialog(quotation)}
-                      disabled={!isActiveAndValid}
+                      disabled={!isActiveAndValid || activeRole !== 'admin'}
                     >
                       Convertir en venta
                     </Button>
@@ -209,6 +236,9 @@ export default function QuotationsHistoryPage() {
               })
             )}
             {feedback ? <p className="text-xs text-primary">{feedback}</p> : null}
+            {activeRole !== 'admin' ? (
+              <p className="text-xs text-muted-foreground">Conversión a venta bloqueada: requiere rol admin.</p>
+            ) : null}
           </CardContent>
         </Card>
       </div>

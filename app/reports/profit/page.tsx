@@ -7,6 +7,8 @@ import { ReportsSubnav } from '@/components/modules/reports/reports-subnav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { mockBranches } from '@/lib/mock/data'
+import { getConfirmedPayrollTotal } from '@/lib/mock/runtime-store'
 
 interface ProfitRecord {
   date: string
@@ -39,11 +41,17 @@ export default function ReportsProfitPage() {
   const [singleDate, setSingleDate] = useState('2026-03-24')
   const [startDate, setStartDate] = useState('2026-03-21')
   const [endDate, setEndDate] = useState('2026-03-24')
+  const [branchFilter, setBranchFilter] = useState('all')
 
   const filteredRecords = useMemo(() => {
+    const selectedBranchName =
+      branchFilter === 'all'
+        ? null
+        : mockBranches.find((branch) => branch.id === branchFilter)?.name || null
+
     if (filterMode === 'day') {
       if (!singleDate) return []
-      return profitRecords.filter((item) => item.date === singleDate)
+      return profitRecords.filter((item) => item.date === singleDate && (!selectedBranchName || item.branch === selectedBranchName))
     }
 
     if (!startDate && !endDate) return profitRecords
@@ -53,14 +61,30 @@ export default function ReportsProfitPage() {
       const min = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null
       const max = endDate ? new Date(`${endDate}T23:59:59.999`).getTime() : null
 
-      return (!min || current >= min) && (!max || current <= max)
+      const byDate = (!min || current >= min) && (!max || current <= max)
+      const byBranch = !selectedBranchName || item.branch === selectedBranchName
+      return byDate && byBranch
     })
-  }, [filterMode, singleDate, startDate, endDate])
+  }, [filterMode, singleDate, startDate, endDate, branchFilter])
 
   const totalProfit = useMemo(
     () => filteredRecords.reduce((acc, item) => acc + item.profit, 0),
     [filteredRecords]
   )
+
+  const payrollExpense = useMemo(() => {
+    const dateParams =
+      filterMode === 'day'
+        ? { startDate: singleDate, endDate: singleDate }
+        : { startDate, endDate }
+
+    return getConfirmedPayrollTotal({
+      ...dateParams,
+      branchId: branchFilter === 'all' ? undefined : branchFilter,
+    })
+  }, [filterMode, singleDate, startDate, endDate, branchFilter])
+
+  const netProfit = Math.max(totalProfit - payrollExpense, 0)
 
   const branchProfit = useMemo(() => {
     const grouped = new Map<string, number>()
@@ -95,7 +119,7 @@ export default function ReportsProfitPage() {
           <CardHeader>
             <CardTitle className="text-zinc-100">Filtros de fecha</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="space-y-2">
               <label className="text-sm font-medium text-zinc-200">Modo</label>
               <Select value={filterMode} onValueChange={(value: 'day' | 'range') => setFilterMode(value)}>
@@ -126,6 +150,19 @@ export default function ReportsProfitPage() {
             )}
 
             <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-200">Sucursal</label>
+              <Select value={branchFilter} onValueChange={setBranchFilter}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {mockBranches.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium text-zinc-200">Registros</label>
               <div className="h-9 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200">
                 {filteredRecords.length}
@@ -139,6 +176,18 @@ export default function ReportsProfitPage() {
             <CardContent className="pt-6">
               <p className="text-zinc-400 text-sm">Ganancia global filtrada</p>
               <p className="text-zinc-100 text-3xl font-semibold mt-2">{formatBs(totalProfit)}</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-zinc-950/70">
+            <CardContent className="pt-6">
+              <p className="text-zinc-400 text-sm">Sueldos confirmados</p>
+              <p className="text-rose-300 text-3xl font-semibold mt-2">- {formatBs(payrollExpense)}</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-zinc-950/70">
+            <CardContent className="pt-6">
+              <p className="text-zinc-400 text-sm">Ganancia neta (después sueldos)</p>
+              <p className="text-emerald-300 text-3xl font-semibold mt-2">{formatBs(netProfit)}</p>
             </CardContent>
           </Card>
           <Card className="bg-zinc-950/70">

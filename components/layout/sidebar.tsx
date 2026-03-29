@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   BarChart3,
   ShoppingCart,
@@ -22,8 +22,13 @@ import { Button } from '@/components/ui/button'
 import { useEffect, useMemo, useState } from 'react'
 import { ThemeSwitcher } from './theme-switcher'
 import { signOutEmployee } from '@/lib/supabase/auth'
-import { Switch } from '@/components/ui/switch'
-import { getAdminMode, getReadOnlyMode, setAdminMode, setReadOnlyMode } from '@/lib/mock/runtime-store'
+import {
+  ACTIVE_ROLE_EVENT,
+  getActiveUserContext,
+  getActiveUserRole,
+  setActiveUserRole,
+  type AppUserRole,
+} from '@/lib/mock/runtime-store'
 
 interface MenuItem {
   label: string
@@ -63,6 +68,7 @@ const menuItems: MenuItem[] = [
     icon: ShoppingCart,
     subItems: [
       { label: 'Ventas', href: '/pos/sales' },
+      { label: 'Historial de Ventas', href: '/pos/sales-history' },
       { label: 'Anulación Ventas', href: '/pos/void-sales' },
       { label: 'Venta Adelantada', href: '/pos/advance-sales' },
       { label: 'Por Entregar', href: '/pos/deliveries' },
@@ -92,6 +98,7 @@ const menuItems: MenuItem[] = [
       { label: 'Dispositivos', href: '/management/devices' },
       { label: 'Clientes', href: '/management/customers' },
       { label: 'Sucursales', href: '/management/branches' },
+      { label: 'Planilla de Sueldos', href: '/management/payroll' },
     ],
   },
   {
@@ -130,36 +137,76 @@ const menuItems: MenuItem[] = [
 ]
 
 export function Sidebar() {
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
-  const [isAdminMode, setIsAdminMode] = useState(false)
-  const [isReadOnlyMode, setIsReadOnlyMode] = useState(false)
+  const [activeRole, setActiveRole] = useState<AppUserRole>('employee')
+  const [activeUserName, setActiveUserName] = useState('Usuario Demo')
   const pathname = usePathname()
 
   useEffect(() => {
-    setIsAdminMode(getAdminMode())
-    setIsReadOnlyMode(getReadOnlyMode())
+    const syncRole = () => {
+      const context = getActiveUserContext()
+      setActiveRole(context.role)
+      setActiveUserName(context.user_name)
+    }
+
+    syncRole()
+    const onRoleChanged = () => syncRole()
+    window.addEventListener(ACTIVE_ROLE_EVENT, onRoleChanged)
+    window.addEventListener('focus', syncRole)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, onRoleChanged)
+      window.removeEventListener('focus', syncRole)
+    }
   }, [])
 
   const visibleMenuItems = useMemo(() => {
-    if (!isReadOnlyMode) return menuItems
+    if (activeRole === 'read_only') {
+      return [
+        {
+          label: 'Dashboard',
+          href: '/dashboard',
+          icon: BarChart3,
+        },
+        {
+          label: 'Punto de Venta',
+          href: '/pos/sales',
+          icon: ShoppingCart,
+          subItems: [
+            { label: 'Ventas (Cola)', href: '/pos/sales' },
+            { label: 'Historial de Ventas', href: '/pos/sales-history' },
+          ],
+        },
+        {
+          label: 'Inventario',
+          href: '/inventory/control',
+          icon: Package,
+          subItems: [
+            { label: 'Control', href: '/inventory/control' },
+            { label: 'Historial de traspasos', href: '/inventory/history' },
+            { label: 'Historial inventario', href: '/inventory/stock-history' },
+            { label: 'Salidas', href: '/inventory/exits' },
+          ],
+        },
+      ]
+    }
 
-    return [
-      {
-        label: 'Inventario',
-        href: '/inventory/control',
-        icon: Package,
-        subItems: [
-          { label: 'Control', href: '/inventory/control' },
-          { label: 'Historial de traspasos', href: '/inventory/history' },
-          { label: 'Historial inventario', href: '/inventory/stock-history' },
-        ],
-      },
-    ]
-  }, [isReadOnlyMode])
+    return menuItems.map((item) => {
+      if (item.label !== 'Gestión') return item
+
+      return {
+        ...item,
+        subItems: (item.subItems || []).filter((subItem) =>
+          subItem.href === '/management/payroll' ? activeRole === 'admin' : true,
+        ),
+      }
+    })
+  }, [activeRole])
 
   useEffect(() => {
-    const sectionToExpand = menuItems
+    const sectionToExpand = visibleMenuItems
       .filter(item => item.subItems?.length)
       .find(item =>
         item.subItems?.some(subItem => pathname === subItem.href || pathname.startsWith(`${subItem.href}/`))
@@ -170,7 +217,7 @@ export function Sidebar() {
     setExpandedItems(prev =>
       prev.includes(sectionToExpand.label) ? prev : [...prev, sectionToExpand.label]
     )
-  }, [pathname])
+  }, [pathname, visibleMenuItems])
 
   const toggleExpanded = (label: string) => {
     setExpandedItems(prev =>
@@ -186,14 +233,9 @@ export function Sidebar() {
     router.replace('/login')
   }
 
-  const toggleAdminMode = (enabled: boolean) => {
-    setIsAdminMode(enabled)
-    setAdminMode(enabled)
-  }
-
-  const toggleReadOnlyMode = (enabled: boolean) => {
-    setIsReadOnlyMode(enabled)
-    setReadOnlyMode(enabled)
+  const switchRole = (role: AppUserRole) => {
+    setActiveUserRole(role)
+    setActiveRole(getActiveUserRole())
   }
 
   return (
@@ -312,50 +354,24 @@ export function Sidebar() {
           {/* Bottom Section */}
           <div className="space-y-2 border-t border-sidebar-border/80 pt-4 mt-4">
             <div className="space-y-2 rounded-xl border border-sidebar-border/70 px-3 py-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-sidebar-foreground">Modo Admin</p>
-                <Switch
-                  checked={isAdminMode}
-                  onCheckedChange={(checked) => toggleAdminMode(checked)}
-                />
-              </div>
               <div>
-                <p className={`text-xs ${isAdminMode ? 'text-emerald-300' : 'text-sidebar-foreground/70'}`}>
-                  Estado: {isAdminMode ? 'Activo' : 'Inactivo'}
-                </p>
+                <p className="text-sm font-semibold text-sidebar-foreground">Rol de prueba (mock)</p>
+                <p className="text-xs text-sidebar-foreground/70 mt-1">Usuario activo: {activeUserName}</p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                className="w-full"
-                variant={isAdminMode ? 'outline' : 'default'}
-                onClick={() => toggleAdminMode(!isAdminMode)}
-              >
-                {isAdminMode ? 'Desactivar modo admin' : 'Activar modo admin'}
-              </Button>
-            </div>
-            <div className="space-y-2 rounded-xl border border-sidebar-border/70 px-3 py-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-sidebar-foreground">Modo solo lectura</p>
-                <Switch
-                  checked={isReadOnlyMode}
-                  onCheckedChange={(checked) => toggleReadOnlyMode(checked)}
-                />
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Button size="sm" variant={activeRole === 'admin' ? 'default' : 'outline'} onClick={() => switchRole('admin')}>
+                  Admin
+                </Button>
+                <Button size="sm" variant={activeRole === 'manager' ? 'default' : 'outline'} onClick={() => switchRole('manager')}>
+                  Encargado
+                </Button>
+                <Button size="sm" variant={activeRole === 'employee' ? 'default' : 'outline'} onClick={() => switchRole('employee')}>
+                  Empleado
+                </Button>
+                <Button size="sm" variant={activeRole === 'read_only' ? 'default' : 'outline'} onClick={() => switchRole('read_only')}>
+                  Solo lectura
+                </Button>
               </div>
-              <div>
-                <p className={`text-xs ${isReadOnlyMode ? 'text-emerald-300' : 'text-sidebar-foreground/70'}`}>
-                  Estado: {isReadOnlyMode ? 'Activo (solo inventario)' : 'Inactivo'}
-                </p>
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                className="w-full"
-                variant={isReadOnlyMode ? 'outline' : 'default'}
-                onClick={() => toggleReadOnlyMode(!isReadOnlyMode)}
-              >
-                {isReadOnlyMode ? 'Desactivar solo lectura' : 'Activar solo lectura'}
-              </Button>
             </div>
             <ThemeSwitcher />
             <Button

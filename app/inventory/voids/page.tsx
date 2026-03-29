@@ -157,7 +157,7 @@ export default function InventoryVoidsPage() {
                   {mockBranches.find((branch) => branch.id === item.to_branch_id)?.name ?? item.to_branch_id}
                 </p>
                 <p className="text-muted-foreground">Cantidad: {item.quantity} | Categoria: {item.category}</p>
-                <p className="text-muted-foreground">Motivo envio: {item.notes || 'Sin detalle'}</p>
+                <p className="text-muted-foreground">Motivo traspaso: {item.notes || 'Sin detalle'}</p>
                 {item.resolution_reason ? (
                   <p className="text-foreground">Motivo accion: {item.resolution_reason}</p>
                 ) : null}

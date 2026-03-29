@@ -2,7 +2,7 @@ import { mockBranches, mockCustomers, mockProducts } from '@/lib/mock/data'
 import type { Part, ProductKit, ProductKitItem, ProductPriceTier } from '@/types/database'
 
 export type TransferActionType = 'anulacion' | 'devolucion' | 'reposicion'
-export type TransferEventType = 'envio' | TransferActionType
+export type TransferEventType = 'traspaso' | 'envio' | TransferActionType
 export type TransferStatus = 'completed' | 'anulled' | 'returned' | 'replenished'
 
 export interface ProductTransferRecord {
@@ -61,6 +61,7 @@ export interface SaleRecord {
   id: string
   branch_id: string
   user_name: string
+  user_role?: AppUserRole
   total_amount: number
   payment_method: 'cash' | 'qr' | 'credit'
   created_at: string
@@ -131,6 +132,12 @@ export interface AppSettingsRecord {
 
 export type AppUserRole = 'admin' | 'manager' | 'employee' | 'read_only'
 
+export interface ActiveUserContext {
+  role: AppUserRole
+  user_name: string
+  branch_id: string
+}
+
 export interface UserRecord {
   id: string
   email: string
@@ -159,6 +166,99 @@ export interface DeviceSessionRecord {
   status: 'active' | 'closed'
 }
 
+export interface QueuedSaleLine {
+  id: string
+  type: 'product' | 'kit'
+  name: string
+  quantity: number
+  unit_price: number
+  total_price: number
+}
+
+export interface QueuedSaleRecord {
+  id: string
+  branch_id: string
+  created_by_name: string
+  created_by_role: AppUserRole
+  payment_method: 'cash' | 'qr' | 'credit'
+  sale_currency: 'BOB' | 'USD'
+  exchange_rate: number
+  total_amount_bob: number
+  total_amount_usd: number
+  customer_name: string
+  lines: QueuedSaleLine[]
+  status: 'queued' | 'approved' | 'rejected'
+  created_at: string
+  approved_at?: string
+  approved_by?: string
+  approved_sale_id?: string
+}
+
+export interface InventoryExitRecord {
+  id: string
+  branch_id: string
+  branch_name: string
+  product_id: string
+  product_name: string
+  category: string
+  quantity: number
+  reason: string
+  source_type: 'adjustment_error' | 'damage' | 'internal_use' | 'other'
+  source_reference?: string
+  user_name: string
+  created_at: string
+}
+
+export interface InventoryCrudLogRecord {
+  id: string
+  entity_type: 'product' | 'kit' | 'transfer' | 'inventory_exit' | 'quotation' | 'sale'
+  action: 'create' | 'update' | 'delete'
+  entity_id: string
+  entity_name: string
+  branch_id?: string
+  user_name: string
+  details?: string
+  created_at: string
+}
+
+export interface TemporaryKitAuditRecord {
+  id: string
+  name: string
+  category: string
+  branch_id: string
+  created_by_name: string
+  created_by_role: AppUserRole
+  items_count: number
+  estimated_total: number
+  related_sale_id?: string
+  created_at: string
+}
+
+export interface PayrollConfigRecord {
+  id: string
+  role: AppUserRole
+  branch_id: string
+  amount: number
+  periodicity: 'monthly' | 'biweekly' | 'weekly'
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PayrollPaymentRecord {
+  id: string
+  user_id: string
+  user_name: string
+  role: AppUserRole
+  branch_id: string
+  amount: number
+  period_label: string
+  status: 'pending' | 'confirmed'
+  created_at: string
+  confirmed_at?: string
+  confirmed_by?: string
+}
+
 interface CustomerRecord {
   id: string
   full_name: string
@@ -185,6 +285,7 @@ interface NewKitInput {
   code: string
   name: string
   description: string
+  category?: string
   branch_id: string
   items: ProductKitItem[]
 }
@@ -205,10 +306,20 @@ const KEYS = {
   inventorySnapshots: 'mock_inventory_snapshots_v1',
   readOnlyMode: 'mock_read_only_mode_v1',
   deviceSessions: 'mock_device_sessions_v1',
+  activeRole: 'mock_active_role_v1',
+  activeUserName: 'mock_active_user_name_v1',
+  activeBranchId: 'mock_active_branch_id_v1',
+  queuedSales: 'mock_queued_sales_v1',
+  inventoryExits: 'mock_inventory_exits_v1',
+  inventoryCrudLogs: 'mock_inventory_crud_logs_v1',
+  temporaryKitsAudit: 'mock_temporary_kits_audit_v1',
+  payrollConfigs: 'mock_payroll_configs_v1',
+  payrollPayments: 'mock_payroll_payments_v1',
 }
 
 export const ADMIN_MODE_EVENT = 'mock-admin-mode-changed'
 export const READ_ONLY_MODE_EVENT = 'mock-read-only-mode-changed'
+export const ACTIVE_ROLE_EVENT = 'mock-active-role-changed'
 
 function hasWindow() {
   return typeof window !== 'undefined'
@@ -237,17 +348,30 @@ function withDefaultPriceTiers(products: Part[]): Part[] {
     const kitPrice = typeof product.kit_price === 'number' && product.kit_price > 0
       ? Number(product.kit_price.toFixed(2))
       : Number((product.price * 0.85).toFixed(2))
+    const quotationMin = typeof product.quotation_min_price === 'number' && product.quotation_min_price > 0
+      ? Number(product.quotation_min_price.toFixed(2))
+      : Number((product.price * 0.9).toFixed(2))
+    const quotationMax = typeof product.quotation_max_price === 'number' && product.quotation_max_price >= quotationMin
+      ? Number(product.quotation_max_price.toFixed(2))
+      : Number((product.price * 1.2).toFixed(2))
+    const trackingMode = product.tracking_mode || 'none'
 
     if (tiers.length > 0) {
       return {
         ...product,
         kit_price: kitPrice,
+        quotation_min_price: quotationMin,
+        quotation_max_price: quotationMax,
+        tracking_mode: trackingMode,
       }
     }
 
     return {
       ...product,
       kit_price: kitPrice,
+      quotation_min_price: quotationMin,
+      quotation_max_price: quotationMax,
+      tracking_mode: trackingMode,
       price_tiers: [
         {
           id: `tier-${product.id}-1`,
@@ -332,6 +456,7 @@ function getSeedKits(): ProductKit[] {
       code: 'KIT-ENC-001',
       name: 'Kit de Encendido',
       description: '6 bujias + cables con precio especial de paquete',
+      category: 'Mantenimiento',
       branch_id: 'branch-1',
       items: [
         {
@@ -358,6 +483,7 @@ function getSeedKits(): ProductKit[] {
       code: 'KIT-MNT-001',
       name: 'Kit Mantenimiento Basico',
       description: 'Cambio de aceite y filtro con descuento',
+      category: 'Servicio',
       branch_id: 'branch-1',
       items: [
         {
@@ -546,16 +672,16 @@ function getSeedTransferHistory(transfers: ProductTransferRecord[]): TransferHis
 
   for (const transfer of transfers) {
     history.push({
-      id: `evt-envio-${transfer.id}`,
+      id: `evt-traspaso-${transfer.id}`,
       transfer_id: transfer.id,
-      event_type: 'envio',
+      event_type: 'traspaso',
       part_id: transfer.part_id,
       part_name: transfer.part_name,
       category: transfer.category,
       from_branch_id: transfer.from_branch_id,
       to_branch_id: transfer.to_branch_id,
       quantity: transfer.quantity,
-      reason: transfer.notes || 'Envio registrado',
+      reason: transfer.notes || 'Traspaso registrado',
       user_name: transfer.user_name,
       event_date: transfer.transfer_date,
     })
@@ -629,6 +755,147 @@ function seedDeviceSessionsIfNeeded() {
   writeJSON(KEYS.deviceSessions, getSeedDeviceSessions())
 }
 
+function normalizeTransferEventType(value: TransferEventType) {
+  return value === 'envio' ? 'traspaso' : value
+}
+
+function seedQueuedSalesIfNeeded() {
+  const existing = readJSON<QueuedSaleRecord[] | null>(KEYS.queuedSales, null)
+  if (existing) return
+  writeJSON(KEYS.queuedSales, [])
+}
+
+function getSeedInventoryExits(): InventoryExitRecord[] {
+  const products = getProducts()
+  const first = products[0]
+  const second = products[1]
+
+  if (!first || !second) return []
+
+  return [
+    {
+      id: 'out-seed-001',
+      branch_id: 'branch-1',
+      branch_name: 'Sucursal Centro',
+      product_id: first.id,
+      product_name: first.name,
+      category: first.category,
+      quantity: 3,
+      reason: 'Ajuste por error de venta',
+      source_type: 'adjustment_error',
+      source_reference: 'VT-2026-022',
+      user_name: 'Encargado Centro',
+      created_at: '2026-03-19T11:25:00.000Z',
+    },
+    {
+      id: 'out-seed-002',
+      branch_id: 'branch-2',
+      branch_name: 'Sucursal Norte',
+      product_id: second.id,
+      product_name: second.name,
+      category: second.category,
+      quantity: 2,
+      reason: 'Uso interno de taller',
+      source_type: 'internal_use',
+      source_reference: 'MNT-2026-004',
+      user_name: 'Supervisor Norte',
+      created_at: '2026-03-20T15:45:00.000Z',
+    },
+  ]
+}
+
+function seedInventoryExitsIfNeeded() {
+  const existing = readJSON<InventoryExitRecord[] | null>(KEYS.inventoryExits, null)
+  if (existing && existing.length > 0) return
+  writeJSON(KEYS.inventoryExits, getSeedInventoryExits())
+}
+
+function seedInventoryCrudLogsIfNeeded() {
+  const existing = readJSON<InventoryCrudLogRecord[] | null>(KEYS.inventoryCrudLogs, null)
+  if (existing) return
+  writeJSON(KEYS.inventoryCrudLogs, [])
+}
+
+function seedTemporaryKitsAuditIfNeeded() {
+  const existing = readJSON<TemporaryKitAuditRecord[] | null>(KEYS.temporaryKitsAudit, null)
+  if (existing) return
+  writeJSON(KEYS.temporaryKitsAudit, [])
+}
+
+function seedPayrollConfigsIfNeeded() {
+  const existing = readJSON<PayrollConfigRecord[] | null>(KEYS.payrollConfigs, null)
+  if (existing && existing.length > 0) return
+
+  const now = new Date().toISOString()
+  const seed: PayrollConfigRecord[] = [
+    {
+      id: 'paycfg-001',
+      role: 'manager',
+      branch_id: 'branch-1',
+      amount: 4200,
+      periodicity: 'monthly',
+      active: true,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: 'paycfg-002',
+      role: 'employee',
+      branch_id: 'branch-1',
+      amount: 3200,
+      periodicity: 'monthly',
+      active: true,
+      created_at: now,
+      updated_at: now,
+    },
+  ]
+
+  writeJSON(KEYS.payrollConfigs, seed)
+}
+
+function seedPayrollPaymentsIfNeeded() {
+  const existing = readJSON<PayrollPaymentRecord[] | null>(KEYS.payrollPayments, null)
+  if (existing && existing.length > 0) return
+
+  const users = getUsers()
+  const manager = users.find((item) => item.role === 'manager')
+  const employee = users.find((item) => item.role === 'employee')
+
+  const seed: PayrollPaymentRecord[] = []
+
+  if (manager) {
+    seed.push({
+      id: 'payroll-001',
+      user_id: manager.id,
+      user_name: manager.full_name,
+      role: manager.role,
+      branch_id: manager.branch_id,
+      amount: 4200,
+      period_label: 'Marzo 2026',
+      status: 'confirmed',
+      created_at: '2026-03-25T09:00:00.000Z',
+      confirmed_at: '2026-03-26T09:15:00.000Z',
+      confirmed_by: 'Administrador Principal',
+    })
+  }
+
+  if (employee) {
+    seed.push({
+      id: 'payroll-002',
+      user_id: employee.id,
+      user_name: employee.full_name,
+      role: employee.role,
+      branch_id: employee.branch_id,
+      amount: 3200,
+      period_label: 'Marzo 2026',
+      status: 'pending',
+      created_at: '2026-03-27T10:20:00.000Z',
+    })
+  }
+
+  writeJSON(KEYS.payrollPayments, seed)
+}
+
 function toTransferRecord(input: NewTransferInput): ProductTransferRecord {
   return {
     id: `trf-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
@@ -647,12 +914,13 @@ function toTransferRecord(input: NewTransferInput): ProductTransferRecord {
 
 function addTransferHistoryEvent(transfer: ProductTransferRecord, eventType: TransferEventType, reason: string) {
   const current = getTransferHistory()
-  const isReturn = eventType === 'devolucion'
+  const normalizedType = normalizeTransferEventType(eventType)
+  const isReturn = normalizedType === 'devolucion'
 
   const event: TransferHistoryRecord = {
-    id: `evt-${eventType}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    id: `evt-${normalizedType}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
     transfer_id: transfer.id,
-    event_type: eventType,
+    event_type: normalizedType,
     part_id: transfer.part_id,
     part_name: transfer.part_name,
     category: transfer.category,
@@ -660,7 +928,7 @@ function addTransferHistoryEvent(transfer: ProductTransferRecord, eventType: Tra
     to_branch_id: isReturn ? transfer.from_branch_id : transfer.to_branch_id,
     quantity: transfer.quantity,
     reason,
-    user_name: 'Usuario Demo',
+    user_name: transfer.user_name || getActiveUserContext().user_name,
     event_date: new Date().toISOString(),
   }
 
@@ -682,11 +950,20 @@ export function saveProducts(products: Part[]) {
 
 export function getKits(): ProductKit[] {
   seedKitsIfNeeded()
-  return readJSON<ProductKit[]>(KEYS.kits, [])
+  return readJSON<ProductKit[]>(KEYS.kits, []).map((kit) => ({
+    ...kit,
+    category: kit.category || 'General',
+  }))
 }
 
 export function saveKits(kits: ProductKit[]) {
-  writeJSON(KEYS.kits, kits)
+  writeJSON(
+    KEYS.kits,
+    kits.map((kit) => ({
+      ...kit,
+      category: kit.category || 'General',
+    })),
+  )
 }
 
 export function createKit(input: NewKitInput) {
@@ -696,6 +973,7 @@ export function createKit(input: NewKitInput) {
     code: input.code,
     name: input.name,
     description: input.description,
+    category: input.category || 'General',
     branch_id: input.branch_id,
     items: input.items,
     created_at: now,
@@ -705,6 +983,15 @@ export function createKit(input: NewKitInput) {
   const current = getKits()
   const next = [newKit, ...current]
   saveKits(next)
+  addInventoryCrudLog({
+    entity_type: 'kit',
+    action: 'create',
+    entity_id: newKit.id,
+    entity_name: newKit.name,
+    branch_id: newKit.branch_id,
+    user_name: getActiveUserContext().user_name,
+    details: `Categoría: ${newKit.category}`,
+  })
   return newKit
 }
 
@@ -730,6 +1017,79 @@ export function setReadOnlyMode(enabled: boolean) {
   if (hasWindow()) {
     window.dispatchEvent(new CustomEvent<boolean>(READ_ONLY_MODE_EVENT, { detail: enabled }))
   }
+}
+
+function getDefaultRoleFromLegacyFlags(): AppUserRole {
+  if (getReadOnlyMode()) return 'read_only'
+  if (getAdminMode()) return 'admin'
+  return 'employee'
+}
+
+export function getActiveUserRole(): AppUserRole {
+  return readJSON<AppUserRole>(KEYS.activeRole, getDefaultRoleFromLegacyFlags())
+}
+
+export function getActiveUserContext(): ActiveUserContext {
+  const role = getActiveUserRole()
+  const fallbackName =
+    role === 'admin'
+      ? 'Administrador Principal'
+      : role === 'manager'
+      ? 'Encargado Demo'
+      : role === 'read_only'
+      ? 'Usuario Solo Lectura'
+      : 'Empleado Demo'
+
+  return {
+    role,
+    user_name: readJSON<string>(KEYS.activeUserName, fallbackName),
+    branch_id: readJSON<string>(KEYS.activeBranchId, 'branch-1'),
+  }
+}
+
+export function setActiveUserContext(context: Partial<ActiveUserContext>) {
+  const current = getActiveUserContext()
+  const next: ActiveUserContext = {
+    role: context.role || current.role,
+    user_name: context.user_name || current.user_name,
+    branch_id: context.branch_id || current.branch_id,
+  }
+
+  writeJSON(KEYS.activeRole, next.role)
+  writeJSON(KEYS.activeUserName, next.user_name)
+  writeJSON(KEYS.activeBranchId, next.branch_id)
+
+  // Compatibilidad temporal con switches legacy.
+  writeJSON(KEYS.adminMode, next.role === 'admin')
+  writeJSON(KEYS.readOnlyMode, next.role === 'read_only')
+
+  if (hasWindow()) {
+    window.dispatchEvent(new CustomEvent<ActiveUserContext>(ACTIVE_ROLE_EVENT, { detail: next }))
+    window.dispatchEvent(new CustomEvent<boolean>(ADMIN_MODE_EVENT, { detail: next.role === 'admin' }))
+    window.dispatchEvent(new CustomEvent<boolean>(READ_ONLY_MODE_EVENT, { detail: next.role === 'read_only' }))
+  }
+
+  return next
+}
+
+export function setActiveUserRole(role: AppUserRole) {
+  return setActiveUserContext({ role })
+}
+
+export function canRoleCompleteSale(role: AppUserRole) {
+  return role === 'admin' || role === 'manager'
+}
+
+export function canRoleApproveQueuedSale(role: AppUserRole) {
+  return role === 'admin' || role === 'manager'
+}
+
+export function canRoleEditKitInPOS(role: AppUserRole) {
+  return role === 'admin' || role === 'manager'
+}
+
+export function canRoleAdjustQuotationPrices(role: AppUserRole) {
+  return role === 'admin' || role === 'manager' || role === 'employee'
 }
 
 function normalizeUserRecord(user: UserRecord): UserRecord {
@@ -869,7 +1229,16 @@ export function addTransfer(transfer: ProductTransferRecord) {
   const current = getTransfers()
   const next = [transfer, ...current]
   writeJSON(KEYS.transfers, next)
-  addTransferHistoryEvent(transfer, 'envio', transfer.notes || 'Envio registrado')
+  addTransferHistoryEvent(transfer, 'traspaso', transfer.notes || 'Traspaso registrado')
+  addInventoryCrudLog({
+    entity_type: 'transfer',
+    action: 'create',
+    entity_id: transfer.id,
+    entity_name: transfer.part_name,
+    branch_id: transfer.from_branch_id,
+    user_name: transfer.user_name,
+    details: `${transfer.quantity} unidades hacia ${transfer.to_branch_id}`,
+  })
 }
 
 export function addTransfersBulk(inputs: NewTransferInput[]) {
@@ -878,7 +1247,16 @@ export function addTransfersBulk(inputs: NewTransferInput[]) {
   writeJSON(KEYS.transfers, [...created, ...current])
 
   created.forEach((record) => {
-    addTransferHistoryEvent(record, 'envio', record.notes || 'Envio masivo registrado')
+    addTransferHistoryEvent(record, 'traspaso', record.notes || 'Traspaso masivo registrado')
+    addInventoryCrudLog({
+      entity_type: 'transfer',
+      action: 'create',
+      entity_id: record.id,
+      entity_name: record.part_name,
+      branch_id: record.from_branch_id,
+      user_name: record.user_name,
+      details: `${record.quantity} unidades hacia ${record.to_branch_id}`,
+    })
   })
 
   return created
@@ -892,7 +1270,13 @@ export function createTransfer(input: NewTransferInput) {
 
 export function getTransferHistory(): TransferHistoryRecord[] {
   seedTransfersIfNeeded()
-  return readJSON<TransferHistoryRecord[]>(KEYS.transferHistory, [])
+  const history = readJSON<TransferHistoryRecord[]>(KEYS.transferHistory, [])
+  const normalized = history.map((event) => ({
+    ...event,
+    event_type: normalizeTransferEventType(event.event_type),
+  }))
+  writeJSON(KEYS.transferHistory, normalized)
+  return normalized
 }
 
 export function applyTransferAction(params: {
@@ -925,6 +1309,15 @@ export function applyTransferAction(params: {
   writeJSON(KEYS.transfers, next)
 
   addTransferHistoryEvent(updatedTransfer, params.actionType, params.reason)
+  addInventoryCrudLog({
+    entity_type: 'transfer',
+    action: 'update',
+    entity_id: updatedTransfer.id,
+    entity_name: updatedTransfer.part_name,
+    branch_id: updatedTransfer.from_branch_id,
+    user_name: params.userName || getActiveUserContext().user_name,
+    details: `Acción ${params.actionType}: ${params.reason}`,
+  })
 
   return { ok: true as const, transfer: updatedTransfer }
 }
@@ -945,6 +1338,15 @@ export function getSales(): SaleRecord[] {
 export function addSale(sale: SaleRecord) {
   const current = getSales()
   writeJSON(KEYS.sales, [sale, ...current])
+  addInventoryCrudLog({
+    entity_type: 'sale',
+    action: 'create',
+    entity_id: sale.id,
+    entity_name: `Venta ${sale.id}`,
+    branch_id: sale.branch_id,
+    user_name: sale.user_name,
+    details: `Total Bs ${sale.total_amount.toFixed(2)} | Método ${sale.payment_method}`,
+  })
 }
 
 export function getCredits(): CreditRecord[] {
@@ -1123,13 +1525,27 @@ export function createQuotation(input: {
     }
   }
 
-  const quotationItems: QuotationItemRecord[] = input.items.map((item) => {
+  const quotationItems: QuotationItemRecord[] = []
+
+  for (const item of input.items) {
     const part = products.find((p) => p.id === item.part_id)
     const qty = Math.max(1, Math.floor(item.quantity || 1))
     const price = Number(Math.max(0, item.unit_price).toFixed(2))
-    const lineTotal = Number((qty * price).toFixed(2))
 
-    return {
+    if (part) {
+      const minQuotationPrice = part.quotation_min_price ?? Number((part.price * 0.9).toFixed(2))
+      const maxQuotationPrice = part.quotation_max_price ?? Number((part.price * 1.2).toFixed(2))
+
+      if (price < minQuotationPrice || price > maxQuotationPrice) {
+        return {
+          ok: false as const,
+          error: `El precio de ${part.name} debe estar entre Bs ${minQuotationPrice.toFixed(2)} y Bs ${maxQuotationPrice.toFixed(2)} para cotización.`,
+        }
+      }
+    }
+
+    const lineTotal = Number((qty * price).toFixed(2))
+    quotationItems.push({
       id: `q-item-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
       part_id: item.part_id,
       part_code: part?.code || 'N/A',
@@ -1137,8 +1553,8 @@ export function createQuotation(input: {
       quantity: qty,
       unit_price: price,
       line_total: lineTotal,
-    }
-  })
+    })
+  }
 
   const total = Number(quotationItems.reduce((sum, item) => sum + item.line_total, 0).toFixed(2))
   const now = new Date().toISOString()
@@ -1159,6 +1575,15 @@ export function createQuotation(input: {
   }
 
   saveQuotations([created, ...current])
+  addInventoryCrudLog({
+    entity_type: 'quotation',
+    action: 'create',
+    entity_id: created.id,
+    entity_name: created.customer_name,
+    branch_id: created.branch_id,
+    user_name: created.quoted_by,
+    details: `Total Bs ${created.total_amount.toFixed(2)}`,
+  })
 
   return { ok: true as const, quotation: created }
 }
@@ -1187,6 +1612,15 @@ export function cancelQuotation(quotationId: string) {
   }
 
   saveQuotations(next)
+  addInventoryCrudLog({
+    entity_type: 'quotation',
+    action: 'update',
+    entity_id: next[index].id,
+    entity_name: next[index].customer_name,
+    branch_id: next[index].branch_id,
+    user_name: getActiveUserContext().user_name,
+    details: 'Cotización anulada',
+  })
   return { ok: true as const, quotation: next[index] }
 }
 
@@ -1197,7 +1631,13 @@ export function convertQuotationToSale(input: {
   exchange_rate: number
   paid_amount: number
   user_name: string
+  user_role?: AppUserRole
 }) {
+  const role = input.user_role || getActiveUserRole()
+  if (role !== 'admin') {
+    return { ok: false as const, error: 'Solo administradores pueden convertir cotizaciones en venta.' }
+  }
+
   const quotations = getQuotations()
   const index = quotations.findIndex((item) => item.id === input.quotation_id)
 
@@ -1222,6 +1662,7 @@ export function convertQuotationToSale(input: {
     id: `sale-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
     branch_id: quotation.branch_id,
     user_name: input.user_name,
+    user_role: role,
     total_amount: totalBob,
     payment_method: input.payment_method,
     sale_currency: input.sale_currency,
@@ -1243,6 +1684,15 @@ export function convertQuotationToSale(input: {
   }
 
   saveQuotations(next)
+  addInventoryCrudLog({
+    entity_type: 'quotation',
+    action: 'update',
+    entity_id: next[index].id,
+    entity_name: next[index].customer_name,
+    branch_id: next[index].branch_id,
+    user_name: input.user_name,
+    details: `Convertida a venta ${sale.id}`,
+  })
 
   return {
     ok: true as const,
@@ -1263,7 +1713,7 @@ export function getUsers(): UserRecord[] {
   const initial: UserRecord[] = [
     {
       id: 'usr-1',
-      email: 'admin@example.com',
+      email: 'admin@picla.com',
       full_name: 'Administrador Principal',
       password_hash: '******',
       branch_id: 'branch-1',
@@ -1276,6 +1726,19 @@ export function getUsers(): UserRecord[] {
     },
     {
       id: 'usr-2',
+      email: 'encargado@picla.com',
+      full_name: 'Encargado Centro',
+      password_hash: '******',
+      branch_id: 'branch-1',
+      role: 'manager',
+      shift_start: '07:30',
+      shift_end: '20:00',
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: 'usr-3',
       email: 'empleado@picla.com',
       full_name: 'Operador Mostrador',
       password_hash: '******',
@@ -1288,7 +1751,7 @@ export function getUsers(): UserRecord[] {
       updated_at: now,
     },
     {
-      id: 'usr-3',
+      id: 'usr-4',
       email: 'consulta@picla.com',
       full_name: 'Consulta Inventarios',
       password_hash: '******',
@@ -1344,14 +1807,295 @@ export function saveAppSettings(settings: AppSettingsRecord) {
   writeJSON(KEYS.settings, settings)
 }
 
+export function getInventoryCrudLogs() {
+  seedInventoryCrudLogsIfNeeded()
+  return readJSON<InventoryCrudLogRecord[]>(KEYS.inventoryCrudLogs, [])
+}
+
+export function addInventoryCrudLog(input: Omit<InventoryCrudLogRecord, 'id' | 'created_at'>) {
+  const current = getInventoryCrudLogs()
+  const created: InventoryCrudLogRecord = {
+    ...input,
+    id: `crud-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    created_at: new Date().toISOString(),
+  }
+
+  writeJSON(KEYS.inventoryCrudLogs, [created, ...current])
+  return created
+}
+
+export function getInventoryExits() {
+  seedInventoryExitsIfNeeded()
+  return readJSON<InventoryExitRecord[]>(KEYS.inventoryExits, [])
+}
+
+export function addInventoryExit(input: Omit<InventoryExitRecord, 'id' | 'created_at' | 'branch_name'> & { created_at?: string }) {
+  const branchName = mockBranches.find((branch) => branch.id === input.branch_id)?.name || input.branch_id
+  const created: InventoryExitRecord = {
+    ...input,
+    id: `out-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    branch_name: branchName,
+    created_at: input.created_at || new Date().toISOString(),
+  }
+
+  const current = getInventoryExits()
+  writeJSON(KEYS.inventoryExits, [created, ...current])
+  addInventoryCrudLog({
+    entity_type: 'inventory_exit',
+    action: 'create',
+    entity_id: created.id,
+    entity_name: created.product_name,
+    branch_id: created.branch_id,
+    user_name: created.user_name,
+    details: `${created.quantity} uds | ${created.source_type} | Ref: ${created.source_reference || 'N/A'}`,
+  })
+
+  return created
+}
+
+export function getQueuedSales() {
+  seedQueuedSalesIfNeeded()
+  return readJSON<QueuedSaleRecord[]>(KEYS.queuedSales, [])
+}
+
+export function createQueuedSale(input: Omit<QueuedSaleRecord, 'id' | 'status' | 'created_at'>) {
+  const current = getQueuedSales()
+  const created: QueuedSaleRecord = {
+    ...input,
+    id: `qs-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    status: 'queued',
+    created_at: new Date().toISOString(),
+  }
+
+  writeJSON(KEYS.queuedSales, [created, ...current])
+  return created
+}
+
+export function approveQueuedSale(input: {
+  queued_sale_id: string
+  approved_by: string
+  approved_by_role: AppUserRole
+}) {
+  if (!canRoleApproveQueuedSale(input.approved_by_role)) {
+    return { ok: false as const, error: 'Solo encargado o admin pueden aprobar ventas en cola.' }
+  }
+
+  const queued = getQueuedSales()
+  const index = queued.findIndex((item) => item.id === input.queued_sale_id)
+  if (index < 0) {
+    return { ok: false as const, error: 'Venta en cola no encontrada.' }
+  }
+
+  const current = queued[index]
+  if (current.status !== 'queued') {
+    return { ok: false as const, error: 'La venta ya fue procesada previamente.' }
+  }
+
+  const sale: SaleRecord = {
+    id: `sale-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    branch_id: current.branch_id,
+    user_name: input.approved_by,
+    user_role: input.approved_by_role,
+    total_amount: Number(current.total_amount_bob.toFixed(2)),
+    payment_method: current.payment_method,
+    sale_currency: current.sale_currency,
+    exchange_rate: current.exchange_rate,
+    total_amount_bob: Number(current.total_amount_bob.toFixed(2)),
+    total_amount_usd: Number(current.total_amount_usd.toFixed(2)),
+    paid_amount: current.sale_currency === 'USD'
+      ? Number(current.total_amount_usd.toFixed(2))
+      : Number(current.total_amount_bob.toFixed(2)),
+    created_at: new Date().toISOString(),
+  }
+
+  addSale(sale)
+
+  const next = [...queued]
+  next[index] = {
+    ...current,
+    status: 'approved',
+    approved_at: sale.created_at,
+    approved_by: input.approved_by,
+    approved_sale_id: sale.id,
+  }
+  writeJSON(KEYS.queuedSales, next)
+
+  return { ok: true as const, queuedSale: next[index], sale }
+}
+
+export function rejectQueuedSale(input: {
+  queued_sale_id: string
+  rejected_by: string
+  rejected_by_role: AppUserRole
+}) {
+  if (!canRoleApproveQueuedSale(input.rejected_by_role)) {
+    return { ok: false as const, error: 'Solo encargado o admin pueden rechazar ventas en cola.' }
+  }
+
+  const queued = getQueuedSales()
+  const index = queued.findIndex((item) => item.id === input.queued_sale_id)
+  if (index < 0) {
+    return { ok: false as const, error: 'Venta en cola no encontrada.' }
+  }
+
+  const next = [...queued]
+  next[index] = {
+    ...next[index],
+    status: 'rejected',
+    approved_at: new Date().toISOString(),
+    approved_by: input.rejected_by,
+  }
+
+  writeJSON(KEYS.queuedSales, next)
+  return { ok: true as const, queuedSale: next[index] }
+}
+
+export function getTemporaryKitsAudit() {
+  seedTemporaryKitsAuditIfNeeded()
+  return readJSON<TemporaryKitAuditRecord[]>(KEYS.temporaryKitsAudit, [])
+}
+
+export function addTemporaryKitAudit(input: Omit<TemporaryKitAuditRecord, 'id' | 'created_at'>) {
+  const current = getTemporaryKitsAudit()
+  const created: TemporaryKitAuditRecord = {
+    ...input,
+    id: `tk-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    created_at: new Date().toISOString(),
+  }
+
+  writeJSON(KEYS.temporaryKitsAudit, [created, ...current])
+  return created
+}
+
+export function linkTemporaryKitToSale(params: { temp_kit_id: string; sale_id: string }) {
+  const current = getTemporaryKitsAudit()
+  const next = current.map((item) =>
+    item.id === params.temp_kit_id ? { ...item, related_sale_id: params.sale_id } : item,
+  )
+  writeJSON(KEYS.temporaryKitsAudit, next)
+}
+
+export function getPayrollConfigs() {
+  seedPayrollConfigsIfNeeded()
+  return readJSON<PayrollConfigRecord[]>(KEYS.payrollConfigs, [])
+}
+
+export function savePayrollConfigs(configs: PayrollConfigRecord[]) {
+  writeJSON(KEYS.payrollConfigs, configs)
+}
+
+export function upsertPayrollConfig(input: Omit<PayrollConfigRecord, 'id' | 'created_at' | 'updated_at'> & { id?: string }) {
+  const now = new Date().toISOString()
+  const current = getPayrollConfigs()
+
+  if (input.id) {
+    const next = current.map((item) =>
+      item.id === input.id
+        ? {
+            ...item,
+            role: input.role,
+            branch_id: input.branch_id,
+            amount: Number(input.amount.toFixed(2)),
+            periodicity: input.periodicity,
+            active: input.active,
+            updated_at: now,
+          }
+        : item,
+    )
+    savePayrollConfigs(next)
+    return next.find((item) => item.id === input.id) || null
+  }
+
+  const created: PayrollConfigRecord = {
+    id: `paycfg-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    role: input.role,
+    branch_id: input.branch_id,
+    amount: Number(input.amount.toFixed(2)),
+    periodicity: input.periodicity,
+    active: input.active,
+    created_at: now,
+    updated_at: now,
+  }
+
+  savePayrollConfigs([created, ...current])
+  return created
+}
+
+export function getPayrollPayments() {
+  seedPayrollPaymentsIfNeeded()
+  return readJSON<PayrollPaymentRecord[]>(KEYS.payrollPayments, [])
+}
+
+export function createPayrollPayment(input: Omit<PayrollPaymentRecord, 'id' | 'status' | 'created_at'>) {
+  const current = getPayrollPayments()
+  const created: PayrollPaymentRecord = {
+    ...input,
+    id: `payroll-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+    status: 'pending',
+    created_at: new Date().toISOString(),
+  }
+
+  writeJSON(KEYS.payrollPayments, [created, ...current])
+  return created
+}
+
+export function confirmPayrollPayment(input: {
+  payroll_payment_id: string
+  confirmed_by: string
+  confirmed_by_role: AppUserRole
+}) {
+  if (input.confirmed_by_role !== 'admin') {
+    return { ok: false as const, error: 'Solo admin puede confirmar pagos de sueldos.' }
+  }
+
+  const current = getPayrollPayments()
+  const index = current.findIndex((item) => item.id === input.payroll_payment_id)
+  if (index < 0) {
+    return { ok: false as const, error: 'Pago de sueldo no encontrado.' }
+  }
+
+  if (current[index].status === 'confirmed') {
+    return { ok: false as const, error: 'Este pago ya fue confirmado.' }
+  }
+
+  const next = [...current]
+  next[index] = {
+    ...next[index],
+    status: 'confirmed',
+    confirmed_at: new Date().toISOString(),
+    confirmed_by: input.confirmed_by,
+  }
+
+  writeJSON(KEYS.payrollPayments, next)
+  return { ok: true as const, payment: next[index] }
+}
+
+export function getConfirmedPayrollTotal(params?: {
+  startDate?: string
+  endDate?: string
+  branchId?: string
+}) {
+  const payments = getPayrollPayments().filter((item) => item.status === 'confirmed')
+  const start = params?.startDate ? new Date(`${params.startDate}T00:00:00`) : null
+  const end = params?.endDate ? new Date(`${params.endDate}T23:59:59.999`) : null
+
+  return payments
+    .filter((payment) => {
+      const confirmedAt = payment.confirmed_at ? new Date(payment.confirmed_at) : null
+      const byDate =
+        (!start || (confirmedAt && confirmedAt.getTime() >= start.getTime())) &&
+        (!end || (confirmedAt && confirmedAt.getTime() <= end.getTime()))
+      const byBranch = !params?.branchId || payment.branch_id === params.branchId
+      return byDate && byBranch
+    })
+    .reduce((sum, payment) => sum + payment.amount, 0)
+}
+
 export function getTransferFilterOptions() {
-  const transfers = getTransfers()
-  const products = getProducts()
+  const events = getTransferHistory()
 
-  const productMap = new Map(products.map((product) => [product.id, product]))
-
-  const categories = [...new Set(transfers.map((item) => item.category || productMap.get(item.part_id)?.category).filter(Boolean))] as string[]
-  const productNames = [...new Set(transfers.map((item) => item.part_name).filter(Boolean))]
+  const categories = [...new Set(events.map((item) => item.category).filter(Boolean))] as string[]
+  const productNames = [...new Set(events.map((item) => item.part_name).filter(Boolean))]
 
   return {
     categories,
