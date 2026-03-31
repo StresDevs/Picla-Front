@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { signInEmployee, getCurrentSession } from '@/lib/supabase/auth'
-import { addDeviceSession, getUsers, setActiveUserContext } from '@/lib/mock/runtime-store'
+import { addDeviceSession, setActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { CarFront, KeyRound, Mail, ShieldCheck } from 'lucide-react'
 
 export default function LoginPage() {
@@ -63,8 +64,15 @@ export default function LoginPage() {
     setError(null)
     setIsLoading(true)
 
+    const normalizeRole = (value: string | null | undefined): AppUserRole => {
+      if (value === 'admin' || value === 'manager' || value === 'employee' || value === 'read_only') {
+        return value
+      }
+      return 'employee'
+    }
+
     try {
-      const { error: signInError } = await signInEmployee({ email, password })
+      const { data: signInData, error: signInError } = await signInEmployee({ email, password })
 
       if (signInError) {
         setError('Credenciales inválidas o usuario no permitido')
@@ -72,21 +80,32 @@ export default function LoginPage() {
         return
       }
 
-      const users = getUsers()
-      const matchedUser = users.find((item) => item.email.toLowerCase() === email.toLowerCase())
+      const authUser = signInData.user
+      const supabase = getSupabaseClient()
+
+      const { data: profile } = await supabase
+        .rpc('get_current_user_profile')
+        .single()
+
+      const resolvedRole = normalizeRole(profile?.role_name)
+      const resolvedUserName =
+        profile?.full_name ||
+        (authUser?.user_metadata as { full_name?: string } | undefined)?.full_name ||
+        'Usuario'
+      const resolvedBranchId = profile?.branch_id || 'branch-1'
 
       setActiveUserContext({
-        role: matchedUser?.role || 'employee',
-        user_name: matchedUser?.full_name || email,
-        branch_id: matchedUser?.branch_id || 'branch-1',
+        role: resolvedRole,
+        user_name: resolvedUserName,
+        branch_id: resolvedBranchId,
       })
 
       const metadata = inferDeviceMetadata()
       addDeviceSession({
         user_email: email,
-        user_name: matchedUser?.full_name || email,
-        role: matchedUser?.role || 'employee',
-        branch_id: matchedUser?.branch_id || 'branch-1',
+        user_name: resolvedUserName,
+        role: resolvedRole,
+        branch_id: resolvedBranchId,
         browser: metadata.browser,
         os: metadata.os,
         device_name: metadata.device_name,

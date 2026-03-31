@@ -15,33 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2, Edit2 } from 'lucide-react'
 import { getAppSettings, saveAppSettings, type AppSettingsRecord } from '@/lib/mock/runtime-store'
-
-// Datos de ejemplo
-const branchesData = [
-  {
-    id: '1',
-    name: 'Sucursal Centro',
-    location: 'Calle Principal 123',
-    manager: 'Carlos López',
-    phone: '555-0101',
-  },
-  {
-    id: '2',
-    name: 'Sucursal Norte',
-    location: 'Avenida Norte 456',
-    manager: 'María García',
-    phone: '555-0102',
-  },
-  {
-    id: '3',
-    name: 'Sucursal Sur',
-    location: 'Calle Sur 789',
-    manager: 'Juan Rodríguez',
-    phone: '555-0103',
-  },
-]
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
@@ -153,48 +127,6 @@ export default function SettingsPage() {
             </div>
           </div>
           <Button className="w-full md:w-auto" onClick={handleSaveSettings}>Guardar Cambios</Button>
-        </CardContent>
-      </Card>
-
-      {/* Branches Management */}
-      <Card className="mb-6 bg-card">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-foreground">Sucursales</CardTitle>
-            <Button size="sm" className="gap-2">
-              <Plus className="w-4 h-4" />
-              Nueva Sucursal
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {branchesData.map((branch) => (
-              <div
-                key={branch.id}
-                className="p-4 border border-border rounded-lg bg-muted/20 flex items-start justify-between"
-              >
-                <div className="flex-1">
-                  <h4 className="font-semibold text-foreground">{branch.name}</h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {branch.location}
-                  </p>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
-                    <span>Gerente: {branch.manager}</span>
-                    <span>Teléfono: {branch.phone}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm">
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
         </CardContent>
       </Card>
 

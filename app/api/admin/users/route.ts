@@ -7,7 +7,7 @@ type CreateUserBody = {
   full_name: string
   phone?: string
   branch_id: string
-  role?: 'admin' | 'employee'
+  role?: 'admin' | 'manager' | 'employee' | 'read_only'
 }
 
 function getBearerToken(request: Request) {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const fullName = body.full_name?.trim()
     const phone = body.phone?.trim() || null
     const branchId = body.branch_id
-    const roleName = body.role === 'admin' ? 'admin' : 'employee'
+    const roleName = body.role?.trim() || 'employee'
 
     if (!email || !password || !fullName || !branchId) {
       return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 })

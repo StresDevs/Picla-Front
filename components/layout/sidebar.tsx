@@ -17,16 +17,20 @@ import {
   Users,
   ChevronDown,
   LogOut,
+  Cpu,
+  Building2,
+  UserRound,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useEffect, useMemo, useState } from 'react'
 import { ThemeSwitcher } from './theme-switcher'
-import { signOutEmployee } from '@/lib/supabase/auth'
+import { getCurrentAuthUser, signOutEmployee } from '@/lib/supabase/auth'
+import { getSupabaseClient } from '@/lib/supabase/client'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   ACTIVE_ROLE_EVENT,
   getActiveUserContext,
-  getActiveUserRole,
-  setActiveUserRole,
+  setActiveUserContext,
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
 
@@ -142,6 +146,9 @@ export function Sidebar() {
   const [expandedItems, setExpandedItems] = useState<string[]>([])
   const [activeRole, setActiveRole] = useState<AppUserRole>('employee')
   const [activeUserName, setActiveUserName] = useState('Usuario Demo')
+  const [activeBranchId, setActiveBranchId] = useState('branch-1')
+  const [activeBranchName, setActiveBranchName] = useState('Sin sucursal')
+  const [availableBranches, setAvailableBranches] = useState<Array<{ id: string; name: string }>>([])
   const pathname = usePathname()
 
   useEffect(() => {
@@ -149,9 +156,73 @@ export function Sidebar() {
       const context = getActiveUserContext()
       setActiveRole(context.role)
       setActiveUserName(context.user_name)
+      setActiveBranchId(context.branch_id)
+    }
+
+    const normalizeRole = (value: string | null | undefined): AppUserRole => {
+      if (value === 'admin' || value === 'manager' || value === 'employee' || value === 'read_only') {
+        return value
+      }
+      return 'employee'
+    }
+
+    const hydrateProfile = async () => {
+      try {
+        const authUser = await getCurrentAuthUser()
+        if (!authUser?.id) return
+
+        const supabase = getSupabaseClient()
+        const { data: profile } = await supabase
+          .rpc('get_current_user_profile')
+          .single()
+
+        if (!profile) return
+
+        const resolvedRole = normalizeRole(profile.role_name)
+        const fallbackBranchId = profile.branch_id || 'branch-1'
+        const resolvedUserName =
+          profile.full_name ||
+          (authUser.user_metadata as { full_name?: string } | undefined)?.full_name ||
+          'Usuario'
+        const resolvedBranchName = profile.branch_name || 'Sin sucursal'
+
+        if (resolvedRole === 'admin') {
+          const { data: branches } = await supabase
+            .from('branches')
+            .select('id, name')
+            .order('name', { ascending: true })
+
+          const branchOptions = (branches || []) as Array<{ id: string; name: string }>
+          setAvailableBranches(branchOptions)
+
+          const currentContext = getActiveUserContext()
+          const isCurrentBranchValid = branchOptions.some((item) => item.id === currentContext.branch_id)
+          const selectedBranchId = isCurrentBranchValid ? currentContext.branch_id : (branchOptions[0]?.id || fallbackBranchId)
+          const selectedBranchName = branchOptions.find((item) => item.id === selectedBranchId)?.name || 'Sin sucursal'
+
+          setActiveBranchName(selectedBranchName)
+          setActiveUserContext({
+            role: resolvedRole,
+            user_name: resolvedUserName,
+            branch_id: selectedBranchId,
+          })
+          return
+        }
+
+        setAvailableBranches([])
+        setActiveBranchName(resolvedBranchName)
+        setActiveUserContext({
+          role: resolvedRole,
+          user_name: resolvedUserName,
+          branch_id: fallbackBranchId,
+        })
+      } catch {
+        // Si falla la carga del perfil, se conserva el contexto existente.
+      }
     }
 
     syncRole()
+    void hydrateProfile()
     const onRoleChanged = () => syncRole()
     window.addEventListener(ACTIVE_ROLE_EVENT, onRoleChanged)
     window.addEventListener('focus', syncRole)
@@ -233,9 +304,11 @@ export function Sidebar() {
     router.replace('/login')
   }
 
-  const switchRole = (role: AppUserRole) => {
-    setActiveUserRole(role)
-    setActiveRole(getActiveUserRole())
+  const handleBranchSelection = (branchId: string) => {
+    const selected = availableBranches.find((item) => item.id === branchId)
+    setActiveBranchId(branchId)
+    setActiveBranchName(selected?.name || 'Sin sucursal')
+    setActiveUserContext({ branch_id: branchId })
   }
 
   return (
@@ -262,12 +335,46 @@ export function Sidebar() {
         <div className="flex flex-col min-h-full pt-6 px-4 pb-4">
           {/* Hidden on Mobile, shown on Desktop */}
           <div className="hidden lg:block mb-8">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sidebar-foreground/55 mb-2">
-              Sistema Integral
-            </p>
-            <h1 className="text-xl font-bold text-sidebar-foreground leading-tight">
-              Picla
-            </h1>
+            <div className="rounded-2xl border border-sidebar-border/70 bg-gradient-to-br from-red-950/35 via-rose-950/25 to-zinc-900/30 p-4 shadow-[0_12px_28px_-16px_hsl(0_70%_5%/0.8)]">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/70">
+                <Cpu className="h-3.5 w-3.5 text-cyan-300" />
+                Repuestos Mecanicos
+              </div>
+              <h1 className="mt-2 text-[1.6rem] font-extrabold leading-tight tracking-[0.03em] text-transparent bg-clip-text bg-gradient-to-r from-zinc-100 via-cyan-200 to-sky-300 drop-shadow-[0_1px_0_hsl(0_0%_100%_/_0.15)]">
+                Picla
+              </h1>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/35 p-3 space-y-2">
+              <p className="text-xs font-medium text-sidebar-foreground/80 flex items-center gap-2">
+                <UserRound className="h-3.5 w-3.5" />
+                {activeUserName}
+              </p>
+              <p className="text-xs uppercase tracking-wide text-sidebar-foreground/65">
+                Rol: {activeRole}
+              </p>
+              {activeRole === 'admin' ? (
+                <div className="space-y-1">
+                  <p className="text-[11px] text-sidebar-foreground/70 flex items-center gap-1">
+                    <Building2 className="h-3 w-3" /> Sucursal operativa
+                  </p>
+                  <Select value={activeBranchId} onValueChange={handleBranchSelection}>
+                    <SelectTrigger className="h-8 border-sidebar-border/70 bg-sidebar/40 text-xs text-sidebar-foreground">
+                      <SelectValue placeholder="Seleccionar sucursal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableBranches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <p className="text-xs text-sidebar-foreground/75 flex items-center gap-1">
+                  <Building2 className="h-3 w-3" /> {activeBranchName}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Navigation Items */}
@@ -353,26 +460,6 @@ export function Sidebar() {
 
           {/* Bottom Section */}
           <div className="space-y-2 border-t border-sidebar-border/80 pt-4 mt-4">
-            <div className="space-y-2 rounded-xl border border-sidebar-border/70 px-3 py-2">
-              <div>
-                <p className="text-sm font-semibold text-sidebar-foreground">Rol de prueba (mock)</p>
-                <p className="text-xs text-sidebar-foreground/70 mt-1">Usuario activo: {activeUserName}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <Button size="sm" variant={activeRole === 'admin' ? 'default' : 'outline'} onClick={() => switchRole('admin')}>
-                  Admin
-                </Button>
-                <Button size="sm" variant={activeRole === 'manager' ? 'default' : 'outline'} onClick={() => switchRole('manager')}>
-                  Encargado
-                </Button>
-                <Button size="sm" variant={activeRole === 'employee' ? 'default' : 'outline'} onClick={() => switchRole('employee')}>
-                  Empleado
-                </Button>
-                <Button size="sm" variant={activeRole === 'read_only' ? 'default' : 'outline'} onClick={() => switchRole('read_only')}>
-                  Solo lectura
-                </Button>
-              </div>
-            </div>
             <ThemeSwitcher />
             <Button
               variant="ghost"
