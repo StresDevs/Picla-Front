@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from './sidebar'
 import { getCurrentAuthUser, getCurrentSession } from '@/lib/supabase/auth'
 import { supabase } from '@/lib/supabase/client'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 
 export function MainLayout({
   children,
@@ -14,6 +15,31 @@ export function MainLayout({
   const router = useRouter()
   const pathname = usePathname()
   const [isChecking, setIsChecking] = useState(true)
+
+  useEffect(() => {
+    const allowedReadOnlyInventoryRoutes = new Set(['/inventory/products', '/inventory/kits'])
+
+    const enforceInventoryReadOnlyRoutes = () => {
+      const context = getActiveUserContext()
+      const isInventoryRoute = pathname.startsWith('/inventory')
+
+      if (!isInventoryRoute || context.role !== 'read_only') return
+
+      if (!allowedReadOnlyInventoryRoutes.has(pathname)) {
+        router.replace('/inventory/products')
+      }
+    }
+
+    enforceInventoryReadOnlyRoutes()
+
+    window.addEventListener(ACTIVE_ROLE_EVENT, enforceInventoryReadOnlyRoutes)
+    window.addEventListener('focus', enforceInventoryReadOnlyRoutes)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, enforceInventoryReadOnlyRoutes)
+      window.removeEventListener('focus', enforceInventoryReadOnlyRoutes)
+    }
+  }, [pathname, router])
 
   useEffect(() => {
     let mounted = true

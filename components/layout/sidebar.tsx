@@ -252,13 +252,11 @@ export function Sidebar() {
         },
         {
           label: 'Inventario',
-          href: '/inventory/control',
+          href: '/inventory/products',
           icon: Package,
           subItems: [
-            { label: 'Control', href: '/inventory/control' },
-            { label: 'Historial de traspasos', href: '/inventory/history' },
-            { label: 'Historial inventario', href: '/inventory/stock-history' },
-            { label: 'Salidas', href: '/inventory/exits' },
+            { label: 'Productos', href: '/inventory/products' },
+            { label: 'Kits', href: '/inventory/kits' },
           ],
         },
       ]

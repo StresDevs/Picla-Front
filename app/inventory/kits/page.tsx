@@ -10,10 +10,14 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { createKit, getKits, getProducts } from '@/lib/mock/runtime-store'
-import { mockBranches } from '@/lib/mock/data'
+import { kitsService, partsService } from '@/lib/supabase/inventory'
+import {
+  ACTIVE_ROLE_EVENT,
+  getActiveUserContext,
+  type AppUserRole,
+} from '@/lib/mock/runtime-store'
 import { Plus, Trash2 } from 'lucide-react'
-import type { Part, ProductKitItem } from '@/types/database'
+import type { Part, ProductKit, ProductKitItem } from '@/types/database'
 
 interface KitItemForm {
   id: string
@@ -38,37 +42,77 @@ const createKitItemForm = (partId = '', kitPrice = ''): KitItemForm => ({
   kit_price: kitPrice,
 })
 
-export default function InventoryKitsPage() {
-  const [kits, setKits] = useState(getKits())
-  const [products, setProducts] = useState<Part[]>([])
-  const [isOpen, setIsOpen] = useState(false)
-  const [form, setForm] = useState<KitForm>({
+function emptyKitForm(branchId: string, products: Part[]): KitForm {
+  const first = products[0]
+  return {
     code: '',
     name: '',
     description: '',
     category: 'General',
-    branch_id: 'branch-1',
-    items: [],
-  })
+    branch_id: branchId,
+    items: first ? [createKitItemForm(first.id, String(first.kit_price || first.price))] : [],
+  }
+}
+
+export default function InventoryKitsPage() {
+  const [kits, setKits] = useState<ProductKit[]>([])
+  const [products, setProducts] = useState<Part[]>([])
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
+  const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
+  const [form, setForm] = useState<KitForm>(() => emptyKitForm(getActiveUserContext().branch_id, []))
+
+  const canModify = activeRole === 'admin'
+
+  const refresh = async (branchId: string) => {
+    setError(null)
+    try {
+      const [loadedProducts, loadedKits] = await Promise.all([
+        partsService.getAll(branchId),
+        kitsService.getAll(branchId),
+      ])
+      setProducts(loadedProducts)
+      setKits(loadedKits)
+      setForm((prev) => {
+        const withBranch = { ...prev, branch_id: branchId }
+        if (withBranch.items.length > 0 || loadedProducts.length === 0) return withBranch
+        return {
+          ...withBranch,
+          items: [
+            createKitItemForm(
+              loadedProducts[0].id,
+              String(loadedProducts[0].kit_price || loadedProducts[0].price)
+            ),
+          ],
+        }
+      })
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar kits')
+    }
+  }
 
   useEffect(() => {
-    const loadedProducts = getProducts()
-    setProducts(loadedProducts)
-
-    if (loadedProducts.length > 0) {
-      setForm((prev) => ({
-        ...prev,
-        items: [
-          createKitItemForm(
-            loadedProducts[0].id,
-            String(loadedProducts[0].kit_price || loadedProducts[0].price)
-          ),
-        ],
-      }))
+    const syncRole = () => {
+      const context = getActiveUserContext()
+      setActiveRole(context.role)
+      setActiveBranchId(context.branch_id)
     }
 
-    setKits(getKits())
+    syncRole()
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncRole)
+    window.addEventListener('focus', syncRole)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, syncRole)
+      window.removeEventListener('focus', syncRole)
+    }
   }, [])
+
+  useEffect(() => {
+    void refresh(activeBranchId)
+  }, [activeBranchId])
 
   const addItem = () => {
     const fallback = products[0]
@@ -89,13 +133,21 @@ export default function InventoryKitsPage() {
   }
 
   const removeItem = (id: string) => {
-    setForm((prev) => ({
-      ...prev,
-      items: prev.items.filter((item) => item.id !== id),
-    }))
+    setForm((prev) => {
+      const next = prev.items.filter((item) => item.id !== id)
+      if (next.length > 0 || products.length === 0) {
+        return { ...prev, items: next }
+      }
+      const fallback = products[0]
+      return {
+        ...prev,
+        items: [createKitItemForm(fallback.id, String(fallback.kit_price || fallback.price))],
+      }
+    })
   }
 
-  const saveKit = () => {
+  const saveKit = async () => {
+    if (!canModify) return
     if (!form.code || !form.name || !form.branch_id || form.items.length === 0) return
 
     const items: ProductKitItem[] = form.items
@@ -109,25 +161,27 @@ export default function InventoryKitsPage() {
 
     if (items.length === 0) return
 
-    createKit({
-      code: form.code,
-      name: form.name,
-      description: form.description,
-      category: form.category,
-      branch_id: form.branch_id,
-      items,
-    })
+    setIsSaving(true)
+    setError(null)
 
-    setKits(getKits())
-    setIsOpen(false)
-    setForm({
-      code: '',
-      name: '',
-      description: '',
-      category: 'General',
-      branch_id: form.branch_id,
-      items: [createKitItemForm(products[0]?.id || '', String(products[0]?.kit_price || products[0]?.price || ''))],
-    })
+    try {
+      await kitsService.create({
+        code: form.code.trim(),
+        name: form.name.trim(),
+        description: form.description,
+        category: form.category || 'General',
+        branch_id: form.branch_id,
+        items,
+      })
+
+      await refresh(activeBranchId)
+      setIsOpen(false)
+      setForm(emptyKitForm(activeBranchId, products))
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'No se pudo crear el kit')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const resolvedKits = useMemo(() => {
@@ -153,115 +207,125 @@ export default function InventoryKitsPage() {
     <MainLayout>
       <div className="space-y-6">
         <PageHeader
-          title="Kits de Inventario"
-          description="Crea combos de productos con precio especial para venta"
+          title="Kits de inventario"
+          description="Combos de productos por sucursal"
           action={
-            <Dialog open={isOpen} onOpenChange={setIsOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" /> Nuevo kit
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-3xl">
-                <DialogHeader>
-                  <DialogTitle>Registrar kit</DialogTitle>
-                  <DialogDescription>
-                    Define los productos del kit, cantidades y precio kit por cada item.
-                  </DialogDescription>
-                </DialogHeader>
+            canModify ? (
+              <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" /> Nuevo kit
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Registrar kit</DialogTitle>
+                    <DialogDescription>
+                      Define productos, cantidades y precio kit por item.
+                    </DialogDescription>
+                  </DialogHeader>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Codigo</label>
-                    <Input value={form.code} onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value }))} placeholder="KIT-001" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Nombre</label>
-                    <Input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Kit de bujias" />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="text-sm font-medium text-foreground">Descripcion</label>
-                    <Input value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Incluye bujias y cables con descuento" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Categoría</label>
-                    <Input value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))} placeholder="General / Servicio / Temporada" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Sucursal</label>
-                    <Select value={form.branch_id} onValueChange={(value) => setForm((prev) => ({ ...prev, branch_id: value }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {mockBranches.map((branch) => (
-                          <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">Items del kit</CardTitle>
-                      <Button variant="outline" size="sm" onClick={addItem}>
-                        <Plus className="mr-1 h-4 w-4" /> Item
-                      </Button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Codigo</label>
+                      <Input value={form.code} onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value }))} placeholder="KIT-001" />
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {form.items.map((item) => (
-                      <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/70 p-2">
-                        <div className="md:col-span-6">
-                          <Select
-                            value={item.part_id || 'none'}
-                            onValueChange={(value) => {
-                              const part = products.find((p) => p.id === value)
-                              updateItem(item.id, {
-                                part_id: value === 'none' ? '' : value,
-                                kit_price: String(part?.kit_price || part?.price || ''),
-                              })
-                            }}
-                          >
-                            <SelectTrigger><SelectValue placeholder="Producto" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none" disabled>Selecciona producto</SelectItem>
-                              {products.map((product) => (
-                                <SelectItem key={product.id} value={product.id}>{product.name} ({product.code})</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="md:col-span-2">
-                          <Input type="number" min={1} value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Cant" />
-                        </div>
-                        <div className="md:col-span-3">
-                          <Input type="number" step="0.01" value={item.kit_price} onChange={(event) => updateItem(item.id, { kit_price: event.target.value })} placeholder="Precio kit" />
-                        </div>
-                        <div className="md:col-span-1 flex justify-end">
-                          <Button variant="destructive" size="sm" onClick={() => removeItem(item.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Nombre</label>
+                      <Input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Kit de bujias" />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="text-sm font-medium text-foreground">Descripcion</label>
+                      <Input value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Incluye bujias y cables" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Categoria</label>
+                      <Input value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))} placeholder="General" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Sucursal</label>
+                      <Input value={form.branch_id} disabled />
+                    </div>
+                  </div>
 
-                <div className="flex justify-end gap-2">
-                  <Button variant="destructive" onClick={() => setIsOpen(false)}>Cancelar</Button>
-                  <Button onClick={saveKit}>Guardar kit</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between gap-2">
+                        <CardTitle className="text-base">Items del kit</CardTitle>
+                        <Button variant="outline" size="sm" onClick={addItem}>
+                          <Plus className="mr-1 h-4 w-4" /> Item
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {form.items.map((item) => (
+                        <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/70 p-2">
+                          <div className="md:col-span-6">
+                            <Select
+                              value={item.part_id || 'none'}
+                              onValueChange={(value) => {
+                                const part = products.find((p) => p.id === value)
+                                updateItem(item.id, {
+                                  part_id: value === 'none' ? '' : value,
+                                  kit_price: String(part?.kit_price || part?.price || ''),
+                                })
+                              }}
+                            >
+                              <SelectTrigger><SelectValue placeholder="Producto" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none" disabled>Selecciona producto</SelectItem>
+                                {products.map((product) => (
+                                  <SelectItem key={product.id} value={product.id}>{product.name} ({product.code})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="md:col-span-2">
+                            <Input type="number" min={1} value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Cant" />
+                          </div>
+                          <div className="md:col-span-3">
+                            <Input type="number" step="0.01" value={item.kit_price} onChange={(event) => updateItem(item.id, { kit_price: event.target.value })} placeholder="Precio kit" />
+                          </div>
+                          <div className="md:col-span-1 flex justify-end">
+                            <Button variant="destructive" size="sm" onClick={() => removeItem(item.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="destructive" onClick={() => setIsOpen(false)}>Cancelar</Button>
+                    <Button onClick={() => void saveKit()} disabled={isSaving}>{isSaving ? 'Guardando...' : 'Guardar kit'}</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            ) : null
           }
         />
+
+        {!canModify ? (
+          <Card className="border-amber-500/40 bg-amber-500/5">
+            <CardContent className="pt-6 text-sm text-amber-700 dark:text-amber-300">
+              Solo admin puede crear o editar kits. Tu rol actual es: {activeRole}.
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {error ? (
+          <Card className="border-red-500/40 bg-red-500/5">
+            <CardContent className="pt-6 text-sm text-red-700 dark:text-red-300">{error}</CardContent>
+          </Card>
+        ) : null}
 
         <InventorySubnav />
 
         <Card>
           <CardHeader>
             <CardTitle>Kits disponibles</CardTitle>
+            <CardDescription>Listado por sucursal activa</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {resolvedKits.map((kit) => (
@@ -274,7 +338,7 @@ export default function InventoryKitsPage() {
                   <Badge className="bg-primary/15 text-primary">Bs {kit.total.toFixed(2)}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">{kit.description || 'Sin descripcion'}</p>
-                <p className="text-xs text-emerald-600">Categoría: {kit.category || 'General'}</p>
+                <p className="text-xs text-emerald-600">Categoria: {kit.category || 'General'}</p>
                 <div className="space-y-1 text-xs">
                   {kit.detail.map((item) => (
                     <div key={item.id} className="flex justify-between gap-2">

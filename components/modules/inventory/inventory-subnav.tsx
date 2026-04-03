@@ -1,9 +1,16 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import {
+  ACTIVE_ROLE_EVENT,
+  getActiveUserContext,
+  type AppUserRole,
+} from '@/lib/mock/runtime-store'
 
 const items = [
+  { label: 'Productos', href: '/inventory/products' },
   { label: 'Kits', href: '/inventory/kits' },
   { label: 'Ingresos', href: '/inventory/entries' },
   { label: 'Salidas', href: '/inventory/exits' },
@@ -16,10 +23,34 @@ const items = [
 
 export function InventorySubnav() {
   const pathname = usePathname()
+  const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
+
+  useEffect(() => {
+    const syncRole = () => {
+      setActiveRole(getActiveUserContext().role)
+    }
+
+    syncRole()
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncRole)
+    window.addEventListener('focus', syncRole)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, syncRole)
+      window.removeEventListener('focus', syncRole)
+    }
+  }, [])
+
+  const visibleItems = useMemo(() => {
+    if (activeRole === 'read_only') {
+      return items.filter((item) => item.href === '/inventory/products' || item.href === '/inventory/kits')
+    }
+
+    return items
+  }, [activeRole])
 
   return (
     <div className="flex flex-wrap gap-2 mb-6">
-      {items.map((item) => {
+      {visibleItems.map((item) => {
         const isActive = pathname === item.href
         return (
           <Link key={item.href} href={item.href}>

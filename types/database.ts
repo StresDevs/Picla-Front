@@ -24,6 +24,16 @@ export interface User {
 
 export type ProductTrackingMode = 'none' | 'serial' | 'lot'
 
+export interface InventoryCategory {
+  id: string
+  branch_id: string
+  name: string
+  description?: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Customer {
   id: string
   full_name: string
@@ -41,6 +51,7 @@ export interface Part {
   name: string
   description: string
   category: string
+  category_id?: string | null
   price: number
   cost: number
   image_url: string
@@ -49,6 +60,7 @@ export interface Part {
   quotation_min_price?: number
   quotation_max_price?: number
   tracking_mode?: ProductTrackingMode
+  requires_serialization?: boolean
   price_tiers?: ProductPriceTier[]
   created_at: string
   updated_at: string
