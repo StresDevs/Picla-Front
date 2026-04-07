@@ -21,6 +21,8 @@ const items = [
   { label: 'Control', href: '/inventory/control' },
 ]
 
+const basicInventoryItems = new Set(['/inventory/products', '/inventory/kits'])
+
 export function InventorySubnav() {
   const pathname = usePathname()
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
@@ -41,11 +43,11 @@ export function InventorySubnav() {
   }, [])
 
   const visibleItems = useMemo(() => {
-    if (activeRole === 'read_only') {
-      return items.filter((item) => item.href === '/inventory/products' || item.href === '/inventory/kits')
+    if (activeRole === 'admin' || activeRole === 'manager') {
+      return items
     }
 
-    return items
+    return items.filter((item) => basicInventoryItems.has(item.href))
   }, [activeRole])
 
   return (

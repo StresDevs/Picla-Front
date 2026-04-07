@@ -49,7 +49,6 @@ interface ProductFormData {
   requiresSerialization: boolean
   initialQuantity: string
   minQuantity: string
-  maxQuantity: string
   branchId: string
   tiers: TierFormData[]
 }
@@ -70,7 +69,6 @@ interface BulkProductRow {
   requiresSerialization: boolean
   initialQuantity: string
   minQuantity: string
-  maxQuantity: string
   imageUrl: string
 }
 
@@ -103,7 +101,6 @@ const createBulkRow = (branchId: string): BulkProductRow => ({
   requiresSerialization: false,
   initialQuantity: '0',
   minQuantity: '0',
-  maxQuantity: '',
   imageUrl: '',
 })
 
@@ -123,7 +120,6 @@ const createEmptyProductForm = (branchId: string): ProductFormData => ({
   requiresSerialization: false,
   initialQuantity: '0',
   minQuantity: '0',
-  maxQuantity: '',
   branchId,
   tiers: [createTier('1', '')],
 })
@@ -151,7 +147,6 @@ const toProductForm = (part: Part): ProductFormData => {
     requiresSerialization: part.requires_serialization || part.tracking_mode === 'serial',
     initialQuantity: '',
     minQuantity: '',
-    maxQuantity: '',
     branchId: part.branch_id,
     tiers: tiers.length > 0 ? tiers : [createTier('1', String(part.price))],
   }
@@ -212,7 +207,6 @@ function toBulkRow(record: Record<string, unknown>, branchId: string): BulkProdu
     requiresSerialization,
     initialQuantity: String(getCell(input, ['initial_quantity', 'initialquantity', 'stock_inicial'])).trim() || '0',
     minQuantity: String(getCell(input, ['min_quantity', 'minquantity', 'stock_minimo'])).trim() || '0',
-    maxQuantity: String(getCell(input, ['max_quantity', 'maxquantity', 'stock_maximo'])).trim(),
     imageUrl: String(getCell(input, ['image_url', 'imageurl', 'imagen_url'])).trim(),
   }
 }
@@ -539,7 +533,6 @@ export default function InventoryProductsPage() {
         requires_serialization: productForm.requiresSerialization || productForm.trackingMode === 'serial',
         initial_quantity: Number(productForm.initialQuantity || 0),
         min_quantity: Number(productForm.minQuantity || 0),
-        max_quantity: productForm.maxQuantity ? Number(productForm.maxQuantity) : null,
         price_tiers: additionalTiers,
       })
 
@@ -620,7 +613,6 @@ export default function InventoryProductsPage() {
           requires_serialization: row.requiresSerialization || row.trackingMode === 'serial',
           initial_quantity: Number(row.initialQuantity || 0),
           min_quantity: Number(row.minQuantity || 0),
-          max_quantity: row.maxQuantity ? Number(row.maxQuantity) : null,
           price_tiers: [
             {
               id: `tier-bulk-${row.id}`,
@@ -908,10 +900,6 @@ export default function InventoryProductsPage() {
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">Stock minimo</label>
                         <Input type="number" step="0.01" value={productForm.minQuantity} onChange={(event) => setProductForm((prev) => ({ ...prev, minQuantity: event.target.value }))} />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Stock maximo</label>
-                        <Input type="number" step="0.01" value={productForm.maxQuantity} onChange={(event) => setProductForm((prev) => ({ ...prev, maxQuantity: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">Tracking</label>

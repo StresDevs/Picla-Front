@@ -140,6 +140,8 @@ const menuItems: MenuItem[] = [
   },
 ]
 
+const inventoryBasicRoutes = new Set(['/inventory/products', '/inventory/kits'])
+
 export function Sidebar() {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
@@ -263,6 +265,19 @@ export function Sidebar() {
     }
 
     return menuItems.map((item) => {
+      if (item.label === 'Inventario') {
+        const canSeeInventoryOps = activeRole === 'admin' || activeRole === 'manager'
+        const filteredSubItems = (item.subItems || []).filter((subItem) =>
+          canSeeInventoryOps ? true : inventoryBasicRoutes.has(subItem.href)
+        )
+
+        return {
+          ...item,
+          href: canSeeInventoryOps ? item.href : '/inventory/products',
+          subItems: filteredSubItems,
+        }
+      }
+
       if (item.label !== 'Gestión') return item
 
       return {

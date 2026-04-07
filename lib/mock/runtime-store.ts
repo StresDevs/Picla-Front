@@ -3,7 +3,7 @@ import type { Part, ProductKit, ProductKitItem, ProductPriceTier } from '@/types
 
 export type TransferActionType = 'anulacion' | 'devolucion' | 'reposicion'
 export type TransferEventType = 'traspaso' | 'envio' | TransferActionType
-export type TransferStatus = 'completed' | 'anulled' | 'returned' | 'replenished'
+export type TransferStatus = 'pending' | 'completed' | 'anulled' | 'returned' | 'replenished'
 
 export interface ProductTransferRecord {
   id: string
@@ -397,6 +397,19 @@ function getSeedTransfers(): ProductTransferRecord[] {
   if (!p1 || !p2 || !p3) return []
 
   return [
+    {
+      id: 'trf-seed-000',
+      part_id: p1.id,
+      part_name: p1.name,
+      category: p1.category,
+      from_branch_id: getBranchId(0),
+      to_branch_id: getBranchId(2),
+      quantity: 5,
+      status: 'pending',
+      user_name: 'Jefe de Inventario',
+      transfer_date: '2026-03-23T11:45:00.000Z',
+      notes: 'Pendiente de confirmacion en destino',
+    },
     {
       id: 'trf-seed-001',
       part_id: p1.id,
@@ -905,7 +918,7 @@ function toTransferRecord(input: NewTransferInput): ProductTransferRecord {
     from_branch_id: input.from_branch_id,
     to_branch_id: input.to_branch_id,
     quantity: input.quantity,
-    status: 'completed',
+    status: 'pending',
     user_name: input.user_name,
     transfer_date: new Date().toISOString(),
     notes: input.notes,
@@ -1266,6 +1279,46 @@ export function createTransfer(input: NewTransferInput) {
   const record = toTransferRecord(input)
   addTransfer(record)
   return record
+}
+
+export function completeTransfer(params: {
+  transferId: string
+  reason?: string
+  userName?: string
+}) {
+  const current = getTransfers()
+  const index = current.findIndex((item) => item.id === params.transferId)
+  if (index < 0) {
+    return { ok: false as const, error: 'Transferencia no encontrada' }
+  }
+
+  if (current[index].status !== 'pending') {
+    return { ok: false as const, error: 'Solo puedes completar transferencias pendientes' }
+  }
+
+  const updatedTransfer: ProductTransferRecord = {
+    ...current[index],
+    status: 'completed',
+    user_name: params.userName || current[index].user_name,
+  }
+
+  const next = [...current]
+  next[index] = updatedTransfer
+  writeJSON(KEYS.transfers, next)
+
+  const reason = params.reason?.trim() || 'Traspaso completado'
+  addTransferHistoryEvent(updatedTransfer, 'envio', reason)
+  addInventoryCrudLog({
+    entity_type: 'transfer',
+    action: 'update',
+    entity_id: updatedTransfer.id,
+    entity_name: updatedTransfer.part_name,
+    branch_id: updatedTransfer.from_branch_id,
+    user_name: params.userName || getActiveUserContext().user_name,
+    details: `Transferencia completada: ${reason}`,
+  })
+
+  return { ok: true as const, transfer: updatedTransfer }
 }
 
 export function getTransferHistory(): TransferHistoryRecord[] {

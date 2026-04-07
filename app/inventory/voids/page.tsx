@@ -10,22 +10,42 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { applyTransferAction, getTransfers } from '@/lib/mock/runtime-store'
-import { mockBranches } from '@/lib/mock/data'
+import { branchesService, transferService, type TransferRequestDetail } from '@/lib/supabase/inventory'
 
 export default function InventoryVoidsPage() {
-  const [transfers, setTransfers] = useState(getTransfers())
+  const [transfers, setTransfers] = useState<TransferRequestDetail[]>([])
+  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
   const [selectedTransferId, setSelectedTransferId] = useState('')
   const [actionType, setActionType] = useState<'anulacion' | 'devolucion' | 'reposicion'>('anulacion')
   const [reason, setReason] = useState('')
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const loadData = async () => {
+    const [transferRows, branchRows] = await Promise.all([
+      transferService.getRequests(),
+      branchesService.getAll(),
+    ])
+    setTransfers(transferRows)
+    setBranches(branchRows)
+  }
 
   useEffect(() => {
-    const current = getTransfers()
-    setTransfers(current)
-    if (current.length > 0) {
-      setSelectedTransferId(current[0].id)
+    const initialize = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        await loadData()
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar traspasos')
+      } finally {
+        setIsLoading(false)
+      }
     }
+
+    void initialize()
   }, [])
 
   const actionableTransfers = useMemo(
@@ -33,27 +53,32 @@ export default function InventoryVoidsPage() {
     [transfers]
   )
 
-  const applyAction = () => {
+  useEffect(() => {
+    if (actionableTransfers.length > 0 && !selectedTransferId) {
+      setSelectedTransferId(actionableTransfers[0].id)
+    }
+  }, [actionableTransfers, selectedTransferId])
+
+  const applyAction = async () => {
     if (!selectedTransferId || !reason.trim()) {
       setFeedback('Debes seleccionar un traspaso y registrar un motivo.')
       return
     }
 
-    const result = applyTransferAction({
-      transferId: selectedTransferId,
-      actionType,
-      reason: reason.trim(),
-      userName: 'Usuario Demo',
-    })
+    setIsSaving(true)
+    setError(null)
+    setFeedback(null)
 
-    if (!result.ok) {
-      setFeedback(result.error)
-      return
+    try {
+      await transferService.applyResolution(selectedTransferId, actionType, reason.trim())
+      await loadData()
+      setReason('')
+      setFeedback(`Operacion ${actionType} registrada correctamente.`)
+    } catch (applyError) {
+      setError(applyError instanceof Error ? applyError.message : 'No se pudo aplicar la operacion')
+    } finally {
+      setIsSaving(false)
     }
-
-    setTransfers(getTransfers())
-    setReason('')
-    setFeedback(`Operacion ${actionType} registrada correctamente.`)
   }
 
   return (
@@ -64,6 +89,12 @@ export default function InventoryVoidsPage() {
           description="Aplica acciones sobre traspasos registrados dejando motivo obligatorio"
         />
         <InventorySubnav />
+
+        {error ? (
+          <Card className="border-red-500/40 bg-red-500/5">
+            <CardContent className="pt-6 text-sm text-red-700 dark:text-red-300">{error}</CardContent>
+          </Card>
+        ) : null}
 
         <Card className="border-rose-500/35">
           <CardHeader>
@@ -84,7 +115,7 @@ export default function InventoryVoidsPage() {
                     ) : (
                       actionableTransfers.map((transfer) => (
                         <SelectItem key={transfer.id} value={transfer.id}>
-                          {transfer.id} | {transfer.part_name} | {transfer.quantity}
+                          {transfer.id} | {transfer.items.length} items
                         </SelectItem>
                       ))
                     )}
@@ -121,7 +152,7 @@ export default function InventoryVoidsPage() {
             ) : null}
 
             <div className="flex justify-end">
-              <Button onClick={applyAction} disabled={!selectedTransferId || !reason.trim()}>
+              <Button onClick={() => void applyAction()} disabled={!selectedTransferId || !reason.trim() || isSaving}>
                 Registrar operacion
               </Button>
             </div>
@@ -136,9 +167,12 @@ export default function InventoryVoidsPage() {
             {transfers.map((item) => (
               <div key={item.id} className="rounded-lg border border-border/70 bg-card/75 p-3 text-sm space-y-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold">{item.id} - {item.part_name}</p>
+                  <p className="font-semibold">{item.id} - {item.items.length} items</p>
                   <Badge
                     className={
+                      item.status === 'pending'
+                        ? 'bg-amber-500 text-black'
+                        :
                       item.status === 'completed'
                         ? 'bg-emerald-600 text-white'
                         : item.status === 'anulled'
@@ -152,14 +186,19 @@ export default function InventoryVoidsPage() {
                   </Badge>
                 </div>
                 <p className="text-muted-foreground">
-                  {mockBranches.find((branch) => branch.id === item.from_branch_id)?.name ?? item.from_branch_id}
+                  {branches.find((branch) => branch.id === item.from_branch_id)?.name ?? item.from_branch_id}
                   {' -> '}
-                  {mockBranches.find((branch) => branch.id === item.to_branch_id)?.name ?? item.to_branch_id}
+                  {branches.find((branch) => branch.id === item.to_branch_id)?.name ?? item.to_branch_id}
                 </p>
-                <p className="text-muted-foreground">Cantidad: {item.quantity} | Categoria: {item.category}</p>
+                <p className="text-muted-foreground">
+                  Cantidad total: {item.items.reduce((acc, transferItem) => acc + Number(transferItem.quantity || 0), 0)}
+                </p>
+                <p className="text-muted-foreground">
+                  Productos: {item.items.slice(0, 2).map((transferItem) => transferItem.part_name).join(', ')}{item.items.length > 2 ? '...' : ''}
+                </p>
                 <p className="text-muted-foreground">Motivo traspaso: {item.notes || 'Sin detalle'}</p>
-                {item.resolution_reason ? (
-                  <p className="text-foreground">Motivo accion: {item.resolution_reason}</p>
+                {item.resolution_reason || item.resolution_type ? (
+                  <p className="text-foreground">Motivo accion: {item.resolution_reason || item.resolution_type}</p>
                 ) : null}
                 {item.status === 'completed' ? (
                   <div className="pt-1">

@@ -25,7 +25,6 @@ interface UpsertProductInput {
   requires_serialization?: boolean
   initial_quantity?: number
   min_quantity?: number
-  max_quantity?: number | null
   price_tiers?: ProductPriceTier[]
 }
 
@@ -52,6 +51,227 @@ interface ProductKitRow {
   created_at: string
   updated_at: string
   product_kit_items?: ProductKitItem[]
+}
+
+interface BranchOption {
+  id: string
+  name: string
+}
+
+interface TransferRequestRow {
+  id: string
+  from_branch_id: string
+  to_branch_id: string
+  status: 'pending' | 'completed' | 'anulled' | 'returned' | 'replenished'
+  notes: string | null
+  requested_by: string | null
+  requested_at: string
+  resolution_type: 'anulacion' | 'devolucion' | 'reposicion' | null
+  resolution_reason: string | null
+  inventory_transfer_request_items?: Array<{
+    id: string
+    part_id: string
+    quantity: number
+    source_part?: {
+      id: string
+      code: string
+      name: string
+      category: string | null
+    } | Array<{
+      id: string
+      code: string
+      name: string
+      category: string | null
+    }>
+  }>
+}
+
+export interface TransferRequestDetail {
+  id: string
+  from_branch_id: string
+  to_branch_id: string
+  status: 'pending' | 'completed' | 'anulled' | 'returned' | 'replenished'
+  notes: string | null
+  requested_at: string
+  resolution_type: 'anulacion' | 'devolucion' | 'reposicion' | null
+  resolution_reason: string | null
+  items: Array<{
+    id: string
+    part_id: string
+    part_code: string
+    part_name: string
+    part_category: string | null
+    quantity: number
+  }>
+}
+
+export interface PendingTransferSummary {
+  transfer_id: string
+  from_branch_id: string
+  to_branch_id: string
+  status: string
+  notes: string | null
+  requested_at: string
+  requested_by: string | null
+  total_items: number
+  total_quantity: number
+  can_complete: boolean
+}
+
+export interface TransferHistoryRow {
+  id: string
+  transfer_id: string
+  action_id: string
+  action_type: string
+  action_reason: string | null
+  action_date: string
+  from_branch_id: string
+  to_branch_id: string
+  status: string
+  part_id: string
+  part_code: string
+  part_name: string
+  quantity: number
+  performed_by: string | null
+}
+
+export interface InventoryMovementRow {
+  id: string
+  movement_id: string
+  branch_id: string
+  part_id: string
+  part_code: string
+  part_name: string
+  movement_type: string
+  quantity: number
+  quantity_before: number
+  quantity_after: number
+  reason: string
+  reference_table: string | null
+  reference_id: string | null
+  created_by: string | null
+  created_at: string
+  metadata: Record<string, unknown>
+}
+
+interface InventoryExitRow {
+  id: string
+  branch_id: string
+  part_id: string
+  quantity: number
+  reason: string
+  source_reference: string | null
+  created_by: string | null
+  created_at: string
+  branches?: { name: string } | Array<{ name: string }>
+  parts?: { code: string; name: string; category: string | null } | Array<{ code: string; name: string; category: string | null }>
+  users?: { full_name: string | null } | Array<{ full_name: string | null }>
+}
+
+export interface InventoryEntryView {
+  id: string
+  branch_id: string
+  branch_name: string
+  part_id: string
+  part_code: string
+  part_name: string
+  quantity: number
+  unit_cost: number | null
+  unit_price: number | null
+  currency: 'BOB' | 'USD'
+  exchange_rate: number | null
+  source_reference: string | null
+  supplier_name: string | null
+  reason: string
+  notes: string | null
+  created_by: string | null
+  created_by_name: string | null
+  created_at: string
+}
+
+export interface InventoryExitView {
+  id: string
+  branch_id: string
+  branch_name: string
+  part_id: string
+  part_code: string
+  part_name: string
+  category: string | null
+  quantity: number
+  reason: string
+  source_reference: string | null
+  created_by_name: string | null
+  created_at: string
+}
+
+interface InventoryControlRow {
+  id: string
+  branch_id: string
+  part_id: string
+  counted_quantity: number
+  system_quantity: number
+  difference_quantity: number
+  control_reason: string | null
+  notes: string | null
+  recorded_by: string | null
+  recorded_at: string
+  parts?: { code: string; name: string; category: string | null } | Array<{ code: string; name: string; category: string | null }>
+  branches?: { name: string } | Array<{ name: string }>
+  users?: { full_name: string | null } | Array<{ full_name: string | null }>
+}
+
+export interface InventoryControlView {
+  id: string
+  branch_id: string
+  branch_name: string
+  part_id: string
+  part_code: string
+  part_name: string
+  part_category: string | null
+  counted_quantity: number
+  system_quantity: number
+  difference_quantity: number
+  control_reason: string | null
+  notes: string | null
+  recorded_by_name: string | null
+  recorded_at: string
+}
+
+export interface InventoryBranchSummary {
+  branch_id: string
+  branch_name: string
+  total_items: number
+  total_units: number
+  estimated_value: number
+}
+
+function pickRelation<T>(relation: T | T[] | undefined): T | null {
+  if (!relation) return null
+  return Array.isArray(relation) ? (relation[0] || null) : relation
+}
+
+function mapTransferRequests(rows: TransferRequestRow[]) {
+  return rows.map((row) => ({
+    id: row.id,
+    from_branch_id: row.from_branch_id,
+    to_branch_id: row.to_branch_id,
+    status: row.status,
+    notes: row.notes,
+    requested_at: row.requested_at,
+    resolution_type: row.resolution_type,
+    resolution_reason: row.resolution_reason,
+    items: (row.inventory_transfer_request_items || []).map((item) => {
+      const part = pickRelation(item.source_part)
+      return {
+        id: item.id,
+        part_id: item.part_id,
+        part_code: part?.code || '-',
+        part_name: part?.name || item.part_id,
+        part_category: part?.category || null,
+        quantity: Number(item.quantity || 0),
+      }
+    }),
+  }))
 }
 
 function toPartModel(row: ProductRow): Part {
@@ -120,7 +340,6 @@ export const partsService = {
       p_requires_serialization: part.requires_serialization ?? (part.tracking_mode === 'serial'),
       p_initial_quantity: part.initial_quantity ?? 0,
       p_min_quantity: part.min_quantity ?? 0,
-      p_max_quantity: part.max_quantity ?? null,
       p_price_tiers: buildTiersPayload(part.price_tiers, part.price),
     })
 
@@ -178,7 +397,6 @@ export const partsService = {
         part.requires_serialization ?? current.requires_serialization ?? current.tracking_mode === 'serial',
       initial_quantity: part.initial_quantity,
       min_quantity: part.min_quantity,
-      max_quantity: part.max_quantity,
       price_tiers: part.price_tiers ?? current.price_tiers ?? [],
     })
   },
@@ -269,6 +487,357 @@ export const categoriesService = {
 
     if (error) throw error
     return data as InventoryCategory
+  },
+}
+
+export const branchesService = {
+  async getAll() {
+    const { data, error } = await supabase
+      .from('branches')
+      .select('id, name')
+      .order('name', { ascending: true })
+
+    if (error) throw error
+    return (data as BranchOption[]) || []
+  },
+}
+
+export const transferService = {
+  async getRequests(branchId?: string | null) {
+    let query = supabase
+      .from('inventory_transfer_requests')
+      .select(`
+        id,
+        from_branch_id,
+        to_branch_id,
+        status,
+        notes,
+        requested_by,
+        requested_at,
+        resolution_type,
+        resolution_reason,
+        inventory_transfer_request_items(
+          id,
+          part_id,
+          quantity,
+          source_part:parts!inventory_transfer_request_items_part_id_fkey(id, code, name, category)
+        )
+      `)
+
+    if (branchId) {
+      query = query.or(`from_branch_id.eq.${branchId},to_branch_id.eq.${branchId}`)
+    }
+
+    const { data, error } = await query.order('requested_at', { ascending: false })
+
+    if (error) throw error
+    return mapTransferRequests((data as TransferRequestRow[]) || [])
+  },
+
+  async getPendingSummaries(branchId?: string | null) {
+    const { data, error } = await supabase.rpc('get_pending_inventory_transfers', {
+      p_branch_id: branchId || null,
+    })
+
+    if (error) throw error
+    return ((data || []) as PendingTransferSummary[]).map((row) => ({
+      ...row,
+      total_items: Number(row.total_items || 0),
+      total_quantity: Number(row.total_quantity || 0),
+      can_complete: Boolean(row.can_complete),
+    }))
+  },
+
+  async createRequest(input: {
+    from_branch_id: string
+    to_branch_id: string
+    notes?: string | null
+    items: Array<{ part_id: string; quantity: number }>
+  }) {
+    const { data, error } = await supabase.rpc('create_inventory_transfer_request', {
+      p_from_branch_id: input.from_branch_id,
+      p_to_branch_id: input.to_branch_id,
+      p_notes: input.notes || null,
+      p_items: input.items,
+    })
+
+    if (error) throw error
+    return data as string
+  },
+
+  async completeRequest(transferId: string, reason?: string | null) {
+    const { data, error } = await supabase.rpc('complete_inventory_transfer_request', {
+      p_transfer_id: transferId,
+      p_reason: reason || null,
+    })
+
+    if (error) throw error
+    return data as string
+  },
+
+  async applyResolution(transferId: string, action: 'anulacion' | 'devolucion' | 'reposicion', reason?: string | null) {
+    const { data, error } = await supabase.rpc('apply_inventory_transfer_resolution', {
+      p_transfer_id: transferId,
+      p_action: action,
+      p_reason: reason || null,
+    })
+
+    if (error) throw error
+    return data as string
+  },
+
+  async getHistory(filters?: {
+    branch_id?: string | null
+    from?: string | null
+    to?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('get_inventory_transfer_history', {
+      p_branch_id: filters?.branch_id || null,
+      p_from: filters?.from || null,
+      p_to: filters?.to || null,
+    })
+
+    if (error) throw error
+    return ((data || []) as Array<Omit<TransferHistoryRow, 'id'>>).map((row) => ({
+      ...row,
+      id: row.action_id,
+      quantity: Number(row.quantity || 0),
+    }))
+  },
+}
+
+export const entriesService = {
+  async create(input: {
+    branch_id: string
+    part_id: string
+    quantity: number
+    reason?: string | null
+    source_reference?: string | null
+    supplier_name?: string | null
+    notes?: string | null
+    unit_cost?: number | null
+    unit_price?: number | null
+    currency?: 'BOB' | 'USD'
+    exchange_rate?: number | null
+  }) {
+    const { data, error } = await supabase.rpc('create_inventory_entry', {
+      p_branch_id: input.branch_id,
+      p_part_id: input.part_id,
+      p_quantity: input.quantity,
+      p_reason: input.reason || null,
+      p_source_reference: input.source_reference || null,
+      p_supplier_name: input.supplier_name || null,
+      p_notes: input.notes || null,
+      p_unit_cost: input.unit_cost ?? null,
+      p_unit_price: input.unit_price ?? null,
+      p_currency: input.currency || 'BOB',
+      p_exchange_rate: input.exchange_rate ?? null,
+    })
+
+    if (error) throw error
+    return data as string
+  },
+
+  async getAll(filters?: {
+    branch_id?: string | null
+    from?: string | null
+    to?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('get_inventory_entries', {
+      p_branch_id: filters?.branch_id || null,
+      p_from: filters?.from || null,
+      p_to: filters?.to || null,
+    })
+
+    if (error) throw error
+
+    return ((data || []) as Array<Omit<InventoryEntryView, 'id'> & { entry_id: string }>).map((row) => ({
+      id: row.entry_id,
+      branch_id: row.branch_id,
+      branch_name: row.branch_name,
+      part_id: row.part_id,
+      part_code: row.part_code,
+      part_name: row.part_name,
+      quantity: Number(row.quantity || 0),
+      unit_cost: row.unit_cost === null ? null : Number(row.unit_cost),
+      unit_price: row.unit_price === null ? null : Number(row.unit_price),
+      currency: row.currency === 'USD' ? 'USD' : 'BOB',
+      exchange_rate: row.exchange_rate === null ? null : Number(row.exchange_rate),
+      source_reference: row.source_reference,
+      supplier_name: row.supplier_name,
+      reason: row.reason,
+      notes: row.notes,
+      created_by: row.created_by,
+      created_by_name: row.created_by_name,
+      created_at: row.created_at,
+    }))
+  },
+}
+
+export const exitsService = {
+  async create(input: {
+    branch_id: string
+    part_id: string
+    quantity: number
+    reason: string
+    source_reference?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('create_inventory_exit', {
+      p_branch_id: input.branch_id,
+      p_part_id: input.part_id,
+      p_quantity: input.quantity,
+      p_reason: input.reason,
+      p_source_reference: input.source_reference || null,
+    })
+
+    if (error) throw error
+    return data as string
+  },
+
+  async getAll(branchId?: string | null) {
+    let query = supabase
+      .from('inventory_exits')
+      .select(`
+        id,
+        branch_id,
+        part_id,
+        quantity,
+        reason,
+        source_reference,
+        created_by,
+        created_at,
+        branches(name),
+        parts(code, name, category),
+        users!inventory_exits_created_by_fkey(full_name)
+      `)
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId)
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    return ((data as InventoryExitRow[]) || []).map((row) => {
+      const branch = pickRelation(row.branches)
+      const part = pickRelation(row.parts)
+      const user = pickRelation(row.users)
+
+      return {
+        id: row.id,
+        branch_id: row.branch_id,
+        branch_name: branch?.name || row.branch_id,
+        part_id: row.part_id,
+        part_code: part?.code || '-',
+        part_name: part?.name || row.part_id,
+        category: part?.category || null,
+        quantity: Number(row.quantity || 0),
+        reason: row.reason,
+        source_reference: row.source_reference,
+        created_by_name: user?.full_name || null,
+        created_at: row.created_at,
+      } as InventoryExitView
+    })
+  },
+}
+
+export const movementHistoryService = {
+  async getHistory(filters?: {
+    branch_id?: string | null
+    part_id?: string | null
+    from?: string | null
+    to?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('get_inventory_movement_history', {
+      p_branch_id: filters?.branch_id || null,
+      p_part_id: filters?.part_id || null,
+      p_from: filters?.from || null,
+      p_to: filters?.to || null,
+    })
+
+    if (error) throw error
+    return ((data || []) as Array<Omit<InventoryMovementRow, 'id'>>).map((row) => ({
+      ...row,
+      id: row.movement_id,
+      quantity: Number(row.quantity || 0),
+      quantity_before: Number(row.quantity_before || 0),
+      quantity_after: Number(row.quantity_after || 0),
+    }))
+  },
+}
+
+export const inventoryControlService = {
+  async record(input: {
+    branch_id: string
+    part_id: string
+    counted_quantity: number
+    control_reason?: string | null
+    notes?: string | null
+    apply_adjustment?: boolean
+  }) {
+    const { data, error } = await supabase.rpc('record_inventory_control', {
+      p_branch_id: input.branch_id,
+      p_part_id: input.part_id,
+      p_counted_quantity: input.counted_quantity,
+      p_control_reason: input.control_reason || null,
+      p_notes: input.notes || null,
+      p_apply_adjustment: input.apply_adjustment ?? false,
+    })
+
+    if (error) throw error
+    return data as string
+  },
+
+  async getRecords(branchId?: string | null) {
+    let query = supabase
+      .from('inventory_control_records')
+      .select(`
+        id,
+        branch_id,
+        part_id,
+        counted_quantity,
+        system_quantity,
+        difference_quantity,
+        control_reason,
+        notes,
+        recorded_by,
+        recorded_at,
+        branches(name),
+        parts(code, name, category),
+        users!inventory_control_records_recorded_by_fkey(full_name)
+      `)
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId)
+    }
+
+    const { data, error } = await query.order('recorded_at', { ascending: false })
+
+    if (error) throw error
+
+    return ((data as InventoryControlRow[]) || []).map((row) => {
+      const branch = pickRelation(row.branches)
+      const part = pickRelation(row.parts)
+      const user = pickRelation(row.users)
+
+      return {
+        id: row.id,
+        branch_id: row.branch_id,
+        branch_name: branch?.name || row.branch_id,
+        part_id: row.part_id,
+        part_code: part?.code || '-',
+        part_name: part?.name || row.part_id,
+        part_category: part?.category || null,
+        counted_quantity: Number(row.counted_quantity || 0),
+        system_quantity: Number(row.system_quantity || 0),
+        difference_quantity: Number(row.difference_quantity || 0),
+        control_reason: row.control_reason,
+        notes: row.notes,
+        recorded_by_name: user?.full_name || null,
+        recorded_at: row.recorded_at,
+      } as InventoryControlView
+    })
   },
 }
 
@@ -407,5 +976,51 @@ export const inventoryService = {
     
     if (error) throw error
     return data as Inventory
+  },
+
+  async getBranchSummary(branchId?: string | null) {
+    const [inventoryRows, branches] = await Promise.all([
+      (branchId
+        ? supabase
+            .from('inventory')
+            .select('branch_id, quantity, part_id, parts(cost)')
+            .eq('branch_id', branchId)
+        : supabase
+            .from('inventory')
+            .select('branch_id, quantity, part_id, parts(cost)'))
+        .then((result) => {
+          if (result.error) throw result.error
+          return result.data || []
+        }),
+      branchesService.getAll(),
+    ])
+
+    const branchNames = new Map<string, string>(branches.map((branch) => [branch.id, branch.name]))
+    const map = new Map<string, InventoryBranchSummary>()
+
+    for (const row of inventoryRows as Array<{
+      branch_id: string
+      quantity: number
+      parts?: { cost: number } | Array<{ cost: number }>
+    }>) {
+      const current = map.get(row.branch_id) || {
+        branch_id: row.branch_id,
+        branch_name: branchNames.get(row.branch_id) || row.branch_id,
+        total_items: 0,
+        total_units: 0,
+        estimated_value: 0,
+      }
+
+      const part = pickRelation(row.parts)
+      const qty = Number(row.quantity || 0)
+      const cost = Number(part?.cost || 0)
+
+      current.total_items += 1
+      current.total_units += qty
+      current.estimated_value += qty * cost
+      map.set(row.branch_id, current)
+    }
+
+    return [...map.values()].sort((a, b) => b.total_units - a.total_units)
   },
 }

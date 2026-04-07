@@ -9,42 +9,93 @@ import { DataTable } from '@/components/common/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { mockBranches } from '@/lib/mock/data'
-import { getTransferHistory, getTransferFilterOptions } from '@/lib/mock/runtime-store'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
+import { branchesService, transferService, type TransferHistoryRow } from '@/lib/supabase/inventory'
 
 export default function InventoryHistoryPage() {
-  const [events, setEvents] = useState(getTransferHistory())
+  const [events, setEvents] = useState<TransferHistoryRow[]>([])
+  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
+  const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [eventType, setEventType] = useState('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('all')
   const [branchFilter, setBranchFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
 
   useEffect(() => {
-    setEvents(getTransferHistory())
+    const syncContext = () => {
+      const context = getActiveUserContext()
+      setActiveBranchId(context.branch_id)
+      setBranchFilter(context.branch_id)
+    }
+
+    const loadBranches = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        syncContext()
+        const branchRows = await branchesService.getAll()
+        setBranches(branchRows)
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar historial')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void loadBranches()
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
+    window.addEventListener('focus', syncContext)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, syncContext)
+      window.removeEventListener('focus', syncContext)
+    }
   }, [])
 
-  const options = useMemo(() => getTransferFilterOptions(), [events])
+  useEffect(() => {
+    if (!activeBranchId) return
+
+    const loadHistory = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const historyRows = await transferService.getHistory({ branch_id: activeBranchId })
+        setEvents(historyRows)
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar historial')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void loadHistory()
+  }, [activeBranchId])
+
+  const productNames = useMemo(
+    () => [...new Set(events.map((item) => item.part_name).filter(Boolean))],
+    [events]
+  )
 
   const filteredEvents = useMemo(() => {
     const start = startDate ? new Date(`${startDate}T00:00:00`) : null
     const end = endDate ? new Date(`${endDate}T23:59:59.999`) : null
 
     return events.filter((event) => {
-      const byType = eventType === 'all' || event.event_type === eventType
-      const eventTime = new Date(event.event_date).getTime()
+      const byType = eventType === 'all' || event.action_type === eventType
+      const eventTime = new Date(event.action_date).getTime()
       const byDateRange = (!start || eventTime >= start.getTime()) && (!end || eventTime <= end.getTime())
-      const byCategory = categoryFilter === 'all' || event.category === categoryFilter
       const byBranch =
         branchFilter === 'all' ||
         event.from_branch_id === branchFilter ||
         event.to_branch_id === branchFilter
       const byProduct = productFilter === 'all' || event.part_name === productFilter
 
-      return byType && byDateRange && byCategory && byBranch && byProduct
+      return byType && byDateRange && byBranch && byProduct
     })
-  }, [events, eventType, startDate, endDate, categoryFilter, branchFilter, productFilter])
+  }, [events, eventType, startDate, endDate, branchFilter, productFilter])
 
   return (
     <MainLayout>
@@ -55,18 +106,25 @@ export default function InventoryHistoryPage() {
         />
         <InventorySubnav />
 
+        {error ? (
+          <Card className="border-red-500/40 bg-red-500/5">
+            <CardContent className="pt-6 text-sm text-red-700 dark:text-red-300">{error}</CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader>
             <CardTitle>Filtros de historial</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Tipo</label>
               <Select value={eventType} onValueChange={setEventType}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="traspaso">Traspaso</SelectItem>
+                  <SelectItem value="creado">Creado</SelectItem>
+                  <SelectItem value="completado">Completado</SelectItem>
                   <SelectItem value="anulacion">Anulacion</SelectItem>
                   <SelectItem value="devolucion">Devolucion</SelectItem>
                   <SelectItem value="reposicion">Reposicion</SelectItem>
@@ -85,25 +143,12 @@ export default function InventoryHistoryPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Categoria</label>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {options.categories.map((category) => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
               <label className="text-sm font-medium">Origen / Destino</label>
               <Select value={branchFilter} onValueChange={setBranchFilter}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  {mockBranches.map((branch) => (
+                  {branches.map((branch) => (
                     <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -116,7 +161,7 @@ export default function InventoryHistoryPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los items</SelectItem>
-                  {options.productNames.map((productName) => (
+                  {productNames.map((productName) => (
                     <SelectItem key={productName} value={productName}>{productName}</SelectItem>
                   ))}
                 </SelectContent>
@@ -132,15 +177,17 @@ export default function InventoryHistoryPage() {
           <CardContent>
             <DataTable
               columns={[
-                { key: 'event_date', label: 'Fecha', render: (v) => new Date(String(v)).toLocaleString() },
+                { key: 'action_date', label: 'Fecha', render: (v) => new Date(String(v)).toLocaleString() },
                 {
-                  key: 'event_type',
+                  key: 'action_type',
                   label: 'Operacion',
                   render: (v) => {
                     const value = String(v)
                     const className =
-                      value === 'traspaso'
+                      value === 'completado'
                         ? 'bg-emerald-600 text-white'
+                        : value === 'creado'
+                        ? 'bg-slate-500 text-white'
                         : value === 'anulacion'
                         ? 'bg-rose-600 text-white'
                         : value === 'devolucion'
@@ -151,22 +198,22 @@ export default function InventoryHistoryPage() {
                   },
                 },
                 { key: 'part_name', label: 'Producto', render: (v) => String(v) },
-                { key: 'category', label: 'Categoria', render: (v) => String(v) },
+                { key: 'part_code', label: 'Codigo', render: (v) => String(v) },
                 { key: 'quantity', label: 'Cantidad', render: (v) => String(v) },
                 {
                   key: 'from_branch_id',
                   label: 'Origen',
-                  render: (v) => mockBranches.find((branch) => branch.id === String(v))?.name ?? String(v),
+                  render: (v) => branches.find((branch) => branch.id === String(v))?.name ?? String(v),
                 },
                 {
                   key: 'to_branch_id',
                   label: 'Destino',
-                  render: (v) => mockBranches.find((branch) => branch.id === String(v))?.name ?? String(v),
+                  render: (v) => branches.find((branch) => branch.id === String(v))?.name ?? String(v),
                 },
-                { key: 'reason', label: 'Motivo', render: (v) => String(v) },
+                { key: 'action_reason', label: 'Motivo', render: (v) => String(v || '-') },
               ]}
               data={filteredEvents}
-              emptyMessage="No hay traspasos que cumplan los filtros"
+              emptyMessage={isLoading ? 'Cargando historial...' : 'No hay traspasos que cumplan los filtros'}
             />
           </CardContent>
         </Card>

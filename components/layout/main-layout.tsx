@@ -17,15 +17,36 @@ export function MainLayout({
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
-    const allowedReadOnlyInventoryRoutes = new Set(['/inventory/products', '/inventory/kits'])
+    const basicInventoryRoutes = new Set(['/inventory/products', '/inventory/kits'])
+    const inventoryOpsRoutes = [
+      '/inventory/entries',
+      '/inventory/exits',
+      '/inventory/transfers',
+      '/inventory/voids',
+      '/inventory/history',
+      '/inventory/stock-history',
+      '/inventory/control',
+    ]
+
+    const isInventoryOpsRoute = (path: string) =>
+      inventoryOpsRoutes.some((route) => path === route || path.startsWith(`${route}/`))
 
     const enforceInventoryReadOnlyRoutes = () => {
       const context = getActiveUserContext()
       const isInventoryRoute = pathname.startsWith('/inventory')
 
-      if (!isInventoryRoute || context.role !== 'read_only') return
+      if (!isInventoryRoute) return
 
-      if (!allowedReadOnlyInventoryRoutes.has(pathname)) {
+      const canManageInventoryOps = context.role === 'admin' || context.role === 'manager'
+
+      if (!canManageInventoryOps && isInventoryOpsRoute(pathname)) {
+        router.replace('/inventory/products')
+        return
+      }
+
+      if (context.role !== 'read_only') return
+
+      if (!basicInventoryRoutes.has(pathname)) {
         router.replace('/inventory/products')
       }
     }

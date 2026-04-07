@@ -97,7 +97,6 @@ export interface Inventory {
   branch_id: string
   quantity: number
   min_quantity: number
-  max_quantity: number
   last_restock: string
   created_at: string
   updated_at: string
