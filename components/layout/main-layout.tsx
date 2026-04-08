@@ -22,6 +22,7 @@ export function MainLayout({
       '/inventory/entries',
       '/inventory/exits',
       '/inventory/transfers',
+      '/inventory/catalog-import',
       '/inventory/voids',
       '/inventory/history',
       '/inventory/stock-history',

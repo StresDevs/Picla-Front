@@ -15,6 +15,7 @@ const items = [
   { label: 'Ingresos', href: '/inventory/entries' },
   { label: 'Salidas', href: '/inventory/exits' },
   { label: 'Traspasos', href: '/inventory/transfers' },
+  { label: 'Importacion de catalogo', href: '/inventory/catalog-import' },
   { label: 'Anulaciones', href: '/inventory/voids' },
   { label: 'Historial de traspasos', href: '/inventory/history' },
   { label: 'Historial inventario', href: '/inventory/stock-history' },

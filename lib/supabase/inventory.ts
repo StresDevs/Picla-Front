@@ -189,6 +189,10 @@ export interface InventoryEntryView {
   created_at: string
 }
 
+function normalizeCode(code: string) {
+  return code.trim().toLowerCase()
+}
+
 export interface InventoryExitView {
   id: string
   branch_id: string
@@ -603,6 +607,128 @@ export const transferService = {
       id: row.action_id,
       quantity: Number(row.quantity || 0),
     }))
+  },
+}
+
+export const catalogImportService = {
+  async importProduct(input: {
+    sourcePart: Part
+    targetBranchId: string
+    targetPartId?: string | null
+    price: number
+    kit_price?: number | null
+    quotation_min_price?: number | null
+    quotation_max_price?: number | null
+    price_tiers?: ProductPriceTier[]
+  }) {
+    const targetPartId = input.targetPartId || null
+    const safePrice = Number.isFinite(input.price) ? input.price : Number(input.sourcePart.price || 0)
+    const safeKitPrice =
+      input.kit_price === null || input.kit_price === undefined
+        ? Number(input.sourcePart.kit_price ?? safePrice)
+        : Number(input.kit_price)
+    const safeMinQuotation =
+      input.quotation_min_price === null || input.quotation_min_price === undefined
+        ? input.sourcePart.quotation_min_price ?? null
+        : Number(input.quotation_min_price)
+    const safeMaxQuotation =
+      input.quotation_max_price === null || input.quotation_max_price === undefined
+        ? input.sourcePart.quotation_max_price ?? null
+        : Number(input.quotation_max_price)
+
+    const normalizedTiers = buildTiersPayload(
+      input.price_tiers,
+      safePrice,
+    )
+
+    if (!targetPartId) {
+      const created = await partsService.create({
+        branch_id: input.targetBranchId,
+        code: input.sourcePart.code,
+        name: input.sourcePart.name,
+        description: input.sourcePart.description || '',
+        category: input.sourcePart.category || '',
+        category_id: null,
+        image_url: input.sourcePart.image_url || null,
+        cost: Number(input.sourcePart.cost || 0),
+        price: safePrice,
+        kit_price: safeKitPrice,
+        quotation_min_price: safeMinQuotation,
+        quotation_max_price: safeMaxQuotation,
+        tracking_mode: input.sourcePart.tracking_mode || 'none',
+        requires_serialization: input.sourcePart.requires_serialization ?? input.sourcePart.tracking_mode === 'serial',
+        initial_quantity: 0,
+        min_quantity: 0,
+        price_tiers: normalizedTiers.map((tier) => ({
+          id: `tier-create-${tier.min_quantity}`,
+          min_quantity: tier.min_quantity,
+          price: tier.price,
+        })),
+      })
+
+      return created.id
+    }
+
+    const { error: updateError } = await supabase
+      .from('parts')
+      .update({
+        name: input.sourcePart.name,
+        description: input.sourcePart.description || null,
+        category: input.sourcePart.category || null,
+        category_id: null,
+        image_url: input.sourcePart.image_url || null,
+        cost: Number(input.sourcePart.cost || 0),
+        price: safePrice,
+        kit_price: safeKitPrice,
+        quotation_min_price: safeMinQuotation,
+        quotation_max_price: safeMaxQuotation,
+        tracking_mode: input.sourcePart.tracking_mode || 'none',
+        requires_serialization: input.sourcePart.requires_serialization ?? input.sourcePart.tracking_mode === 'serial',
+      })
+      .eq('id', targetPartId)
+
+    if (updateError) throw updateError
+
+    const { error: deleteTiersError } = await supabase
+      .from('product_price_tiers')
+      .delete()
+      .eq('part_id', targetPartId)
+
+    if (deleteTiersError) throw deleteTiersError
+
+    const tierRows = normalizedTiers.map((tier) => ({
+      part_id: targetPartId,
+      min_quantity: tier.min_quantity,
+      price: tier.price,
+    }))
+
+    if (tierRows.length > 0) {
+      const { error: insertTierError } = await supabase
+        .from('product_price_tiers')
+        .insert(tierRows)
+
+      if (insertTierError) throw insertTierError
+    }
+
+    return targetPartId
+  },
+
+  async getTargetPartByCode(targetBranchId: string, code: string) {
+    const normalized = normalizeCode(code)
+    if (!normalized) return null
+
+    const { data, error } = await supabase
+      .from('parts')
+      .select('id, code, name')
+      .eq('branch_id', targetBranchId)
+
+    if (error) throw error
+
+    const row = ((data || []) as Array<{ id: string; code: string; name: string }>).find(
+      (item) => normalizeCode(item.code) === normalized,
+    )
+
+    return row || null
   },
 }
 
