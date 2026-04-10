@@ -290,20 +290,37 @@ function sanitizeFilename(name: string) {
 }
 
 function buildTiersPayload(tiers: ProductPriceTier[] | undefined, basePrice: number) {
-  const hasBase = (tiers || []).some((tier) => tier.min_quantity === 1)
-  const normalized = (tiers || [])
-    .filter((tier) => tier.min_quantity >= 1 && tier.price >= 0)
-    .map((tier) => ({ min_quantity: tier.min_quantity, price: tier.price }))
+  const byQty = new Map<number, { min_quantity: number; price: number }>()
+  byQty.set(1, { min_quantity: 1, price: basePrice })
 
-  if (!hasBase) {
-    normalized.push({ min_quantity: 1, price: basePrice })
+  for (const tier of tiers || []) {
+    if (tier.min_quantity >= 2 && tier.price >= 0) {
+      byQty.set(tier.min_quantity, { min_quantity: tier.min_quantity, price: tier.price })
+    }
   }
 
-  return normalized.sort((a, b) => a.min_quantity - b.min_quantity)
+  return [...byQty.values()].sort((a, b) => a.min_quantity - b.min_quantity)
 }
 
 // Parts Service
 export const partsService = {
+  async generateAutoCode(input: { branch_id: string; category: string; category_id?: string | null }) {
+    const { data, error } = await supabase.rpc('generate_inventory_product_code', {
+      p_branch_id: input.branch_id,
+      p_category_name: input.category,
+      p_category_id: input.category_id ?? null,
+    })
+
+    if (error) throw error
+
+    const nextCode = String(data || '').trim()
+    if (!nextCode) {
+      throw new Error('No se pudo generar un codigo automatico para el producto')
+    }
+
+    return nextCode
+  },
+
   async getAll(branchId: string) {
     const { data, error } = await supabase
       .from('parts')

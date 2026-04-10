@@ -29,7 +29,7 @@ export default function ReportsAgingPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <PageHeader title="Cuentas por Cobrar" description="Kardex global de deudas por sucursal y cliente" />
+        <PageHeader title="Cuentas por Cobrar" description="Historial general de deudas por sucursal y cliente" />
         <ReportsSubnav />
 
         <Card className="bg-zinc-950/70 border-zinc-800">
@@ -48,7 +48,7 @@ export default function ReportsAgingPage() {
         </Card>
 
         <Card className="bg-zinc-950/70 border-zinc-800">
-          <CardHeader><CardTitle className="text-zinc-100">Aging de cartera</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-zinc-100">Antigüedad de cartera</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {filtered.map((item) => (
               <div key={`${item.customer}-${item.branch}`} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 text-sm">

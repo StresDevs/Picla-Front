@@ -16,7 +16,7 @@ export default function CreditsKardexPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <PageHeader title="Kardex de Cobros" description="Movimiento histórico de créditos y cuentas por cobrar" />
+        <PageHeader title="Historial de cobros" description="Movimientos históricos de créditos y cuentas por cobrar" />
         <CreditsSubnav />
 
         <Card className="bg-zinc-950/70 border-zinc-800">

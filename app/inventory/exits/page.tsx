@@ -286,12 +286,12 @@ export default function InventoryExitsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Item</Label>
+              <Label>Producto</Label>
               <Select value={itemFilter} onValueChange={setItemFilter}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {itemOptions.map((item) => (
-                    <SelectItem key={item} value={item}>{item === 'all' ? 'Todos los items' : item}</SelectItem>
+                    <SelectItem key={item} value={item}>{item === 'all' ? 'Todos los productos' : item}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -311,7 +311,7 @@ export default function InventoryExitsPage() {
                   <Badge className="bg-amber-600 text-white">Salida</Badge>
                 </div>
                 <p className="text-zinc-400">
-                  {new Date(record.created_at).toLocaleString('es-BO')} | {record.branch_name} | Usuario: {record.created_by_name || 'N/A'}
+                  {new Date(record.created_at).toLocaleString('es-BO')} | {record.branch_name} | Usuario: {record.created_by_name || 'No disponible'}
                 </p>
                 <p className="text-zinc-400">Cantidad: {record.quantity} | Categoría: {record.category || '-'}</p>
                 <p className="text-zinc-400">Motivo: {record.reason}</p>

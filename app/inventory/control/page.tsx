@@ -248,7 +248,7 @@ export default function InventoryControlPage() {
               />
             </div>
             {feedback ? <p className="md:col-span-3 xl:col-span-6 text-sm text-emerald-300">{feedback}</p> : null}
-            <p className="md:col-span-3 xl:col-span-6 text-xs text-zinc-500">Sucursal activa: {activeBranchId || 'N/A'}</p>
+            <p className="md:col-span-3 xl:col-span-6 text-xs text-zinc-500">Sucursal activa: {activeBranchId || 'No disponible'}</p>
           </CardContent>
         </Card>
 
@@ -259,7 +259,7 @@ export default function InventoryControlPage() {
                 <CardTitle className="text-zinc-100 text-base">{stock.branch_name}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-zinc-400">Items distintos: {stock.total_items}</p>
+                <p className="text-sm text-zinc-400">Productos distintos: {stock.total_items}</p>
                 <p className="text-zinc-100 text-2xl font-semibold mt-3">{stock.total_units} unidades</p>
                 <p className="text-emerald-300 text-sm mt-1">Valor inventario: Bs {stock.estimated_value.toFixed(2)}</p>
               </CardContent>

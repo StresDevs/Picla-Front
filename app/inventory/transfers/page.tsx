@@ -27,6 +27,23 @@ interface BulkRow {
   quantity: string
 }
 
+function transferStatusLabel(status: string) {
+  switch (status) {
+    case 'pending':
+      return 'pendiente'
+    case 'completed':
+      return 'completado'
+    case 'anulled':
+      return 'anulado'
+    case 'returned':
+      return 'devuelto'
+    case 'replenished':
+      return 'repuesto'
+    default:
+      return status
+  }
+}
+
 function createBulkRow(partId = ''): BulkRow {
   return {
     id: `row-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
@@ -499,7 +516,7 @@ export default function InventoryTransfersPage() {
                       <Badge className="bg-amber-500 text-black">pendiente</Badge>
                     </div>
                     <p className="text-muted-foreground">{transfer.transfer_id}</p>
-                    <p className="text-muted-foreground">Items: {transfer.total_items}</p>
+                    <p className="text-muted-foreground">Productos: {transfer.total_items}</p>
                     <p className="text-muted-foreground">Cantidad: {transfer.total_quantity}</p>
                     <p className="text-muted-foreground">
                       {branches.find((b) => b.id === transfer.from_branch_id)?.name ?? transfer.from_branch_id}
@@ -567,7 +584,7 @@ export default function InventoryTransfersPage() {
                         ? 'bg-amber-600 text-white'
                         : 'bg-sky-600 text-white'
 
-                    return <Badge className={className}>{value}</Badge>
+                    return <Badge className={className}>{transferStatusLabel(value)}</Badge>
                   },
                 },
               ]}

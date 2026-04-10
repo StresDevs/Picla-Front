@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 const items = [
   { label: 'Ganancias', href: '/reports/profit' },
   { label: 'Capital', href: '/reports/capital' },
-  { label: 'Top Productos', href: '/reports/top-products' },
+  { label: 'Productos más vendidos', href: '/reports/top-products' },
   { label: 'Cuentas por Cobrar', href: '/reports/aging' },
 ]
 

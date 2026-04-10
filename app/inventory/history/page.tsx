@@ -156,11 +156,11 @@ export default function InventoryHistoryPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Item</label>
+              <label className="text-sm font-medium">Producto</label>
               <Select value={productFilter} onValueChange={setProductFilter}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los items</SelectItem>
+                  <SelectItem value="all">Todos los productos</SelectItem>
                   {productNames.map((productName) => (
                     <SelectItem key={productName} value={productName}>{productName}</SelectItem>
                   ))}

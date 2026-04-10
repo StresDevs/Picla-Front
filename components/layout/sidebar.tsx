@@ -46,7 +46,7 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   {
-    label: 'Dashboard',
+    label: 'Panel principal',
     href: '/dashboard',
     icon: BarChart3,
   },
@@ -60,10 +60,10 @@ const menuItems: MenuItem[] = [
       { label: 'Ingresos', href: '/inventory/entries' },
       { label: 'Salidas', href: '/inventory/exits' },
       { label: 'Traspasos', href: '/inventory/transfers' },
-      { label: 'Importacion de catalogo', href: '/inventory/catalog-import' },
+      { label: 'Importación de catálogo', href: '/inventory/catalog-import' },
       { label: 'Anulaciones', href: '/inventory/voids' },
       { label: 'Historial de traspasos', href: '/inventory/history' },
-      { label: 'Historial inventario', href: '/inventory/stock-history' },
+      { label: 'Historial de inventario', href: '/inventory/stock-history' },
       { label: 'Control', href: '/inventory/control' },
     ],
   },
@@ -115,7 +115,7 @@ const menuItems: MenuItem[] = [
       { label: 'Cartera', href: '/credits/portfolio' },
       { label: 'Pagos', href: '/credits/payments' },
       { label: 'Alertas', href: '/credits/alerts' },
-      { label: 'Kardex Cobros', href: '/credits/kardex' },
+      { label: 'Historial de cobros', href: '/credits/kardex' },
     ],
   },
   {
@@ -125,7 +125,7 @@ const menuItems: MenuItem[] = [
     subItems: [
       { label: 'Ganancias', href: '/reports/profit' },
       { label: 'Capital', href: '/reports/capital' },
-      { label: 'Top Productos', href: '/reports/top-products' },
+      { label: 'Productos más vendidos', href: '/reports/top-products' },
       { label: 'Cuentas por Cobrar', href: '/reports/aging' },
     ],
   },
@@ -240,7 +240,7 @@ export function Sidebar() {
     if (activeRole === 'read_only') {
       return [
         {
-          label: 'Dashboard',
+          label: 'Panel principal',
           href: '/dashboard',
           icon: BarChart3,
         },

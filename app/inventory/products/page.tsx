@@ -79,7 +79,7 @@ interface BulkResultRow {
   message: string
 }
 
-const createTier = (minQty = '1', price = ''): TierFormData => ({
+const createTier = (minQty = '2', price = ''): TierFormData => ({
   id: `tier-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
   minQty,
   price,
@@ -121,11 +121,13 @@ const createEmptyProductForm = (branchId: string): ProductFormData => ({
   initialQuantity: '0',
   minQuantity: '0',
   branchId,
-  tiers: [createTier('1', '')],
+  tiers: [],
 })
 
 const toProductForm = (part: Part): ProductFormData => {
-  const tiers = (part.price_tiers || []).map((tier) => ({
+  const tiers = (part.price_tiers || [])
+    .filter((tier) => tier.min_quantity > 1)
+    .map((tier) => ({
     id: tier.id,
     minQty: String(tier.min_quantity),
     price: String(tier.price),
@@ -148,7 +150,7 @@ const toProductForm = (part: Part): ProductFormData => {
     initialQuantity: '',
     minQuantity: '',
     branchId: part.branch_id,
-    tiers: tiers.length > 0 ? tiers : [createTier('1', String(part.price))],
+    tiers,
   }
 }
 
@@ -161,6 +163,13 @@ function normalizeTrackingMode(value: unknown): 'none' | 'serial' | 'lot' {
   if (normalized === 'serial') return 'serial'
   if (normalized === 'lot') return 'lot'
   return 'none'
+}
+
+function getTrackingModeLabel(value: unknown) {
+  const mode = normalizeTrackingMode(value)
+  if (mode === 'serial') return 'Serie'
+  if (mode === 'lot') return 'Lote'
+  return 'Sin seguimiento'
 }
 
 function parseBool(value: unknown) {
@@ -346,7 +355,7 @@ export default function InventoryProductsPage() {
       const next = prev.tiers.filter((tier) => tier.id !== id)
       return {
         ...prev,
-        tiers: next.length > 0 ? next : [createTier('1', '')],
+        tiers: next,
       }
     })
   }
@@ -370,7 +379,7 @@ export default function InventoryProductsPage() {
       const next = prev.tiers.filter((tier) => tier.id !== id)
       return {
         ...prev,
-        tiers: next.length > 0 ? next : [createTier('1', '')],
+        tiers: next,
       }
     })
   }
@@ -398,12 +407,17 @@ export default function InventoryProductsPage() {
     const maxQuotationPrice = Number(editForm.quotationMaxPrice || Number((referencePrice * 1.2).toFixed(2)))
 
     if (minQuotationPrice <= 0 || maxQuotationPrice < minQuotationPrice) {
-      setError('El rango de cotizacion no es valido para la edicion')
+      setError('El rango de cotización no es válido para la edición')
+      return
+    }
+
+    if (editForm.tiers.some((tier) => tier.minQty.trim() && Number(tier.minQty) <= 1)) {
+      setError('Los precios por mayoreo deben iniciar desde 2 unidades')
       return
     }
 
     const priceTiers: ProductPriceTier[] = editForm.tiers
-      .filter((tier) => Number(tier.minQty) >= 1 && Number(tier.price) >= 0)
+      .filter((tier) => Number(tier.minQty) >= 2 && Number(tier.price) >= 0)
       .map((tier) => ({
         id: tier.id,
         min_quantity: Number(tier.minQty),
@@ -476,7 +490,7 @@ export default function InventoryProductsPage() {
       setCategoryBranchId(activeBranchId)
       setIsCategoryOpen(false)
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : 'No se pudo crear la categoria')
+      setError(createError instanceof Error ? createError.message : 'No se pudo crear la categoría')
     } finally {
       setIsSaving(false)
     }
@@ -485,7 +499,7 @@ export default function InventoryProductsPage() {
   const createProduct = async () => {
     if (!canModify) return
 
-    if (!productForm.name || !productForm.code || !productForm.category || !productForm.cost || !productForm.price || !productForm.kitPrice || !productForm.branchId) {
+    if (!productForm.name || !productForm.category || !productForm.cost || !productForm.price || !productForm.kitPrice || !productForm.branchId) {
       return
     }
 
@@ -494,12 +508,17 @@ export default function InventoryProductsPage() {
     const maxQuotationPrice = Number(productForm.quotationMaxPrice || Number((referencePrice * 1.2).toFixed(2)))
 
     if (minQuotationPrice <= 0 || maxQuotationPrice < minQuotationPrice) {
-      setError('El rango de cotizacion no es valido')
+      setError('El rango de cotización no es válido')
+      return
+    }
+
+    if (productForm.tiers.some((tier) => tier.minQty.trim() && Number(tier.minQty) <= 1)) {
+      setError('Los precios por mayoreo deben iniciar desde 2 unidades')
       return
     }
 
     const additionalTiers: ProductPriceTier[] = productForm.tiers
-      .filter((tier) => Number(tier.minQty) >= 1 && Number(tier.price) >= 0)
+      .filter((tier) => Number(tier.minQty) >= 2 && Number(tier.price) >= 0)
       .map((tier) => ({
         id: tier.id,
         min_quantity: Number(tier.minQty),
@@ -511,6 +530,11 @@ export default function InventoryProductsPage() {
 
     try {
       let imageUrl = productForm.imageUrl || null
+      const generatedCode = await partsService.generateAutoCode({
+        branch_id: productForm.branchId,
+        category: productForm.category,
+        category_id: productForm.categoryId || null,
+      })
 
       if (productForm.imageFile) {
         imageUrl = await partsService.uploadProductImage(productForm.imageFile, productForm.branchId)
@@ -518,7 +542,7 @@ export default function InventoryProductsPage() {
 
       await partsService.create({
         branch_id: productForm.branchId,
-        code: productForm.code.trim(),
+        code: generatedCode,
         name: productForm.name.trim(),
         description: `Producto ${productForm.name.trim()}`,
         category: productForm.category,
@@ -585,7 +609,7 @@ export default function InventoryProductsPage() {
   const saveBulkProducts = async () => {
     if (!canModify) return
 
-    const validRows = bulkRows.filter((row) => row.code && row.name && row.category && row.cost && row.price)
+    const validRows = bulkRows.filter((row) => row.name && row.category && row.cost && row.price)
     if (validRows.length === 0) {
       setError('No hay filas validas para subir')
       return
@@ -595,32 +619,47 @@ export default function InventoryProductsPage() {
     setError(null)
 
     try {
+      const preparedRows = await Promise.all(
+        validRows.map(async (row) => {
+          const branchId = row.branchId || activeBranchId
+          const code = row.code.trim()
+            ? row.code.trim()
+            : await partsService.generateAutoCode({
+                branch_id: branchId,
+                category: row.category,
+                category_id: row.categoryId || null,
+              })
+
+          return {
+            branch_id: branchId,
+            code,
+            name: row.name.trim(),
+            description: `Producto ${row.name.trim()}`,
+            category: row.category,
+            category_id: row.categoryId || null,
+            image_url: row.imageUrl || null,
+            cost: Number(row.cost),
+            price: Number(row.price),
+            kit_price: Number(row.kitPrice || row.price),
+            quotation_min_price: row.quotationMinPrice ? Number(row.quotationMinPrice) : null,
+            quotation_max_price: row.quotationMaxPrice ? Number(row.quotationMaxPrice) : null,
+            tracking_mode: row.trackingMode,
+            requires_serialization: row.requiresSerialization || row.trackingMode === 'serial',
+            initial_quantity: Number(row.initialQuantity || 0),
+            min_quantity: Number(row.minQuantity || 0),
+            price_tiers: [
+              {
+                id: `tier-bulk-${row.id}`,
+                min_quantity: 1,
+                price: Number(row.price),
+              },
+            ],
+          }
+        }),
+      )
+
       const result = await partsService.bulkUpsert(
-        validRows.map((row) => ({
-          branch_id: row.branchId || activeBranchId,
-          code: row.code.trim(),
-          name: row.name.trim(),
-          description: `Producto ${row.name.trim()}`,
-          category: row.category,
-          category_id: row.categoryId || null,
-          image_url: row.imageUrl || null,
-          cost: Number(row.cost),
-          price: Number(row.price),
-          kit_price: Number(row.kitPrice || row.price),
-          quotation_min_price: row.quotationMinPrice ? Number(row.quotationMinPrice) : null,
-          quotation_max_price: row.quotationMaxPrice ? Number(row.quotationMaxPrice) : null,
-          tracking_mode: row.trackingMode,
-          requires_serialization: row.requiresSerialization || row.trackingMode === 'serial',
-          initial_quantity: Number(row.initialQuantity || 0),
-          min_quantity: Number(row.minQuantity || 0),
-          price_tiers: [
-            {
-              id: `tier-bulk-${row.id}`,
-              min_quantity: 1,
-              price: Number(row.price),
-            },
-          ],
-        }))
+        preparedRows
       )
 
       setBulkResults(result)
@@ -634,7 +673,6 @@ export default function InventoryProductsPage() {
 
   const isProductFormValid =
     !!productForm.name &&
-    !!productForm.code &&
     !!productForm.category &&
     !!productForm.cost &&
     !!productForm.price &&
@@ -646,7 +684,7 @@ export default function InventoryProductsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Inventario"
-          description="Catalogo de productos, categorias y carga masiva"
+          description="Catálogo de productos, categorías y carga masiva"
           action={
             canModify ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -654,14 +692,14 @@ export default function InventoryProductsPage() {
                   <DialogTrigger asChild>
                     <Button variant="outline">
                       <Plus className="w-4 h-4 mr-2" />
-                      Nueva categoria
+                      Nueva categoría
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
-                      <DialogTitle>Crear categoria de inventario</DialogTitle>
+                      <DialogTitle>Crear categoría de inventario</DialogTitle>
                       <DialogDescription>
-                        Registra una categoria por sucursal para usarla en productos y filtros.
+                        Registra una categoría por sucursal para usarla en productos y filtros.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3">
@@ -679,17 +717,17 @@ export default function InventoryProductsPage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Nombre categoria</label>
+                        <label className="text-sm font-medium text-foreground">Nombre de categoría</label>
                         <Input value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="Ej. Frenos premium" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Descripcion</label>
+                        <label className="text-sm font-medium text-foreground">Descripción</label>
                         <Input value={categoryDescription} onChange={(event) => setCategoryDescription(event.target.value)} placeholder="Opcional" />
                       </div>
                       <div className="flex justify-end gap-2">
                         <Button variant="destructive" onClick={() => setIsCategoryOpen(false)}>Cancelar</Button>
                         <Button onClick={() => void createCategory()} disabled={isSaving || !categoryName.trim() || !categoryBranchId}>
-                          Guardar categoria
+                          Guardar categoría
                         </Button>
                       </div>
                     </div>
@@ -729,14 +767,14 @@ export default function InventoryProductsPage() {
                         <TableRow>
                           <TableHead>Codigo</TableHead>
                           <TableHead>Nombre</TableHead>
-                          <TableHead>Categoria</TableHead>
+                          <TableHead>Categoría</TableHead>
                           <TableHead>Costo</TableHead>
                           <TableHead>Precio</TableHead>
                           <TableHead>Precio kit</TableHead>
-                          <TableHead>Tracking</TableHead>
+                          <TableHead>Seguimiento</TableHead>
                           <TableHead>Serializa</TableHead>
                           <TableHead>Stock inicial</TableHead>
-                          <TableHead>Imagen URL</TableHead>
+                          <TableHead>Enlace de imagen</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -753,9 +791,9 @@ export default function InventoryProductsPage() {
                               <Select value={row.trackingMode} onValueChange={(value: 'none' | 'serial' | 'lot') => updateBulkRow(row.id, { trackingMode: value })}>
                                 <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="none">none</SelectItem>
-                                  <SelectItem value="serial">serial</SelectItem>
-                                  <SelectItem value="lot">lot</SelectItem>
+                                  <SelectItem value="none">Sin seguimiento</SelectItem>
+                                  <SelectItem value="serial">Serie</SelectItem>
+                                  <SelectItem value="lot">Lote</SelectItem>
                                 </SelectContent>
                               </Select>
                             </TableCell>
@@ -808,7 +846,7 @@ export default function InventoryProductsPage() {
                     <DialogHeader>
                       <DialogTitle>Registrar producto</DialogTitle>
                       <DialogDescription>
-                        Crea producto por sucursal y sube imagen al bucket product_images.
+                        Crea un producto por sucursal y sube la imagen al almacén product_images.
                       </DialogDescription>
                     </DialogHeader>
 
@@ -818,11 +856,12 @@ export default function InventoryProductsPage() {
                         <Input value={productForm.name} onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Ej. Bujia Iridium" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Codigo</label>
-                        <Input value={productForm.code} onChange={(event) => setProductForm((prev) => ({ ...prev, code: event.target.value }))} placeholder="REP-900" />
+                        <label className="text-sm font-medium text-foreground">Código (autogenerado)</label>
+                        <Input value={productForm.code} readOnly placeholder="Se genera automáticamente al guardar" />
+                        <p className="text-xs text-muted-foreground">Formato: prefijo por categoría + correlativo (ej. BOM-1).</p>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Categoria</label>
+                        <label className="text-sm font-medium text-foreground">Categoría</label>
                         <Select
                           value={productForm.category || 'none'}
                           onValueChange={(value) => {
@@ -835,10 +874,10 @@ export default function InventoryProductsPage() {
                           }}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecciona categoria" />
+                            <SelectValue placeholder="Selecciona categoría" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none" disabled>Selecciona una categoria</SelectItem>
+                            <SelectItem value="none" disabled>Selecciona una categoría</SelectItem>
                             {categoryOptions.map((category) => (
                               <SelectItem key={category} value={category}>{category}</SelectItem>
                             ))}
@@ -870,7 +909,7 @@ export default function InventoryProductsPage() {
                         />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <label className="text-sm font-medium text-foreground">Imagen URL (opcional)</label>
+                        <label className="text-sm font-medium text-foreground">Enlace de imagen (opcional)</label>
                         <Input value={productForm.imageUrl} onChange={(event) => setProductForm((prev) => ({ ...prev, imageUrl: event.target.value }))} placeholder="https://..." />
                       </div>
                       <div className="space-y-2">
@@ -886,11 +925,11 @@ export default function InventoryProductsPage() {
                         <Input type="number" step="0.01" value={productForm.kitPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, kitPrice: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Cotizacion min</label>
+                        <label className="text-sm font-medium text-foreground">Cotización mínima</label>
                         <Input type="number" step="0.01" value={productForm.quotationMinPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, quotationMinPrice: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Cotizacion max</label>
+                        <label className="text-sm font-medium text-foreground">Cotización máxima</label>
                         <Input type="number" step="0.01" value={productForm.quotationMaxPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, quotationMaxPrice: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
@@ -898,24 +937,24 @@ export default function InventoryProductsPage() {
                         <Input type="number" step="0.01" value={productForm.initialQuantity} onChange={(event) => setProductForm((prev) => ({ ...prev, initialQuantity: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Stock minimo</label>
+                        <label className="text-sm font-medium text-foreground">Stock mínimo</label>
                         <Input type="number" step="0.01" value={productForm.minQuantity} onChange={(event) => setProductForm((prev) => ({ ...prev, minQuantity: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Tracking</label>
+                        <label className="text-sm font-medium text-foreground">Seguimiento</label>
                         <Select value={productForm.trackingMode} onValueChange={(value: 'none' | 'serial' | 'lot') => setProductForm((prev) => ({ ...prev, trackingMode: value }))}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">Sin tracking</SelectItem>
+                            <SelectItem value="none">Sin seguimiento</SelectItem>
                             <SelectItem value="serial">Serial</SelectItem>
                             <SelectItem value="lot">Lote</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Requiere serializacion</label>
+                        <label className="text-sm font-medium text-foreground">Requiere serialización</label>
                         <div className="h-10 px-3 border rounded-md flex items-center">
                           <input
                             type="checkbox"
@@ -932,7 +971,7 @@ export default function InventoryProductsPage() {
                           <div>
                             <CardTitle className="text-base">Precios por mayoreo</CardTitle>
                             <CardDescription>
-                              Define precio por cantidad minima.
+                              Define precios desde 2 unidades en adelante.
                             </CardDescription>
                           </div>
                           <Button variant="outline" size="sm" onClick={addTier}>
@@ -947,7 +986,7 @@ export default function InventoryProductsPage() {
                               <label className="text-xs text-foreground">Desde cantidad</label>
                               <Input
                                 type="number"
-                                min={1}
+                                min={2}
                                 value={tier.minQty}
                                 onChange={(event) => updateTier(tier.id, { minQty: event.target.value })}
                               />
@@ -1004,9 +1043,9 @@ export default function InventoryProductsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-primary" />
-              Filtros de catalogo
+              Filtros de catálogo
             </CardTitle>
-            <CardDescription>Busqueda por nombre, codigo, categoria y rango de precio</CardDescription>
+            <CardDescription>Búsqueda por nombre, código, categoría y rango de precio</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -1014,17 +1053,17 @@ export default function InventoryProductsPage() {
                 <label className="text-sm font-medium">Buscar</label>
                 <div className="relative">
                   <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                  <Input className="pl-9" placeholder="Nombre o codigo" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <Input className="pl-9" placeholder="Nombre o código" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Categoria</label>
+                <label className="text-sm font-medium">Categoría</label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas las categorias</SelectItem>
+                    <SelectItem value="all">Todas las categorías</SelectItem>
                     {categoryOptions.map((cat) => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
@@ -1032,11 +1071,11 @@ export default function InventoryProductsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Precio minimo</label>
+                <label className="text-sm font-medium">Precio mínimo</label>
                 <Input type="number" placeholder="0" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Precio maximo</label>
+                <label className="text-sm font-medium">Precio máximo</label>
                 <Input type="number" placeholder="999" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} />
               </div>
             </div>
@@ -1044,8 +1083,8 @@ export default function InventoryProductsPage() {
         </Card>
 
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Catalogo de productos</h2>
-          <Badge className="bg-primary/15 text-primary">{isLoading ? 'Cargando...' : `${filteredParts.length} items`}</Badge>
+          <h2 className="text-lg font-semibold">Catálogo de productos</h2>
+          <Badge className="bg-primary/15 text-primary">{isLoading ? 'Cargando...' : `${filteredParts.length} productos`}</Badge>
         </div>
 
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
@@ -1060,27 +1099,32 @@ export default function InventoryProductsPage() {
             {selectedProduct ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <p><span className="font-medium">Categoria:</span> {selectedProduct.category}</p>
+                  <p><span className="font-medium">Categoría:</span> {selectedProduct.category}</p>
                   <p><span className="font-medium">Sucursal:</span> {branches.find((b) => b.id === selectedProduct.branch_id)?.name || selectedProduct.branch_id}</p>
                   <p><span className="font-medium">Costo:</span> Bs {selectedProduct.cost.toFixed(2)}</p>
                   <p><span className="font-medium">Precio base:</span> Bs {selectedProduct.price.toFixed(2)}</p>
                   <p><span className="font-medium">Precio kit:</span> Bs {(selectedProduct.kit_price || selectedProduct.price).toFixed(2)}</p>
-                  <p><span className="font-medium">Tracking:</span> {selectedProduct.tracking_mode || 'none'}</p>
-                  <p><span className="font-medium">Serializacion:</span> {selectedProduct.requires_serialization ? 'si' : 'no'}</p>
-                  <p><span className="font-medium">Cotizacion:</span> Bs {(selectedProduct.quotation_min_price ?? selectedProduct.price * 0.9).toFixed(2)} - Bs {(selectedProduct.quotation_max_price ?? selectedProduct.price * 1.2).toFixed(2)}</p>
+                  <p><span className="font-medium">Seguimiento:</span> {getTrackingModeLabel(selectedProduct.tracking_mode)}</p>
+                  <p><span className="font-medium">Serialización:</span> {selectedProduct.requires_serialization ? 'sí' : 'no'}</p>
+                  <p><span className="font-medium">Cotización:</span> Bs {(selectedProduct.quotation_min_price ?? selectedProduct.price * 0.9).toFixed(2)} - Bs {(selectedProduct.quotation_max_price ?? selectedProduct.price * 1.2).toFixed(2)}</p>
                 </div>
 
                 <div className="rounded-md border border-border/70 p-3">
                   <p className="text-sm font-medium mb-2">Escalas de precio</p>
                   <div className="space-y-1 text-sm">
-                    {[...(selectedProduct.price_tiers || [])]
-                      .sort((a, b) => a.min_quantity - b.min_quantity)
-                      .map((tier) => (
-                        <div key={tier.id} className="flex items-center justify-between">
-                          <span>Desde {tier.min_quantity} und</span>
-                          <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
-                        </div>
-                      ))}
+                    {[...(selectedProduct.price_tiers || [])].filter((tier) => tier.min_quantity > 1).length === 0 ? (
+                      <p className="text-muted-foreground">Sin precios por mayoreo configurados.</p>
+                    ) : (
+                      [...(selectedProduct.price_tiers || [])]
+                        .filter((tier) => tier.min_quantity > 1)
+                        .sort((a, b) => a.min_quantity - b.min_quantity)
+                        .map((tier) => (
+                          <div key={tier.id} className="flex items-center justify-between">
+                            <span>Desde {tier.min_quantity} und</span>
+                            <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
+                          </div>
+                        ))
+                    )}
                   </div>
                 </div>
 
@@ -1122,7 +1166,7 @@ export default function InventoryProductsPage() {
                 <Input value={editForm.code} onChange={(event) => setEditForm((prev) => ({ ...prev, code: event.target.value }))} disabled />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Categoria</label>
+                <label className="text-sm font-medium text-foreground">Categoría</label>
                 <Select
                   value={editForm.category || 'none'}
                   onValueChange={(value) => {
@@ -1135,10 +1179,10 @@ export default function InventoryProductsPage() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona categoria" />
+                    <SelectValue placeholder="Selecciona categoría" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none" disabled>Selecciona una categoria</SelectItem>
+                    <SelectItem value="none" disabled>Selecciona una categoría</SelectItem>
                     {categoryOptions.map((category) => (
                       <SelectItem key={category} value={category}>{category}</SelectItem>
                     ))}
@@ -1167,7 +1211,7 @@ export default function InventoryProductsPage() {
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-foreground">Imagen URL (opcional)</label>
+                <label className="text-sm font-medium text-foreground">Enlace de imagen (opcional)</label>
                 <Input value={editForm.imageUrl} onChange={(event) => setEditForm((prev) => ({ ...prev, imageUrl: event.target.value }))} />
               </div>
               <div className="space-y-2">
@@ -1183,26 +1227,26 @@ export default function InventoryProductsPage() {
                 <Input type="number" step="0.01" value={editForm.kitPrice} onChange={(event) => setEditForm((prev) => ({ ...prev, kitPrice: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Cotizacion min</label>
+                <label className="text-sm font-medium text-foreground">Cotización mínima</label>
                 <Input type="number" step="0.01" value={editForm.quotationMinPrice} onChange={(event) => setEditForm((prev) => ({ ...prev, quotationMinPrice: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Cotizacion max</label>
+                <label className="text-sm font-medium text-foreground">Cotización máxima</label>
                 <Input type="number" step="0.01" value={editForm.quotationMaxPrice} onChange={(event) => setEditForm((prev) => ({ ...prev, quotationMaxPrice: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Tracking</label>
+                <label className="text-sm font-medium text-foreground">Seguimiento</label>
                 <Select value={editForm.trackingMode} onValueChange={(value: 'none' | 'serial' | 'lot') => setEditForm((prev) => ({ ...prev, trackingMode: value }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Sin tracking</SelectItem>
+                    <SelectItem value="none">Sin seguimiento</SelectItem>
                     <SelectItem value="serial">Serial</SelectItem>
                     <SelectItem value="lot">Lote</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Requiere serializacion</label>
+                <label className="text-sm font-medium text-foreground">Requiere serialización</label>
                 <div className="h-10 px-3 border rounded-md flex items-center">
                   <input
                     type="checkbox"
@@ -1218,7 +1262,7 @@ export default function InventoryProductsPage() {
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <CardTitle className="text-base">Precios por mayoreo</CardTitle>
-                    <CardDescription>Define precio por cantidad minima.</CardDescription>
+                    <CardDescription>Define precios desde 2 unidades en adelante.</CardDescription>
                   </div>
                   <Button variant="outline" size="sm" onClick={addEditTier}>
                     <Plus className="mr-1 h-4 w-4" /> Escala
@@ -1232,7 +1276,7 @@ export default function InventoryProductsPage() {
                       <label className="text-xs text-foreground">Desde cantidad</label>
                       <Input
                         type="number"
-                        min={1}
+                        min={2}
                         value={tier.minQty}
                         onChange={(event) => updateEditTier(tier.id, { minQty: event.target.value })}
                       />
@@ -1268,7 +1312,9 @@ export default function InventoryProductsPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
           {filteredParts.map((part) => {
             const branchName = branches.find((branch) => branch.id === part.branch_id)?.name ?? part.branch_id
-            const tiers = [...(part.price_tiers || [])].sort((a, b) => a.min_quantity - b.min_quantity)
+            const tiers = [...(part.price_tiers || [])]
+              .filter((tier) => tier.min_quantity > 1)
+              .sort((a, b) => a.min_quantity - b.min_quantity)
 
             return (
               <article key={part.id} className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 hover:border-primary/60 transition-all duration-300 hover:-translate-y-1">
@@ -1295,13 +1341,13 @@ export default function InventoryProductsPage() {
                     Precio kit: <span className="font-semibold text-foreground">Bs {(part.kit_price || part.price).toFixed(2)}</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Cotizacion: <span className="font-semibold text-foreground">Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</span>
+                    Cotización: <span className="font-semibold text-foreground">Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Tracking: <span className="font-semibold text-foreground">{part.tracking_mode || 'none'}</span>
+                    Seguimiento: <span className="font-semibold text-foreground">{getTrackingModeLabel(part.tracking_mode)}</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Serializacion: <span className="font-semibold text-foreground">{part.requires_serialization ? 'si' : 'no'}</span>
+                    Serialización: <span className="font-semibold text-foreground">{part.requires_serialization ? 'sí' : 'no'}</span>
                   </div>
                   <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-[11px]">
                     {tiers.length === 0 ? (

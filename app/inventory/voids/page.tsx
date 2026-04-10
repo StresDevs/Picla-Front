@@ -12,6 +12,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { branchesService, transferService, type TransferRequestDetail } from '@/lib/supabase/inventory'
 
+function transferStatusLabel(status: string) {
+  switch (status) {
+    case 'pending':
+      return 'pendiente'
+    case 'completed':
+      return 'completado'
+    case 'anulled':
+      return 'anulado'
+    case 'returned':
+      return 'devuelto'
+    case 'replenished':
+      return 'repuesto'
+    default:
+      return status
+  }
+}
+
 export default function InventoryVoidsPage() {
   const [transfers, setTransfers] = useState<TransferRequestDetail[]>([])
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
@@ -100,7 +117,7 @@ export default function InventoryVoidsPage() {
           <CardHeader>
             <CardTitle>Centro de acciones</CardTitle>
             <CardDescription>
-              Selecciona el traspaso, tipo de operacion y motivo para registrar la trazabilidad.
+              Selecciona el traspaso, tipo de operación y motivo para registrar la trazabilidad.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -115,7 +132,7 @@ export default function InventoryVoidsPage() {
                     ) : (
                       actionableTransfers.map((transfer) => (
                         <SelectItem key={transfer.id} value={transfer.id}>
-                          {transfer.id} | {transfer.items.length} items
+                          {transfer.id} | {transfer.items.length} productos
                         </SelectItem>
                       ))
                     )}
@@ -124,13 +141,13 @@ export default function InventoryVoidsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Operacion</Label>
+                <Label>Operación</Label>
                 <Select value={actionType} onValueChange={(value: 'anulacion' | 'devolucion' | 'reposicion') => setActionType(value)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="anulacion">Anulacion</SelectItem>
-                    <SelectItem value="devolucion">Devolucion</SelectItem>
-                    <SelectItem value="reposicion">Reposicion</SelectItem>
+                    <SelectItem value="anulacion">Anulación</SelectItem>
+                    <SelectItem value="devolucion">Devolución</SelectItem>
+                    <SelectItem value="reposicion">Reposición</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -153,7 +170,7 @@ export default function InventoryVoidsPage() {
 
             <div className="flex justify-end">
               <Button onClick={() => void applyAction()} disabled={!selectedTransferId || !reason.trim() || isSaving}>
-                Registrar operacion
+                Registrar operación
               </Button>
             </div>
           </CardContent>
@@ -167,7 +184,7 @@ export default function InventoryVoidsPage() {
             {transfers.map((item) => (
               <div key={item.id} className="rounded-lg border border-border/70 bg-card/75 p-3 text-sm space-y-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold">{item.id} - {item.items.length} items</p>
+                  <p className="font-semibold">{item.id} - {item.items.length} productos</p>
                   <Badge
                     className={
                       item.status === 'pending'
@@ -182,7 +199,7 @@ export default function InventoryVoidsPage() {
                         : 'bg-sky-600 text-white'
                     }
                   >
-                    {item.status}
+                    {transferStatusLabel(item.status)}
                   </Badge>
                 </div>
                 <p className="text-muted-foreground">
@@ -198,7 +215,7 @@ export default function InventoryVoidsPage() {
                 </p>
                 <p className="text-muted-foreground">Motivo traspaso: {item.notes || 'Sin detalle'}</p>
                 {item.resolution_reason || item.resolution_type ? (
-                  <p className="text-foreground">Motivo accion: {item.resolution_reason || item.resolution_type}</p>
+                  <p className="text-foreground">Motivo acción: {item.resolution_reason || item.resolution_type}</p>
                 ) : null}
                 {item.status === 'completed' ? (
                   <div className="pt-1">
@@ -207,7 +224,7 @@ export default function InventoryVoidsPage() {
                       size="sm"
                       onClick={() => setSelectedTransferId(item.id)}
                     >
-                      Seleccionar para accion
+                      Seleccionar para acción
                     </Button>
                   </div>
                 ) : null}

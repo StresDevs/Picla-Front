@@ -8,7 +8,7 @@ const items = [
   { label: 'Cartera', href: '/credits/portfolio' },
   { label: 'Pagos', href: '/credits/payments' },
   { label: 'Alertas', href: '/credits/alerts' },
-  { label: 'Kardex Cobros', href: '/credits/kardex' },
+  { label: 'Historial de cobros', href: '/credits/kardex' },
 ]
 
 export function CreditsSubnav() {

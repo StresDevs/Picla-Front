@@ -20,16 +20,16 @@ import {
   Search,
 } from 'lucide-react'
 
-type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE'
+type AuditAction = 'CREACION' | 'ACTUALIZACION' | 'ELIMINACION'
 
 // Datos de ejemplo
 const auditLogs = [
   {
     id: '1',
     timestamp: '2024-03-07 14:30:45',
-    user: 'Admin User',
-    action: 'CREATE' as AuditAction,
-    entity: 'Part',
+    user: 'Administrador',
+    action: 'CREACION' as AuditAction,
+    entity: 'Producto',
     description: 'Creó nuevo repuesto: Filtro de Aire (REP-001)',
     details: 'Precio: $5.50, Stock Mín: 10',
   },
@@ -37,17 +37,17 @@ const auditLogs = [
     id: '2',
     timestamp: '2024-03-07 13:15:20',
     user: 'Vendedor 1',
-    action: 'UPDATE' as AuditAction,
-    entity: 'Sale',
+    action: 'ACTUALIZACION' as AuditAction,
+    entity: 'Venta',
     description: 'Modificó venta #S-001',
     details: 'Total anterior: $150, Total nuevo: $145',
   },
   {
     id: '3',
     timestamp: '2024-03-07 12:45:10',
-    user: 'Admin User',
-    action: 'DELETE' as AuditAction,
-    entity: 'Inventory',
+    user: 'Administrador',
+    action: 'ELIMINACION' as AuditAction,
+    entity: 'Inventario',
     description: 'Eliminó registro de inventario',
     details: 'Parte: Correa de Distribución, Sucursal: Centro',
   },
@@ -55,31 +55,31 @@ const auditLogs = [
     id: '4',
     timestamp: '2024-03-07 11:20:35',
     user: 'Vendedor 2',
-    action: 'CREATE' as AuditAction,
-    entity: 'Credit',
+    action: 'CREACION' as AuditAction,
+    entity: 'Crédito',
     description: 'Creó nuevo crédito para cliente',
     details: 'Cliente: Juan García, Monto: $500',
   },
   {
     id: '5',
     timestamp: '2024-03-07 10:05:15',
-    user: 'Admin User',
-    action: 'UPDATE' as AuditAction,
-    entity: 'CashBox',
+    user: 'Administrador',
+    action: 'ACTUALIZACION' as AuditAction,
+    entity: 'Caja',
     description: 'Cerró caja diaria',
     details: 'Balance esperado: $1,200, Balance real: $1,185',
   },
 ]
 
 const actionStyles: Record<AuditAction, string> = {
-  CREATE: 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/35 dark:text-emerald-300 dark:border-emerald-500/30',
-  UPDATE: 'bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-900/35 dark:text-sky-300 dark:border-sky-500/30',
-  DELETE: 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-900/35 dark:text-rose-300 dark:border-rose-500/30',
+  CREACION: 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/35 dark:text-emerald-300 dark:border-emerald-500/30',
+  ACTUALIZACION: 'bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-900/35 dark:text-sky-300 dark:border-sky-500/30',
+  ELIMINACION: 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-900/35 dark:text-rose-300 dark:border-rose-500/30',
 }
 
 function logTone(action: AuditAction) {
-  if (action === 'DELETE') return 'border-rose-300 bg-rose-50 dark:border-rose-800/60 dark:bg-rose-950/30'
-  if (action === 'CREATE') return 'border-emerald-300 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/25'
+  if (action === 'ELIMINACION') return 'border-rose-300 bg-rose-50 dark:border-rose-800/60 dark:bg-rose-950/30'
+  if (action === 'CREACION') return 'border-emerald-300 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/25'
   return 'border-sky-300 bg-sky-50 dark:border-sky-800/60 dark:bg-sky-950/25'
 }
 
@@ -122,9 +122,9 @@ export default function AuditPage() {
   }, [filters, search])
 
   const stats = useMemo(() => {
-    const creates = filteredLogs.filter((item) => item.action === 'CREATE').length
-    const updates = filteredLogs.filter((item) => item.action === 'UPDATE').length
-    const deletes = filteredLogs.filter((item) => item.action === 'DELETE').length
+    const creates = filteredLogs.filter((item) => item.action === 'CREACION').length
+    const updates = filteredLogs.filter((item) => item.action === 'ACTUALIZACION').length
+    const deletes = filteredLogs.filter((item) => item.action === 'ELIMINACION').length
 
     return {
       total: filteredLogs.length,
@@ -234,7 +234,7 @@ export default function AuditPage() {
               <div className="space-y-2">
                 <Label className="text-slate-700 dark:text-zinc-200">Acción</Label>
                 <Input
-                  placeholder="CREATE, UPDATE, DELETE"
+                  placeholder="CREACION, ACTUALIZACION, ELIMINACION"
                   value={filters.action}
                   onChange={(e) => setFilters({ ...filters, action: e.target.value })}
                   className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-500"
@@ -262,9 +262,9 @@ export default function AuditPage() {
 
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
-                <Badge className={actionStyles.CREATE}>CREATE</Badge>
-                <Badge className={actionStyles.UPDATE}>UPDATE</Badge>
-                <Badge className={actionStyles.DELETE}>DELETE</Badge>
+                <Badge className={actionStyles.CREACION}>CREACION</Badge>
+                <Badge className={actionStyles.ACTUALIZACION}>ACTUALIZACION</Badge>
+                <Badge className={actionStyles.ELIMINACION}>ELIMINACION</Badge>
               </div>
               <Button variant="outline" className="border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">
                 <Filter className="w-4 h-4 mr-2" />

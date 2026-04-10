@@ -72,7 +72,7 @@ export default function DashboardPage() {
   return (
     <MainLayout>
       <PageHeader
-        title="Dashboard"
+        title="Panel principal"
         description="Vista general del sistema de gestión de repuestos"
       />
 

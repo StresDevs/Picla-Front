@@ -337,7 +337,7 @@ export default function InventoryEntriesPage() {
               <div key={entry.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
                 <p className="text-zinc-100 font-semibold">{entry.id} - {entry.part_name} ({entry.part_code})</p>
                 <p className="text-zinc-400">
-                  {new Date(entry.created_at).toLocaleString('es-BO')} | {entry.branch_name} | Usuario: {entry.created_by_name || 'N/A'}
+                  {new Date(entry.created_at).toLocaleString('es-BO')} | {entry.branch_name} | Usuario: {entry.created_by_name || 'No disponible'}
                 </p>
                 <p className="text-zinc-400">
                   Cantidad: {entry.quantity} | Moneda: {entry.currency}
@@ -347,7 +347,7 @@ export default function InventoryEntriesPage() {
                   Costo: {entry.unit_cost ?? '-'} | Precio: {entry.unit_price ?? '-'}
                 </p>
                 <p className="text-zinc-400">Motivo: {entry.reason}</p>
-                <p className="text-zinc-400">Proveedor: {entry.supplier_name || 'N/A'} | Referencia: {entry.source_reference || 'N/A'}</p>
+                <p className="text-zinc-400">Proveedor: {entry.supplier_name || 'No disponible'} | Referencia: {entry.source_reference || 'No disponible'}</p>
                 {entry.notes ? <p className="text-zinc-300 mt-1">Notas: {entry.notes}</p> : null}
               </div>
             ))}

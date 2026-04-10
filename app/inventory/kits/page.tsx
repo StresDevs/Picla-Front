@@ -221,7 +221,7 @@ export default function InventoryKitsPage() {
                   <DialogHeader>
                     <DialogTitle>Registrar kit</DialogTitle>
                     <DialogDescription>
-                      Define productos, cantidades y precio kit por item.
+                      Define productos, cantidades y precio kit por producto.
                     </DialogDescription>
                   </DialogHeader>
 
@@ -235,11 +235,11 @@ export default function InventoryKitsPage() {
                       <Input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Kit de bujias" />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <label className="text-sm font-medium text-foreground">Descripcion</label>
+                      <label className="text-sm font-medium text-foreground">Descripción</label>
                       <Input value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Incluye bujias y cables" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">Categoria</label>
+                      <label className="text-sm font-medium text-foreground">Categoría</label>
                       <Input value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))} placeholder="General" />
                     </div>
                     <div className="space-y-2">
@@ -251,9 +251,9 @@ export default function InventoryKitsPage() {
                   <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between gap-2">
-                        <CardTitle className="text-base">Items del kit</CardTitle>
+                        <CardTitle className="text-base">Productos del kit</CardTitle>
                         <Button variant="outline" size="sm" onClick={addItem}>
-                          <Plus className="mr-1 h-4 w-4" /> Item
+                          <Plus className="mr-1 h-4 w-4" /> Producto
                         </Button>
                       </div>
                     </CardHeader>
@@ -337,8 +337,8 @@ export default function InventoryKitsPage() {
                   </div>
                   <Badge className="bg-primary/15 text-primary">Bs {kit.total.toFixed(2)}</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">{kit.description || 'Sin descripcion'}</p>
-                <p className="text-xs text-emerald-600">Categoria: {kit.category || 'General'}</p>
+                <p className="text-sm text-muted-foreground">{kit.description || 'Sin descripción'}</p>
+                <p className="text-xs text-emerald-600">Categoría: {kit.category || 'General'}</p>
                 <div className="space-y-1 text-xs">
                   {kit.detail.map((item) => (
                     <div key={item.id} className="flex justify-between gap-2">

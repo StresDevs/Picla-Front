@@ -29,7 +29,7 @@ export default function ReportsTopProductsPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <PageHeader title="Top Productos" description="Producto más vendido y con mayor ganancia" />
+        <PageHeader title="Productos más vendidos" description="Productos con mayores ventas y mejor margen" />
         <ReportsSubnav />
 
         <Card className="bg-zinc-950/70">

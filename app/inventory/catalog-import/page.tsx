@@ -105,7 +105,7 @@ export default function InventoryCatalogImportPage() {
         setImportFromBranch(defaultFrom)
         setImportToBranch(defaultTo)
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar importacion de catalogo')
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar importación de catálogo')
       } finally {
         setIsLoading(false)
       }
@@ -137,7 +137,7 @@ export default function InventoryCatalogImportPage() {
         ])
         setImportRows(buildImportRows(sourceProducts, targetProducts))
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar productos para importacion')
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar productos para importación')
       } finally {
         setIsImportLoading(false)
       }
@@ -229,9 +229,9 @@ export default function InventoryCatalogImportPage() {
         partsService.getAll(importToBranch),
       ])
       setImportRows(buildImportRows(sourceProducts, targetProducts))
-      setFeedback(`Importacion completada: ${selectedRows.length} productos sincronizados.`)
+      setFeedback(`Importación completada: ${selectedRows.length} productos sincronizados.`)
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : 'No se pudo importar catalogo')
+      setError(importError instanceof Error ? importError.message : 'No se pudo importar catálogo')
     } finally {
       setIsImporting(false)
     }
@@ -241,7 +241,7 @@ export default function InventoryCatalogImportPage() {
     <MainLayout>
       <div className="space-y-6">
         <PageHeader
-          title="Importacion de catalogo"
+          title="Importación de catálogo"
           description="Sincroniza productos entre sucursales y ajusta precios manualmente o por porcentaje"
         />
         <InventorySubnav />
@@ -254,7 +254,7 @@ export default function InventoryCatalogImportPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Importar catalogo entre sucursales</CardTitle>
+            <CardTitle>Importar catálogo entre sucursales</CardTitle>
             <CardDescription>
               Copia productos desde una sucursal a otra manteniendo estructura comercial y permitiendo ajustar precios antes de guardar.
             </CardDescription>
@@ -365,25 +365,25 @@ export default function InventoryCatalogImportPage() {
                   </div>
 
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs">Cotizacion min</label>
+                    <label className="text-xs">Cotización mínima</label>
                     <Input type="number" step="0.01" value={row.quotationMinPrice} onChange={(event) => updateImportRow(row.id, { quotationMinPrice: event.target.value })} />
                   </div>
 
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs">Cotizacion max</label>
+                    <label className="text-xs">Cotización máxima</label>
                     <Input type="number" step="0.01" value={row.quotationMaxPrice} onChange={(event) => updateImportRow(row.id, { quotationMaxPrice: event.target.value })} />
                   </div>
                 </div>
               ))}
 
               {!isImportLoading && importRows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hay productos para importar con la combinacion seleccionada.</p>
+                <p className="text-sm text-muted-foreground">No hay productos para importar con la combinación seleccionada.</p>
               ) : null}
             </div>
           </CardContent>
         </Card>
 
-        <p className="text-xs text-zinc-500">Sucursal activa actual: {activeBranchId || 'N/A'}</p>
+        <p className="text-xs text-zinc-500">Sucursal activa actual: {activeBranchId || 'No disponible'}</p>
       </div>
     </MainLayout>
   )
