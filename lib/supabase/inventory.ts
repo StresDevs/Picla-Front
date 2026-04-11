@@ -154,6 +154,31 @@ export interface InventoryMovementRow {
   metadata: Record<string, unknown>
 }
 
+export interface InventorySnapshotHistoryRow {
+  snapshot_id: string
+  cash_session_id: string
+  branch_id: string
+  branch_name: string
+  snapshot_type: 'open' | 'close'
+  item_count: number
+  total_units: number
+  taken_by: string | null
+  taken_by_name: string | null
+  taken_at: string
+  opening_role: string
+  opened_by_name: string | null
+  matching_product_count: number
+  matching_product_units: number
+}
+
+export interface InventorySnapshotItemRow {
+  snapshot_id: string
+  part_id: string
+  part_code: string | null
+  part_name: string | null
+  quantity: number
+}
+
 interface InventoryExitRow {
   id: string
   branch_id: string
@@ -906,6 +931,48 @@ export const movementHistoryService = {
       quantity: Number(row.quantity || 0),
       quantity_before: Number(row.quantity_before || 0),
       quantity_after: Number(row.quantity_after || 0),
+    }))
+  },
+}
+
+export const snapshotHistoryService = {
+  async getHistory(filters?: {
+    branch_id?: string | null
+    snapshot_type?: 'open' | 'close' | null
+    from?: string | null
+    to?: string | null
+    product_search?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('get_inventory_snapshot_history', {
+      p_branch_id: filters?.branch_id || null,
+      p_snapshot_type: filters?.snapshot_type || null,
+      p_from: filters?.from || null,
+      p_to: filters?.to || null,
+      p_product_search: filters?.product_search || null,
+    })
+
+    if (error) throw error
+
+    return ((data || []) as InventorySnapshotHistoryRow[]).map((row) => ({
+      ...row,
+      item_count: Number(row.item_count || 0),
+      total_units: Number(row.total_units || 0),
+      matching_product_count: Number(row.matching_product_count || 0),
+      matching_product_units: Number(row.matching_product_units || 0),
+    }))
+  },
+
+  async getItems(input: { snapshot_id: string; product_search?: string | null }) {
+    const { data, error } = await supabase.rpc('get_inventory_snapshot_items', {
+      p_snapshot_id: input.snapshot_id,
+      p_product_search: input.product_search || null,
+    })
+
+    if (error) throw error
+
+    return ((data || []) as InventorySnapshotItemRow[]).map((row) => ({
+      ...row,
+      quantity: Number(row.quantity || 0),
     }))
   },
 }
