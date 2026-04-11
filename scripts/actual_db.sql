@@ -126,6 +126,309 @@ update
     public.inventory_categories for each row execute function set_updated_at();
 
 
+-- public.inventory_product_code_prefixes definition
+
+-- Drop table
+
+-- DROP TABLE public.inventory_product_code_prefixes;
+
+CREATE TABLE public.inventory_product_code_prefixes (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	branch_id uuid NOT NULL,
+	category_key text NOT NULL,
+	category_name text NOT NULL,
+	prefix text NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT inventory_product_code_prefixes_branch_key_unique UNIQUE (branch_id, category_key),
+	CONSTRAINT inventory_product_code_prefixes_branch_prefix_unique UNIQUE (branch_id, prefix),
+	CONSTRAINT inventory_product_code_prefixes_pkey PRIMARY KEY (id),
+	CONSTRAINT inventory_product_code_prefixes_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_inventory_product_code_prefixes_branch ON public.inventory_product_code_prefixes USING btree (branch_id);
+
+-- Table Triggers
+
+create trigger trg_inventory_product_code_prefixes_set_updated_at before
+update
+    on
+    public.inventory_product_code_prefixes for each row execute function set_updated_at();
+
+
+-- public.inventory_product_code_counters definition
+
+-- Drop table
+
+-- DROP TABLE public.inventory_product_code_counters;
+
+CREATE TABLE public.inventory_product_code_counters (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	branch_id uuid NOT NULL,
+	prefix text NOT NULL,
+	next_number int4 DEFAULT 1 NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT inventory_product_code_counters_branch_prefix_unique UNIQUE (branch_id, prefix),
+	CONSTRAINT inventory_product_code_counters_next_number_check CHECK ((next_number >= 1)),
+	CONSTRAINT inventory_product_code_counters_pkey PRIMARY KEY (id),
+	CONSTRAINT inventory_product_code_counters_prefix_fkey FOREIGN KEY (branch_id,prefix) REFERENCES public.inventory_product_code_prefixes(branch_id,prefix) ON DELETE CASCADE
+);
+CREATE INDEX idx_inventory_product_code_counters_branch ON public.inventory_product_code_counters USING btree (branch_id);
+
+-- Table Triggers
+
+create trigger trg_inventory_product_code_counters_set_updated_at before
+update
+    on
+    public.inventory_product_code_counters for each row execute function set_updated_at();
+
+
+-- public.cash_inventory_snapshot_items definition
+
+-- Drop table
+
+-- DROP TABLE public.cash_inventory_snapshot_items;
+
+CREATE TABLE public.cash_inventory_snapshot_items (
+	snapshot_id uuid NOT NULL,
+	part_id uuid NOT NULL,
+	part_code text NULL,
+	part_name text NULL,
+	quantity numeric(12, 3) NOT NULL,
+	CONSTRAINT cash_inventory_snapshot_items_pkey PRIMARY KEY (snapshot_id, part_id),
+	CONSTRAINT cash_inventory_snapshot_items_quantity_check CHECK ((quantity >= (0)::numeric))
+);
+CREATE INDEX idx_cash_inventory_snapshot_items_part ON public.cash_inventory_snapshot_items USING btree (part_id);
+
+-- Table Triggers
+
+create trigger trg_audit_cash_inventory_snapshot_items after
+insert
+    or
+delete
+    or
+update
+    on
+    public.cash_inventory_snapshot_items for each row execute function audit_trigger();
+
+
+-- public.cash_inventory_snapshots definition
+
+-- Drop table
+
+-- DROP TABLE public.cash_inventory_snapshots;
+
+CREATE TABLE public.cash_inventory_snapshots (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	cash_session_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	snapshot_type text NOT NULL,
+	item_count int4 DEFAULT 0 NOT NULL,
+	total_units numeric(12, 3) DEFAULT 0 NOT NULL,
+	taken_by uuid NULL,
+	taken_at timestamptz DEFAULT now() NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT cash_inventory_snapshots_item_count_check CHECK ((item_count >= 0)),
+	CONSTRAINT cash_inventory_snapshots_pkey PRIMARY KEY (id),
+	CONSTRAINT cash_inventory_snapshots_session_type_key UNIQUE (cash_session_id, snapshot_type),
+	CONSTRAINT cash_inventory_snapshots_total_units_check CHECK ((total_units >= (0)::numeric)),
+	CONSTRAINT cash_inventory_snapshots_type_check CHECK ((snapshot_type = ANY (ARRAY['open'::text, 'close'::text])))
+);
+CREATE INDEX idx_cash_inventory_snapshots_branch_taken_at ON public.cash_inventory_snapshots USING btree (branch_id, taken_at DESC);
+CREATE INDEX idx_cash_inventory_snapshots_session ON public.cash_inventory_snapshots USING btree (cash_session_id);
+
+-- Table Triggers
+
+create trigger trg_audit_cash_inventory_snapshots after
+insert
+    or
+delete
+    or
+update
+    on
+    public.cash_inventory_snapshots for each row execute function audit_trigger();
+
+
+-- public.cash_movement_edit_logs definition
+
+-- Drop table
+
+-- DROP TABLE public.cash_movement_edit_logs;
+
+CREATE TABLE public.cash_movement_edit_logs (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	movement_id uuid NOT NULL,
+	request_id uuid NULL,
+	branch_id uuid NOT NULL,
+	changed_by uuid NULL,
+	change_type text NOT NULL,
+	change_reason text NOT NULL,
+	old_amount numeric(12, 2) NOT NULL,
+	new_amount numeric(12, 2) NOT NULL,
+	old_description text NOT NULL,
+	new_description text NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT cash_movement_edit_logs_pkey PRIMARY KEY (id),
+	CONSTRAINT cash_movement_edit_logs_type_check CHECK ((change_type = ANY (ARRAY['admin_direct'::text, 'request_approved'::text])))
+);
+CREATE INDEX idx_cash_movement_edit_logs_branch_date ON public.cash_movement_edit_logs USING btree (branch_id, created_at DESC);
+CREATE INDEX idx_cash_movement_edit_logs_movement ON public.cash_movement_edit_logs USING btree (movement_id);
+CREATE INDEX idx_cash_movement_edit_logs_request ON public.cash_movement_edit_logs USING btree (request_id);
+
+-- Table Triggers
+
+create trigger trg_audit_cash_movement_edit_logs after
+insert
+    or
+delete
+    or
+update
+    on
+    public.cash_movement_edit_logs for each row execute function audit_trigger();
+
+
+-- public.cash_movement_edit_requests definition
+
+-- Drop table
+
+-- DROP TABLE public.cash_movement_edit_requests;
+
+CREATE TABLE public.cash_movement_edit_requests (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	movement_id uuid NOT NULL,
+	cash_session_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	requested_by uuid NULL,
+	requested_role text NOT NULL,
+	request_reason text NOT NULL,
+	proposed_amount numeric(12, 2) NULL,
+	proposed_description text NULL,
+	status text DEFAULT 'pending'::text NOT NULL,
+	review_notes text NULL,
+	reviewed_by uuid NULL,
+	reviewed_at timestamptz NULL,
+	applied bool DEFAULT false NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT cash_movement_edit_requests_amount_check CHECK (((proposed_amount IS NULL) OR (proposed_amount > (0)::numeric))),
+	CONSTRAINT cash_movement_edit_requests_pkey PRIMARY KEY (id),
+	CONSTRAINT cash_movement_edit_requests_role_check CHECK ((requested_role = ANY (ARRAY['admin'::text, 'manager'::text]))),
+	CONSTRAINT cash_movement_edit_requests_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'cancelled'::text])))
+);
+CREATE INDEX idx_cash_movement_edit_requests_branch_status ON public.cash_movement_edit_requests USING btree (branch_id, status, created_at DESC);
+CREATE INDEX idx_cash_movement_edit_requests_movement ON public.cash_movement_edit_requests USING btree (movement_id);
+CREATE INDEX idx_cash_movement_edit_requests_session ON public.cash_movement_edit_requests USING btree (cash_session_id);
+
+-- Table Triggers
+
+create trigger trg_audit_cash_movement_edit_requests after
+insert
+    or
+delete
+    or
+update
+    on
+    public.cash_movement_edit_requests for each row execute function audit_trigger();
+create trigger trg_cash_movement_edit_requests_set_updated_at before
+update
+    on
+    public.cash_movement_edit_requests for each row execute function set_updated_at();
+
+
+-- public.cash_movements definition
+
+-- Drop table
+
+-- DROP TABLE public.cash_movements;
+
+CREATE TABLE public.cash_movements (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	cash_session_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	movement_type text NOT NULL,
+	amount numeric(12, 2) NOT NULL,
+	description text NOT NULL,
+	payment_method text NULL,
+	reference_table text NULL,
+	reference_id uuid NULL,
+	created_by uuid NULL,
+	metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_by uuid NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT cash_movements_amount_check CHECK ((amount > (0)::numeric)),
+	CONSTRAINT cash_movements_pkey PRIMARY KEY (id),
+	CONSTRAINT cash_movements_type_check CHECK ((movement_type = ANY (ARRAY['manual_income'::text, 'manual_expense'::text, 'sale_cash'::text, 'sale_return_cash'::text])))
+);
+CREATE INDEX idx_cash_movements_branch_created_at ON public.cash_movements USING btree (branch_id, created_at DESC);
+CREATE INDEX idx_cash_movements_reference ON public.cash_movements USING btree (reference_table, reference_id);
+CREATE INDEX idx_cash_movements_session ON public.cash_movements USING btree (cash_session_id);
+
+-- Table Triggers
+
+create trigger trg_audit_cash_movements after
+insert
+    or
+delete
+    or
+update
+    on
+    public.cash_movements for each row execute function audit_trigger();
+create trigger trg_cash_movements_set_updated_at before
+update
+    on
+    public.cash_movements for each row execute function set_updated_at();
+
+
+-- public.cash_sessions definition
+
+-- Drop table
+
+-- DROP TABLE public.cash_sessions;
+
+CREATE TABLE public.cash_sessions (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	branch_id uuid NOT NULL,
+	opened_by uuid NULL,
+	opening_amount numeric(12, 2) NOT NULL,
+	opening_notes text NULL,
+	status text DEFAULT 'open'::text NOT NULL,
+	expected_closing_amount numeric(12, 2) NULL,
+	closing_amount_counted numeric(12, 2) NULL,
+	variance_amount numeric(12, 2) NULL,
+	closed_by uuid NULL,
+	closing_notes text NULL,
+	opened_at timestamptz DEFAULT now() NOT NULL,
+	closed_at timestamptz NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	opening_role text DEFAULT 'employee'::text NOT NULL,
+	CONSTRAINT cash_sessions_amounts_check CHECK (((opening_amount >= (0)::numeric) AND ((closing_amount_counted IS NULL) OR (closing_amount_counted >= (0)::numeric)))),
+	CONSTRAINT cash_sessions_opening_role_check CHECK ((opening_role = ANY (ARRAY['admin'::text, 'manager'::text, 'employee'::text]))),
+	CONSTRAINT cash_sessions_pkey PRIMARY KEY (id),
+	CONSTRAINT cash_sessions_status_check CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
+);
+CREATE INDEX idx_cash_sessions_branch_status ON public.cash_sessions USING btree (branch_id, status);
+CREATE INDEX idx_cash_sessions_closed_at_desc ON public.cash_sessions USING btree (closed_at DESC);
+CREATE UNIQUE INDEX idx_cash_sessions_one_open_per_branch ON public.cash_sessions USING btree (branch_id) WHERE (status = 'open'::text);
+CREATE INDEX idx_cash_sessions_opened_at_desc ON public.cash_sessions USING btree (opened_at DESC);
+
+-- Table Triggers
+
+create trigger trg_audit_cash_sessions after
+insert
+    or
+delete
+    or
+update
+    on
+    public.cash_sessions for each row execute function audit_trigger();
+create trigger trg_cash_sessions_set_updated_at before
+update
+    on
+    public.cash_sessions for each row execute function set_updated_at();
+
+
 -- public.inventory definition
 
 -- Drop table
@@ -404,8 +707,10 @@ CREATE TABLE public.inventory_transfer_request_items (
 	created_at timestamptz DEFAULT now() NOT NULL,
 	updated_at timestamptz DEFAULT now() NOT NULL,
 	destination_part_id uuid NULL,
+	reserved_quantity numeric(12, 3) DEFAULT 0 NOT NULL,
 	CONSTRAINT inventory_transfer_request_items_pkey PRIMARY KEY (id),
 	CONSTRAINT inventory_transfer_request_items_quantity_check CHECK ((quantity > (0)::numeric)),
+	CONSTRAINT inventory_transfer_request_items_reserved_quantity_check CHECK (((reserved_quantity >= (0)::numeric) AND (reserved_quantity <= quantity))),
 	CONSTRAINT inventory_transfer_request_items_transfer_id_part_id_key UNIQUE (transfer_id, part_id)
 );
 CREATE INDEX idx_inventory_transfer_request_items_destination_part ON public.inventory_transfer_request_items USING btree (destination_part_id);
@@ -791,6 +1096,51 @@ create trigger trg_users_set_updated_at before
 update
     on
     public.users for each row execute function set_updated_at();
+
+
+-- public.cash_inventory_snapshot_items foreign keys
+
+ALTER TABLE public.cash_inventory_snapshot_items ADD CONSTRAINT cash_inventory_snapshot_items_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE RESTRICT;
+ALTER TABLE public.cash_inventory_snapshot_items ADD CONSTRAINT cash_inventory_snapshot_items_snapshot_id_fkey FOREIGN KEY (snapshot_id) REFERENCES public.cash_inventory_snapshots(id) ON DELETE CASCADE;
+
+
+-- public.cash_inventory_snapshots foreign keys
+
+ALTER TABLE public.cash_inventory_snapshots ADD CONSTRAINT cash_inventory_snapshots_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE CASCADE;
+ALTER TABLE public.cash_inventory_snapshots ADD CONSTRAINT cash_inventory_snapshots_cash_session_id_fkey FOREIGN KEY (cash_session_id) REFERENCES public.cash_sessions(id) ON DELETE CASCADE;
+ALTER TABLE public.cash_inventory_snapshots ADD CONSTRAINT cash_inventory_snapshots_taken_by_fkey FOREIGN KEY (taken_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+-- public.cash_movement_edit_logs foreign keys
+
+ALTER TABLE public.cash_movement_edit_logs ADD CONSTRAINT cash_movement_edit_logs_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE CASCADE;
+ALTER TABLE public.cash_movement_edit_logs ADD CONSTRAINT cash_movement_edit_logs_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.cash_movement_edit_logs ADD CONSTRAINT cash_movement_edit_logs_movement_id_fkey FOREIGN KEY (movement_id) REFERENCES public.cash_movements(id) ON DELETE CASCADE;
+ALTER TABLE public.cash_movement_edit_logs ADD CONSTRAINT cash_movement_edit_logs_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.cash_movement_edit_requests(id) ON DELETE SET NULL;
+
+
+-- public.cash_movement_edit_requests foreign keys
+
+ALTER TABLE public.cash_movement_edit_requests ADD CONSTRAINT cash_movement_edit_requests_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE CASCADE;
+ALTER TABLE public.cash_movement_edit_requests ADD CONSTRAINT cash_movement_edit_requests_movement_id_fkey FOREIGN KEY (movement_id) REFERENCES public.cash_movements(id) ON DELETE CASCADE;
+ALTER TABLE public.cash_movement_edit_requests ADD CONSTRAINT cash_movement_edit_requests_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.cash_movement_edit_requests ADD CONSTRAINT cash_movement_edit_requests_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.cash_movement_edit_requests ADD CONSTRAINT cash_movement_edit_requests_session_id_fkey FOREIGN KEY (cash_session_id) REFERENCES public.cash_sessions(id) ON DELETE CASCADE;
+
+
+-- public.cash_movements foreign keys
+
+ALTER TABLE public.cash_movements ADD CONSTRAINT cash_movements_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE CASCADE;
+ALTER TABLE public.cash_movements ADD CONSTRAINT cash_movements_cash_session_id_fkey FOREIGN KEY (cash_session_id) REFERENCES public.cash_sessions(id) ON DELETE CASCADE;
+ALTER TABLE public.cash_movements ADD CONSTRAINT cash_movements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.cash_movements ADD CONSTRAINT cash_movements_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+-- public.cash_sessions foreign keys
+
+ALTER TABLE public.cash_sessions ADD CONSTRAINT cash_sessions_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE CASCADE;
+ALTER TABLE public.cash_sessions ADD CONSTRAINT cash_sessions_closed_by_fkey FOREIGN KEY (closed_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.cash_sessions ADD CONSTRAINT cash_sessions_opened_by_fkey FOREIGN KEY (opened_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 -- public.inventory foreign keys
