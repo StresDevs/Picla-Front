@@ -16,6 +16,7 @@ import {
   type CashSnapshot,
   type CurrentCashSession,
 } from '@/lib/supabase/cash'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import {
   Wallet,
   Clock3,
@@ -35,6 +36,7 @@ interface CurrentProfile {
   id: string
   full_name: string
   role_name: string
+  branch_id: string
   branch_name: string
 }
 
@@ -78,6 +80,7 @@ function openButtonLabel(role: CashRole) {
 
 export default function CashPage() {
   const [profile, setProfile] = useState<CurrentProfile | null>(null)
+  const [activeBranchId, setActiveBranchId] = useState<string>(() => getActiveUserContext().branch_id)
   const [session, setSession] = useState<CurrentCashSession | null>(null)
   const [movements, setMovements] = useState<CashMovement[]>([])
   const [snapshots, setSnapshots] = useState<CashSnapshot[]>([])
@@ -143,13 +146,16 @@ export default function CashPage() {
     [editRequests],
   )
 
-  const loadCashData = async () => {
+  const loadCashData = async (branchIdFromContext?: string) => {
     setIsLoading(true)
     setError(null)
     try {
+      const contextBranchId = branchIdFromContext ?? getActiveUserContext().branch_id
+      setActiveBranchId(contextBranchId)
+
       const [rawProfile, currentSession] = await Promise.all([
         cashService.getCurrentProfile(),
-        cashService.getCurrentSession(),
+        cashService.getCurrentSession({ branch_id: contextBranchId }),
       ])
 
       setProfile(
@@ -158,6 +164,7 @@ export default function CashPage() {
               id: rawProfile.id,
               full_name: rawProfile.full_name,
               role_name: rawProfile.role_name,
+              branch_id: rawProfile.branch_id,
               branch_name: rawProfile.branch_name,
             }
           : null,
@@ -199,6 +206,15 @@ export default function CashPage() {
 
   useEffect(() => {
     void loadCashData()
+
+    const onActiveContextChanged = () => {
+      const context = getActiveUserContext()
+      setActiveBranchId(context.branch_id)
+      void loadCashData(context.branch_id)
+    }
+
+    window.addEventListener(ACTIVE_ROLE_EVENT, onActiveContextChanged)
+    return () => window.removeEventListener(ACTIVE_ROLE_EVENT, onActiveContextChanged)
   }, [])
 
   const totals = useMemo(() => {
@@ -235,6 +251,12 @@ export default function CashPage() {
     }
   }, [session])
 
+  const displayedBranchLabel = useMemo(() => {
+    if (session?.branch_name) return session.branch_name
+    if (isAdmin) return activeBranchId
+    return profile?.branch_name || 'Sin sucursal'
+  }, [activeBranchId, isAdmin, profile?.branch_name, session?.branch_name])
+
   const openRegister = async () => {
     if (!canOpenClose) {
       setFeedback('Tu rol no tiene permiso para abrir caja.')
@@ -255,6 +277,7 @@ export default function CashPage() {
       await cashService.openSession({
         opening_amount: parsedAmount,
         opening_notes: openingNotes.trim() || null,
+        branch_id: activeBranchId,
       })
       setOpeningAmount('')
       setOpeningNotes('')
@@ -697,11 +720,11 @@ export default function CashPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               <div className="rounded-lg bg-emerald-900/25 px-3 py-2 text-emerald-300">
                 ${' '}
-                <span className="font-semibold">Caja: Principal</span>
+                <span className="font-semibold">Caja: {displayedBranchLabel}</span>
               </div>
               <div className="rounded-lg bg-zinc-900/50 px-3 py-2 text-zinc-300">
                 <span className="font-semibold">Usuario:</span>{' '}
-                {profile ? `${profile.full_name} (${roleLabel(roleName)}) - ${profile.branch_name}` : 'Sin perfil cargado'}
+                {profile ? `${profile.full_name} (${roleLabel(roleName)}) - ${displayedBranchLabel}` : 'Sin perfil cargado'}
               </div>
             </div>
 

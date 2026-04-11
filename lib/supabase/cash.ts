@@ -106,16 +106,19 @@ export const cashService = {
     return parseSingleRpcRow<CurrentProfile>(data as CurrentProfile[] | CurrentProfile | null)
   },
 
-  async getCurrentSession() {
-    const { data, error } = await supabase.rpc('get_current_cash_session')
+  async getCurrentSession(input?: { branch_id?: string | null }) {
+    const { data, error } = await supabase.rpc('get_current_cash_session', {
+      p_branch_id: input?.branch_id ?? null,
+    })
     if (error) throw error
     return parseSingleRpcRow<CurrentCashSession>(data as CurrentCashSession[] | CurrentCashSession | null)
   },
 
-  async openSession(input: { opening_amount: number; opening_notes?: string | null }) {
+  async openSession(input: { opening_amount: number; opening_notes?: string | null; branch_id?: string | null }) {
     const { data, error } = await supabase.rpc('open_cash_session', {
       p_opening_amount: input.opening_amount,
       p_opening_notes: input.opening_notes ?? null,
+      p_branch_id: input.branch_id ?? null,
     })
 
     if (error) throw error
