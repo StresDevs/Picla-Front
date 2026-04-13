@@ -9,84 +9,180 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable } from '@/components/common/data-table'
-import { Badge } from '@/components/ui/badge'
-import { addReturn, getProducts, getReturns } from '@/lib/mock/runtime-store'
-import type { Part } from '@/types/database'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
+import { posService, type POSReturnRecord, type POSSaleRecord } from '@/lib/supabase/pos'
 
 export default function POSReturnsPage() {
-  const [products, setProducts] = useState<Part[]>([])
-  const [returns, setReturns] = useState(getReturns())
+  const [sales, setSales] = useState<POSSaleRecord[]>([])
+  const [returns, setReturns] = useState<POSReturnRecord[]>([])
+  const [activeBranchId, setActiveBranchId] = useState('branch-1')
 
-  const [partId, setPartId] = useState('')
-  const [quantity, setQuantity] = useState('')
+  const [selectedSaleId, setSelectedSaleId] = useState('')
+  const [selectedSaleItemId, setSelectedSaleItemId] = useState('')
+  const [quantity, setQuantity] = useState('1')
   const [reason, setReason] = useState('')
-  const [customerName, setCustomerName] = useState('Cliente Mostrador')
+  const [notes, setNotes] = useState('')
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<string | null>(null)
+
+  const loadData = async (branchId?: string) => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const targetBranch = branchId || getActiveUserContext().branch_id
+      const [salesData, returnsData] = await Promise.all([
+        posService.getSales(targetBranch, true),
+        posService.getReturns(targetBranch),
+      ])
+
+      const completedSales = salesData.filter((sale) => sale.status === 'completed')
+      setSales(completedSales)
+      setReturns(returnsData)
+
+      if (!selectedSaleId && completedSales.length > 0) {
+        setSelectedSaleId(completedSales[0].sale_id)
+      }
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar devoluciones')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const loaded = getProducts()
-    setProducts(loaded)
-    if (loaded.length > 0) setPartId(loaded[0].id)
+    const syncContext = () => {
+      const context = getActiveUserContext()
+      setActiveBranchId(context.branch_id)
+      void loadData(context.branch_id)
+    }
+
+    syncContext()
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
+    window.addEventListener('focus', syncContext)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, syncContext)
+      window.removeEventListener('focus', syncContext)
+    }
   }, [])
 
-  const selectedPart = useMemo(() => products.find((item) => item.id === partId), [products, partId])
+  const selectedSale = useMemo(
+    () => sales.find((sale) => sale.sale_id === selectedSaleId) || null,
+    [sales, selectedSaleId],
+  )
 
-  const registerReturn = () => {
+  const availableItems = selectedSale?.items || []
+
+  useEffect(() => {
+    if (!selectedSale) {
+      setSelectedSaleItemId('')
+      return
+    }
+
+    if (!selectedSaleItemId && availableItems.length > 0) {
+      setSelectedSaleItemId(availableItems[0].id)
+    }
+  }, [availableItems, selectedSale, selectedSaleItemId])
+
+  const registerReturn = async () => {
     const qty = Number(quantity)
-    if (!selectedPart || !qty || qty <= 0 || !reason.trim()) return
+    if (!selectedSaleId || !selectedSaleItemId || !Number.isFinite(qty) || qty <= 0 || !reason.trim()) {
+      setFeedback('Completa venta, ítem, cantidad y motivo.')
+      return
+    }
 
-    addReturn({
-      id: `ret-${Date.now()}`,
-      part_id: selectedPart.id,
-      part_name: selectedPart.name,
-      quantity: qty,
-      reason,
-      customer_name: customerName || 'Cliente Mostrador',
-      status: 'completed',
-      created_at: new Date().toISOString(),
-    })
+    setError(null)
+    setFeedback(null)
+    setIsSubmitting(true)
 
-    setReturns(getReturns())
-    setQuantity('')
-    setReason('')
+    try {
+      const result = await posService.createReturn({
+        sale_id: selectedSaleId,
+        reason: reason.trim(),
+        notes: notes.trim() || null,
+        items: [
+          {
+            sale_item_id: selectedSaleItemId,
+            quantity: qty,
+          },
+        ],
+      })
+
+      await loadData(activeBranchId)
+      setQuantity('1')
+      setReason('')
+      setNotes('')
+      setFeedback(`Devolución registrada: ${result?.return_id || 'OK'}`)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'No se pudo registrar la devolución')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
     <MainLayout>
       <div className="space-y-6">
-        <PageHeader title="Devoluciones" description="Registro y seguimiento de devoluciones de productos" />
+        <PageHeader title="Devoluciones" description="Registro de devoluciones con impacto en inventario y caja" />
         <POSSubnav />
+
+        {error ? <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div> : null}
+        {feedback ? <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-primary">{feedback}</div> : null}
 
         <Card>
           <CardHeader>
             <CardTitle>Nueva devolución</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Producto</label>
-              <Select value={partId} onValueChange={setPartId}>
-                <SelectTrigger><SelectValue placeholder="Selecciona producto" /></SelectTrigger>
+              <label className="text-sm font-medium">Venta</label>
+              <Select value={selectedSaleId} onValueChange={setSelectedSaleId}>
+                <SelectTrigger><SelectValue placeholder="Selecciona venta" /></SelectTrigger>
                 <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
+                  {sales.map((sale) => (
+                    <SelectItem key={sale.sale_id} value={sale.sale_id}>
+                      {sale.sale_id} - Bs {Number(sale.total_amount || 0).toFixed(2)}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Ítem de venta</label>
+              <Select value={selectedSaleItemId} onValueChange={setSelectedSaleItemId}>
+                <SelectTrigger><SelectValue placeholder="Selecciona ítem" /></SelectTrigger>
+                <SelectContent>
+                  {availableItems.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.part_name} (vendido {item.quantity})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Cantidad</label>
-              <Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="0" />
+              <Input type="number" min={1} value={quantity} onChange={(event) => setQuantity(event.target.value)} />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Cliente</label>
-              <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre cliente" />
-            </div>
-            <div className="space-y-2">
+
+            <div className="space-y-2 lg:col-span-2">
               <label className="text-sm font-medium">Motivo</label>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motivo de devolución" />
+              <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motivo de devolución" />
             </div>
-            <div className="lg:col-span-4 flex justify-end gap-2">
-              <Button variant="destructive" onClick={() => { setQuantity(''); setReason('') }}>Cancelar</Button>
-              <Button onClick={registerReturn} disabled={!partId || !quantity || !reason}>Registrar devolución</Button>
+
+            <div className="space-y-2 lg:col-span-3">
+              <label className="text-sm font-medium">Notas</label>
+              <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Observaciones opcionales" />
+            </div>
+
+            <div className="lg:col-span-3 flex justify-end">
+              <Button onClick={registerReturn} disabled={isSubmitting || isLoading}>Registrar devolución</Button>
             </div>
           </CardContent>
         </Card>
@@ -98,15 +194,15 @@ export default function POSReturnsPage() {
           <CardContent>
             <DataTable
               columns={[
-                { key: 'created_at', label: 'Fecha', render: (v) => new Date(String(v)).toLocaleString() },
-                { key: 'part_name', label: 'Producto', render: (v) => String(v) },
-                { key: 'quantity', label: 'Cantidad', render: (v) => String(v) },
-                { key: 'customer_name', label: 'Cliente', render: (v) => String(v) },
-                { key: 'reason', label: 'Motivo', render: (v) => String(v) },
-                { key: 'status', label: 'Estado', render: (v) => <Badge className="bg-emerald-600 text-white">{String(v)}</Badge> },
+                { key: 'created_at', label: 'Fecha', render: (value) => new Date(String(value)).toLocaleString() },
+                { key: 'return_id', label: 'ID', render: (value) => String(value) },
+                { key: 'sale_id', label: 'Venta', render: (value) => String(value) },
+                { key: 'reason', label: 'Motivo', render: (value) => String(value) },
+                { key: 'total_return_amount', label: 'Monto', render: (value) => `Bs ${Number(value || 0).toFixed(2)}` },
+                { key: 'status', label: 'Estado', render: (value) => String(value) },
               ]}
               data={returns}
-              emptyMessage="No hay devoluciones registradas"
+              emptyMessage={isLoading ? 'Cargando devoluciones...' : 'No hay devoluciones registradas'}
             />
           </CardContent>
         </Card>

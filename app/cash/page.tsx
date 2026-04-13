@@ -48,8 +48,16 @@ function movementTitle(movementType: CashMovement['movement_type']) {
   switch (movementType) {
     case 'sale_cash':
       return 'Venta en efectivo'
+    case 'sale_card':
+      return 'Venta con tarjeta'
+    case 'sale_qr':
+      return 'Venta por QR/transferencia'
     case 'sale_return_cash':
       return 'Devolucion de venta en efectivo'
+    case 'sale_return_card':
+      return 'Devolucion de venta con tarjeta'
+    case 'sale_return_qr':
+      return 'Devolucion de venta QR/transferencia'
     case 'manual_income':
       return 'Ingreso manual'
     case 'manual_expense':
@@ -60,7 +68,12 @@ function movementTitle(movementType: CashMovement['movement_type']) {
 }
 
 function isPositiveMovement(movementType: CashMovement['movement_type']) {
-  return movementType === 'sale_cash' || movementType === 'manual_income'
+  return (
+    movementType === 'sale_cash' ||
+    movementType === 'sale_card' ||
+    movementType === 'sale_qr' ||
+    movementType === 'manual_income'
+  )
 }
 
 function roleLabel(role: CashRole) {

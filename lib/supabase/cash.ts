@@ -23,7 +23,15 @@ export interface CurrentCashSession {
 
 export interface CashMovement {
   movement_id: string
-  movement_type: 'manual_income' | 'manual_expense' | 'sale_cash' | 'sale_return_cash'
+  movement_type:
+    | 'manual_income'
+    | 'manual_expense'
+    | 'sale_cash'
+    | 'sale_return_cash'
+    | 'sale_card'
+    | 'sale_qr'
+    | 'sale_return_card'
+    | 'sale_return_qr'
   amount: number
   description: string
   payment_method: string | null
