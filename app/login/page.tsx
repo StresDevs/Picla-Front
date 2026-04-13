@@ -10,6 +10,12 @@ import { addDeviceSession, setActiveUserContext, type AppUserRole } from '@/lib/
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { CarFront, KeyRound, Mail, ShieldCheck } from 'lucide-react'
 
+type CurrentUserProfile = {
+  role_name?: string | null
+  full_name?: string | null
+  branch_id?: string | null
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -87,12 +93,14 @@ export default function LoginPage() {
         .rpc('get_current_user_profile')
         .single()
 
-      const resolvedRole = normalizeRole(profile?.role_name)
+      const typedProfile = profile as CurrentUserProfile | null
+
+      const resolvedRole = normalizeRole(typedProfile?.role_name)
       const resolvedUserName =
-        profile?.full_name ||
+        typedProfile?.full_name ||
         (authUser?.user_metadata as { full_name?: string } | undefined)?.full_name ||
         'Usuario'
-      const resolvedBranchId = profile?.branch_id || 'branch-1'
+      const resolvedBranchId = typedProfile?.branch_id || 'branch-1'
 
       setActiveUserContext({
         role: resolvedRole,
