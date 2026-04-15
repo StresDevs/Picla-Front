@@ -1317,7 +1317,7 @@ export default function InventoryProductsPage() {
               .sort((a, b) => a.min_quantity - b.min_quantity)
 
             return (
-              <article key={part.id} className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 transition-colors duration-150 hover:border-primary/60 hover:bg-card">
+              <article key={part.id} className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 transition-colors duration-150 hover:border-primary/60 hover:bg-card">
                 <div className="relative aspect-[3/4] overflow-hidden">
                   <img src={part.image_url || '/placeholder.svg'} alt={part.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/placeholder.svg' }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -1329,7 +1329,7 @@ export default function InventoryProductsPage() {
                     <p className="text-white/80 text-xs mt-1">{part.category}</p>
                   </div>
                 </div>
-                <div className="p-3 space-y-3">
+                <div className="flex flex-1 flex-col gap-3 p-3">
                   <div className="text-xs text-muted-foreground">{branchName}</div>
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground flex items-center gap-1">
@@ -1363,7 +1363,7 @@ export default function InventoryProductsPage() {
                       </div>
                     )}
                   </div>
-                  <Button className="w-full" size="sm" variant="outline" onClick={() => openProductDetail(part)}>
+                  <Button className="mt-auto w-full" size="sm" variant="outline" onClick={() => openProductDetail(part)}>
                     <Boxes className="w-4 h-4 mr-2" /> Ver detalle
                   </Button>
                 </div>

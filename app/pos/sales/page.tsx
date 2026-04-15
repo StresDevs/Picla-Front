@@ -735,21 +735,33 @@ export default function POSSalesPage() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
                     {filteredCatalog.map((product) => (
-                      <article key={product.part_id} className="rounded-xl border border-border/70 bg-card/70 p-3 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold line-clamp-2">{product.name}</p>
-                            <p className="text-xs text-muted-foreground">{product.code}</p>
+                      <article key={product.part_id} className="flex h-full flex-col overflow-hidden rounded-xl border border-border/70 bg-card/70">
+                        <div className="relative aspect-[4/3] overflow-hidden border-b border-border/60">
+                          <img
+                            src={product.image_url || '/placeholder.svg'}
+                            alt={product.name}
+                            className="h-full w-full object-cover"
+                            onError={(event) => {
+                              event.currentTarget.src = '/placeholder.svg'
+                            }}
+                          />
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 pb-2 pt-8">
+                            <p className="line-clamp-1 text-sm font-semibold text-white">{product.name}</p>
+                            <p className="text-[11px] text-white/80">{product.category}</p>
                           </div>
-                          <Badge variant="outline">Stock {Number(product.stock || 0)}</Badge>
+                          <div className="absolute left-2 top-2">
+                            <Badge className="bg-background/90 text-foreground">{product.code}</Badge>
+                          </div>
+                          <div className="absolute right-2 top-2">
+                            <Badge variant="outline" className="border-white/40 bg-black/35 text-white">Stock {Number(product.stock || 0)}</Badge>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground">{product.category}</p>
-                        <div className="flex items-end justify-between">
+                        <div className="flex flex-1 flex-col gap-3 p-3">
                           <div>
                             <p className="text-sm text-muted-foreground">Precio</p>
                             <p className="text-lg font-bold text-primary">Bs {Number(product.price || 0).toFixed(2)}</p>
                           </div>
-                          <Button size="sm" onClick={() => addToCart(product)} disabled={Number(product.stock || 0) <= 0}>
+                          <Button size="sm" className="mt-auto" onClick={() => addToCart(product)} disabled={Number(product.stock || 0) <= 0}>
                             <Plus className="h-4 w-4 mr-1" /> Agregar
                           </Button>
                         </div>
