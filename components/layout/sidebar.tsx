@@ -405,9 +405,9 @@ export function Sidebar() {
                     <>
                       <button
                         onClick={() => toggleExpanded(item.label)}
-                        className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                        className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 ${
                           isActive
-                            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-red-950/35'
+                            ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                             : 'text-sidebar-foreground hover:bg-sidebar-accent/75'
                         }`}
                       >

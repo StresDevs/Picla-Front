@@ -177,7 +177,7 @@ export const posService = {
   },
 
   async enqueueSale(input: {
-    branch_id: string
+    branch_id: string | null
     customer_name?: string | null
     payment_method: 'cash' | 'card' | 'qr'
     payment_currency: 'BOB' | 'USD'
@@ -187,7 +187,7 @@ export const posService = {
     items: POSQueueLineInput[]
   }) {
     const { data, error } = await supabase.rpc('pos_enqueue_sale', {
-      p_branch_id: input.branch_id,
+      p_branch_id: input.branch_id ?? null,
       p_customer_name: input.customer_name ?? null,
       p_payment_method: input.payment_method,
       p_payment_currency: input.payment_currency,
@@ -202,7 +202,7 @@ export const posService = {
   },
 
   async createSale(input: {
-    branch_id: string
+    branch_id: string | null
     customer_name?: string | null
     payment_method: 'cash' | 'card' | 'qr'
     payment_currency: 'BOB' | 'USD'
@@ -213,7 +213,7 @@ export const posService = {
     metadata?: Record<string, unknown>
   }) {
     const { data, error } = await supabase.rpc('pos_create_sale', {
-      p_branch_id: input.branch_id,
+      p_branch_id: input.branch_id ?? null,
       p_customer_name: input.customer_name ?? null,
       p_payment_method: input.payment_method,
       p_payment_currency: input.payment_currency,

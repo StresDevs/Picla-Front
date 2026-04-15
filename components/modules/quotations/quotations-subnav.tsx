@@ -18,9 +18,9 @@ export function QuotationsSubnav() {
         return (
           <Link key={item.href} href={item.href}>
             <button
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors duration-150 ${
                 isActive
-                  ? 'bg-primary text-primary-foreground shadow-md shadow-primary/30'
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >

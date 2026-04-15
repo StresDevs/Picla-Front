@@ -1317,9 +1317,9 @@ export default function InventoryProductsPage() {
               .sort((a, b) => a.min_quantity - b.min_quantity)
 
             return (
-              <article key={part.id} className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 hover:border-primary/60 transition-all duration-300 hover:-translate-y-1">
+              <article key={part.id} className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 transition-colors duration-150 hover:border-primary/60 hover:bg-card">
                 <div className="relative aspect-[3/4] overflow-hidden">
-                  <img src={part.image_url || '/placeholder.svg'} alt={part.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onError={(e) => { e.currentTarget.src = '/placeholder.svg' }} />
+                  <img src={part.image_url || '/placeholder.svg'} alt={part.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/placeholder.svg' }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   <div className="absolute top-3 left-3">
                     <Badge className="bg-primary/90 text-primary-foreground">{part.code}</Badge>

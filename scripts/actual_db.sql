@@ -183,6 +183,116 @@ update
     public.inventory_product_code_counters for each row execute function set_updated_at();
 
 
+-- public.billing_invoice_artifacts definition
+
+-- Drop table
+
+-- DROP TABLE public.billing_invoice_artifacts;
+
+CREATE TABLE public.billing_invoice_artifacts (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	sale_id uuid NOT NULL,
+	artifact_type text NOT NULL,
+	storage_path text NULL,
+	content_text text NULL,
+	content_hash text NULL,
+	metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT billing_invoice_artifacts_artifact_type_check CHECK ((artifact_type = ANY (ARRAY['xml_sent'::text, 'xml_authorized'::text, 'hash'::text, 'siat_response'::text, 'pdf'::text]))),
+	CONSTRAINT billing_invoice_artifacts_pkey PRIMARY KEY (id)
+);
+CREATE INDEX idx_billing_invoice_artifacts_sale ON public.billing_invoice_artifacts USING btree (sale_id, created_at DESC);
+
+-- Table Triggers
+
+create trigger trg_audit_billing_invoice_artifacts after
+insert
+    or
+delete
+    or
+update
+    on
+    public.billing_invoice_artifacts for each row execute function audit_trigger();
+
+
+-- public.billing_invoice_attempts definition
+
+-- Drop table
+
+-- DROP TABLE public.billing_invoice_attempts;
+
+CREATE TABLE public.billing_invoice_attempts (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	job_id uuid NOT NULL,
+	sale_id uuid NOT NULL,
+	attempt_number int4 NOT NULL,
+	request_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+	response_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+	response_http_status int4 NULL,
+	response_code text NULL,
+	error_message text NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT billing_invoice_attempts_attempt_number_check CHECK ((attempt_number > 0)),
+	CONSTRAINT billing_invoice_attempts_pkey PRIMARY KEY (id)
+);
+CREATE INDEX idx_billing_invoice_attempts_job ON public.billing_invoice_attempts USING btree (job_id, created_at DESC);
+
+-- Table Triggers
+
+create trigger trg_audit_billing_invoice_attempts after
+insert
+    or
+delete
+    or
+update
+    on
+    public.billing_invoice_attempts for each row execute function audit_trigger();
+
+
+-- public.billing_invoice_jobs definition
+
+-- Drop table
+
+-- DROP TABLE public.billing_invoice_jobs;
+
+CREATE TABLE public.billing_invoice_jobs (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	sale_id uuid NOT NULL,
+	job_type text DEFAULT 'siat_invoice'::text NOT NULL,
+	status text DEFAULT 'queued'::text NOT NULL,
+	attempt_count int4 DEFAULT 0 NOT NULL,
+	max_attempts int4 DEFAULT 10 NOT NULL,
+	next_run_at timestamptz DEFAULT now() NOT NULL,
+	last_error text NULL,
+	payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	processed_at timestamptz NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT billing_invoice_jobs_attempt_count_check CHECK ((attempt_count >= 0)),
+	CONSTRAINT billing_invoice_jobs_job_type_check CHECK ((job_type = 'siat_invoice'::text)),
+	CONSTRAINT billing_invoice_jobs_max_attempts_check CHECK ((max_attempts > 0)),
+	CONSTRAINT billing_invoice_jobs_pkey PRIMARY KEY (id),
+	CONSTRAINT billing_invoice_jobs_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'processing'::text, 'retry'::text, 'failed'::text, 'completed'::text, 'cancelled'::text, 'contingency'::text])))
+);
+CREATE INDEX idx_billing_invoice_jobs_sale ON public.billing_invoice_jobs USING btree (sale_id);
+CREATE INDEX idx_billing_invoice_jobs_status_next_run ON public.billing_invoice_jobs USING btree (status, next_run_at);
+
+-- Table Triggers
+
+create trigger trg_audit_billing_invoice_jobs after
+insert
+    or
+delete
+    or
+update
+    on
+    public.billing_invoice_jobs for each row execute function audit_trigger();
+create trigger trg_billing_invoice_jobs_set_updated_at before
+update
+    on
+    public.billing_invoice_jobs for each row execute function set_updated_at();
+
+
 -- public.cash_inventory_snapshot_items definition
 
 -- Drop table
@@ -358,7 +468,7 @@ CREATE TABLE public.cash_movements (
 	updated_at timestamptz DEFAULT now() NOT NULL,
 	CONSTRAINT cash_movements_amount_check CHECK ((amount > (0)::numeric)),
 	CONSTRAINT cash_movements_pkey PRIMARY KEY (id),
-	CONSTRAINT cash_movements_type_check CHECK ((movement_type = ANY (ARRAY['manual_income'::text, 'manual_expense'::text, 'sale_cash'::text, 'sale_return_cash'::text])))
+	CONSTRAINT cash_movements_type_check CHECK ((movement_type = ANY (ARRAY['manual_income'::text, 'manual_expense'::text, 'sale_cash'::text, 'sale_return_cash'::text, 'sale_card'::text, 'sale_qr'::text, 'sale_return_card'::text, 'sale_return_qr'::text])))
 );
 CREATE INDEX idx_cash_movements_branch_created_at ON public.cash_movements USING btree (branch_id, created_at DESC);
 CREATE INDEX idx_cash_movements_reference ON public.cash_movements USING btree (reference_table, reference_id);
@@ -606,7 +716,7 @@ CREATE TABLE public.inventory_movement_history (
 	CONSTRAINT inventory_movement_history_after_non_negative CHECK ((quantity_after >= (0)::numeric)),
 	CONSTRAINT inventory_movement_history_pkey PRIMARY KEY (id),
 	CONSTRAINT inventory_movement_history_quantity_check CHECK ((quantity > (0)::numeric)),
-	CONSTRAINT inventory_movement_history_type_check CHECK ((movement_type = ANY (ARRAY['salida_ajuste'::text, 'traspaso_salida'::text, 'traspaso_ingreso'::text, 'anulacion'::text, 'devolucion'::text, 'reposicion'::text, 'ajuste_manual'::text, 'ingreso_restock'::text])))
+	CONSTRAINT inventory_movement_history_type_check CHECK ((movement_type = ANY (ARRAY['salida_ajuste'::text, 'traspaso_salida'::text, 'traspaso_ingreso'::text, 'anulacion'::text, 'devolucion'::text, 'reposicion'::text, 'ajuste_manual'::text, 'ingreso_restock'::text, 'venta'::text, 'devolucion_venta'::text])))
 );
 CREATE INDEX idx_inventory_movement_history_branch ON public.inventory_movement_history USING btree (branch_id);
 CREATE INDEX idx_inventory_movement_history_created_at ON public.inventory_movement_history USING btree (created_at DESC);
@@ -833,6 +943,361 @@ create trigger trg_parts_set_updated_at before
 update
     on
     public.parts for each row execute function set_updated_at();
+
+
+-- public.pos_sale_delivery_event_items definition
+
+-- Drop table
+
+-- DROP TABLE public.pos_sale_delivery_event_items;
+
+CREATE TABLE public.pos_sale_delivery_event_items (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	event_id uuid NOT NULL,
+	sale_item_id uuid NOT NULL,
+	part_id uuid NOT NULL,
+	quantity_delivered numeric(12, 3) NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT pos_sale_delivery_event_items_pkey PRIMARY KEY (id),
+	CONSTRAINT pos_sale_delivery_event_items_quantity_check CHECK ((quantity_delivered > (0)::numeric))
+);
+CREATE INDEX idx_pos_sale_delivery_event_items_event ON public.pos_sale_delivery_event_items USING btree (event_id);
+
+-- Table Triggers
+
+create trigger trg_audit_pos_sale_delivery_event_items after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pos_sale_delivery_event_items for each row execute function audit_trigger();
+
+
+-- public.pos_sale_delivery_events definition
+
+-- Drop table
+
+-- DROP TABLE public.pos_sale_delivery_events;
+
+CREATE TABLE public.pos_sale_delivery_events (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	sale_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	delivered_by uuid NULL,
+	notes text NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT pos_sale_delivery_events_pkey PRIMARY KEY (id)
+);
+CREATE INDEX idx_pos_sale_delivery_events_sale ON public.pos_sale_delivery_events USING btree (sale_id, created_at DESC);
+
+-- Table Triggers
+
+create trigger trg_audit_pos_sale_delivery_events after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pos_sale_delivery_events for each row execute function audit_trigger();
+
+
+-- public.pos_sale_items definition
+
+-- Drop table
+
+-- DROP TABLE public.pos_sale_items;
+
+CREATE TABLE public.pos_sale_items (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	sale_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	part_id uuid NOT NULL,
+	source_type text DEFAULT 'product'::text NOT NULL,
+	source_kit_id text NULL,
+	part_code text NOT NULL,
+	part_name text NOT NULL,
+	quantity numeric(12, 3) NOT NULL,
+	unit_price numeric(12, 2) NOT NULL,
+	line_discount numeric(12, 2) DEFAULT 0 NOT NULL,
+	line_total numeric(12, 2) NOT NULL,
+	delivered_quantity numeric(12, 3) DEFAULT 0 NOT NULL,
+	delivery_status text DEFAULT 'delivered'::text NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT pos_sale_items_delivered_quantity_check CHECK (((delivered_quantity >= (0)::numeric) AND (delivered_quantity <= quantity))),
+	CONSTRAINT pos_sale_items_delivery_status_check CHECK ((delivery_status = ANY (ARRAY['pending'::text, 'partial'::text, 'delivered'::text]))),
+	CONSTRAINT pos_sale_items_line_discount_check CHECK ((line_discount >= (0)::numeric)),
+	CONSTRAINT pos_sale_items_line_total_check CHECK ((line_total >= (0)::numeric)),
+	CONSTRAINT pos_sale_items_pkey PRIMARY KEY (id),
+	CONSTRAINT pos_sale_items_quantity_check CHECK ((quantity > (0)::numeric)),
+	CONSTRAINT pos_sale_items_source_type_check CHECK ((source_type = ANY (ARRAY['product'::text, 'kit_component'::text]))),
+	CONSTRAINT pos_sale_items_unit_price_check CHECK ((unit_price >= (0)::numeric))
+);
+CREATE INDEX idx_pos_sale_items_branch_id ON public.pos_sale_items USING btree (branch_id);
+CREATE INDEX idx_pos_sale_items_part_id ON public.pos_sale_items USING btree (part_id);
+CREATE INDEX idx_pos_sale_items_sale_id ON public.pos_sale_items USING btree (sale_id);
+
+-- Table Triggers
+
+create trigger trg_audit_pos_sale_items after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pos_sale_items for each row execute function audit_trigger();
+create trigger trg_pos_sale_items_set_updated_at before
+update
+    on
+    public.pos_sale_items for each row execute function set_updated_at();
+
+
+-- public.pos_sale_queue definition
+
+-- Drop table
+
+-- DROP TABLE public.pos_sale_queue;
+
+CREATE TABLE public.pos_sale_queue (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	branch_id uuid NOT NULL,
+	created_by uuid NULL,
+	created_by_role text NOT NULL,
+	customer_name text NULL,
+	payment_method text NOT NULL,
+	payment_currency text DEFAULT 'BOB'::text NOT NULL,
+	exchange_rate numeric(12, 6) DEFAULT 1 NOT NULL,
+	total_amount_bob numeric(12, 2) DEFAULT 0 NOT NULL,
+	total_amount_usd numeric(12, 2) DEFAULT 0 NOT NULL,
+	sale_mode text DEFAULT 'immediate'::text NOT NULL,
+	advance_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	requested_delivery_status text DEFAULT 'delivered'::text NOT NULL,
+	status text DEFAULT 'queued'::text NOT NULL,
+	approved_by uuid NULL,
+	approved_by_role text NULL,
+	approved_sale_id uuid NULL,
+	approval_notes text NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	approved_at timestamptz NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT pos_sale_queue_advance_amount_check CHECK ((advance_amount >= (0)::numeric)),
+	CONSTRAINT pos_sale_queue_approved_by_role_check CHECK (((approved_by_role IS NULL) OR (approved_by_role = ANY (ARRAY['admin'::text, 'manager'::text, 'employee'::text])))),
+	CONSTRAINT pos_sale_queue_created_by_role_check CHECK ((created_by_role = ANY (ARRAY['admin'::text, 'manager'::text, 'employee'::text, 'read_only'::text]))),
+	CONSTRAINT pos_sale_queue_exchange_rate_check CHECK ((exchange_rate > (0)::numeric)),
+	CONSTRAINT pos_sale_queue_payment_currency_check CHECK ((payment_currency = ANY (ARRAY['BOB'::text, 'USD'::text]))),
+	CONSTRAINT pos_sale_queue_payment_method_check CHECK ((payment_method = ANY (ARRAY['cash'::text, 'card'::text, 'qr'::text]))),
+	CONSTRAINT pos_sale_queue_pkey PRIMARY KEY (id),
+	CONSTRAINT pos_sale_queue_requested_delivery_status_check CHECK ((requested_delivery_status = ANY (ARRAY['pending'::text, 'partial'::text, 'delivered'::text]))),
+	CONSTRAINT pos_sale_queue_sale_mode_check CHECK ((sale_mode = ANY (ARRAY['immediate'::text, 'advance'::text]))),
+	CONSTRAINT pos_sale_queue_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'approved'::text, 'rejected'::text, 'cancelled'::text]))),
+	CONSTRAINT pos_sale_queue_total_bob_check CHECK ((total_amount_bob >= (0)::numeric)),
+	CONSTRAINT pos_sale_queue_total_usd_check CHECK ((total_amount_usd >= (0)::numeric))
+);
+CREATE INDEX idx_pos_sale_queue_approved_sale ON public.pos_sale_queue USING btree (approved_sale_id);
+CREATE INDEX idx_pos_sale_queue_branch_status ON public.pos_sale_queue USING btree (branch_id, status, created_at DESC);
+CREATE INDEX idx_pos_sale_queue_created_by ON public.pos_sale_queue USING btree (created_by);
+
+-- Table Triggers
+
+create trigger trg_audit_pos_sale_queue after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pos_sale_queue for each row execute function audit_trigger();
+create trigger trg_pos_sale_queue_set_updated_at before
+update
+    on
+    public.pos_sale_queue for each row execute function set_updated_at();
+
+
+-- public.pos_sale_queue_items definition
+
+-- Drop table
+
+-- DROP TABLE public.pos_sale_queue_items;
+
+CREATE TABLE public.pos_sale_queue_items (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	queue_id uuid NOT NULL,
+	part_id uuid NOT NULL,
+	source_type text DEFAULT 'product'::text NOT NULL,
+	source_kit_id text NULL,
+	part_name text NOT NULL,
+	quantity numeric(12, 3) NOT NULL,
+	unit_price numeric(12, 2) NOT NULL,
+	line_total numeric(12, 2) NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT pos_sale_queue_items_line_total_check CHECK ((line_total >= (0)::numeric)),
+	CONSTRAINT pos_sale_queue_items_pkey PRIMARY KEY (id),
+	CONSTRAINT pos_sale_queue_items_quantity_check CHECK ((quantity > (0)::numeric)),
+	CONSTRAINT pos_sale_queue_items_source_type_check CHECK ((source_type = ANY (ARRAY['product'::text, 'kit_component'::text]))),
+	CONSTRAINT pos_sale_queue_items_unit_price_check CHECK ((unit_price >= (0)::numeric))
+);
+CREATE INDEX idx_pos_sale_queue_items_part ON public.pos_sale_queue_items USING btree (part_id);
+CREATE INDEX idx_pos_sale_queue_items_queue ON public.pos_sale_queue_items USING btree (queue_id);
+
+-- Table Triggers
+
+create trigger trg_audit_pos_sale_queue_items after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pos_sale_queue_items for each row execute function audit_trigger();
+
+
+-- public.pos_sale_return_items definition
+
+-- Drop table
+
+-- DROP TABLE public.pos_sale_return_items;
+
+CREATE TABLE public.pos_sale_return_items (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	return_id uuid NOT NULL,
+	sale_item_id uuid NOT NULL,
+	part_id uuid NOT NULL,
+	quantity numeric(12, 3) NOT NULL,
+	unit_price numeric(12, 2) NOT NULL,
+	line_total numeric(12, 2) NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT pos_sale_return_items_line_total_check CHECK ((line_total >= (0)::numeric)),
+	CONSTRAINT pos_sale_return_items_pkey PRIMARY KEY (id),
+	CONSTRAINT pos_sale_return_items_quantity_check CHECK ((quantity > (0)::numeric)),
+	CONSTRAINT pos_sale_return_items_unit_price_check CHECK ((unit_price >= (0)::numeric))
+);
+CREATE INDEX idx_pos_sale_return_items_return ON public.pos_sale_return_items USING btree (return_id);
+CREATE INDEX idx_pos_sale_return_items_sale_item ON public.pos_sale_return_items USING btree (sale_item_id);
+
+-- Table Triggers
+
+create trigger trg_audit_pos_sale_return_items after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pos_sale_return_items for each row execute function audit_trigger();
+
+
+-- public.pos_sale_returns definition
+
+-- Drop table
+
+-- DROP TABLE public.pos_sale_returns;
+
+CREATE TABLE public.pos_sale_returns (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	sale_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	cash_session_id uuid NOT NULL,
+	returned_by uuid NULL,
+	reason text NOT NULL,
+	notes text NULL,
+	status text DEFAULT 'completed'::text NOT NULL,
+	total_return_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT pos_sale_returns_pkey PRIMARY KEY (id),
+	CONSTRAINT pos_sale_returns_status_check CHECK ((status = ANY (ARRAY['completed'::text, 'cancelled'::text]))),
+	CONSTRAINT pos_sale_returns_total_return_amount_check CHECK ((total_return_amount >= (0)::numeric))
+);
+CREATE INDEX idx_pos_sale_returns_branch_created ON public.pos_sale_returns USING btree (branch_id, created_at DESC);
+CREATE INDEX idx_pos_sale_returns_sale ON public.pos_sale_returns USING btree (sale_id);
+
+-- Table Triggers
+
+create trigger trg_audit_pos_sale_returns after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pos_sale_returns for each row execute function audit_trigger();
+create trigger trg_pos_sale_returns_set_updated_at before
+update
+    on
+    public.pos_sale_returns for each row execute function set_updated_at();
+
+
+-- public.pos_sales definition
+
+-- Drop table
+
+-- DROP TABLE public.pos_sales;
+
+CREATE TABLE public.pos_sales (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	branch_id uuid NOT NULL,
+	cash_session_id uuid NOT NULL,
+	sold_by uuid NULL,
+	customer_name text NULL,
+	customer_document text NULL,
+	payment_method text NOT NULL,
+	payment_currency text DEFAULT 'BOB'::text NOT NULL,
+	exchange_rate numeric(12, 6) DEFAULT 1 NOT NULL,
+	subtotal_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	discount_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	total_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	sale_mode text DEFAULT 'immediate'::text NOT NULL,
+	advance_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	pending_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	delivery_status text DEFAULT 'delivered'::text NOT NULL,
+	status text DEFAULT 'completed'::text NOT NULL,
+	void_reason text NULL,
+	metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+	siat_status text DEFAULT 'not_required'::text NOT NULL,
+	siat_cuf text NULL,
+	siat_invoice_number text NULL,
+	siat_authorized_at timestamptz NULL,
+	siat_response jsonb DEFAULT '{}'::jsonb NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT pos_sales_advance_amount_check CHECK ((advance_amount >= (0)::numeric)),
+	CONSTRAINT pos_sales_delivery_status_check CHECK ((delivery_status = ANY (ARRAY['pending'::text, 'partial'::text, 'delivered'::text]))),
+	CONSTRAINT pos_sales_discount_amount_check CHECK ((discount_amount >= (0)::numeric)),
+	CONSTRAINT pos_sales_exchange_rate_check CHECK ((exchange_rate > (0)::numeric)),
+	CONSTRAINT pos_sales_payment_currency_check CHECK ((payment_currency = ANY (ARRAY['BOB'::text, 'USD'::text]))),
+	CONSTRAINT pos_sales_payment_method_check CHECK ((payment_method = ANY (ARRAY['cash'::text, 'card'::text, 'qr'::text]))),
+	CONSTRAINT pos_sales_pending_amount_check CHECK ((pending_amount >= (0)::numeric)),
+	CONSTRAINT pos_sales_pkey PRIMARY KEY (id),
+	CONSTRAINT pos_sales_sale_mode_check CHECK ((sale_mode = ANY (ARRAY['immediate'::text, 'advance'::text]))),
+	CONSTRAINT pos_sales_siat_status_check CHECK ((siat_status = ANY (ARRAY['not_required'::text, 'queued'::text, 'processing'::text, 'authorized'::text, 'rejected'::text, 'contingency_pending'::text]))),
+	CONSTRAINT pos_sales_status_check CHECK ((status = ANY (ARRAY['completed'::text, 'voided'::text, 'cancelled'::text]))),
+	CONSTRAINT pos_sales_subtotal_amount_check CHECK ((subtotal_amount >= (0)::numeric)),
+	CONSTRAINT pos_sales_total_amount_check CHECK ((total_amount >= (0)::numeric))
+);
+CREATE INDEX idx_pos_sales_branch_created_at ON public.pos_sales USING btree (branch_id, created_at DESC);
+CREATE INDEX idx_pos_sales_cash_session ON public.pos_sales USING btree (cash_session_id);
+CREATE INDEX idx_pos_sales_delivery_status ON public.pos_sales USING btree (delivery_status);
+CREATE INDEX idx_pos_sales_siat_status ON public.pos_sales USING btree (siat_status);
+CREATE INDEX idx_pos_sales_status ON public.pos_sales USING btree (status);
+
+-- Table Triggers
+
+create trigger trg_audit_pos_sales after
+insert
+    or
+delete
+    or
+update
+    on
+    public.pos_sales for each row execute function audit_trigger();
+create trigger trg_pos_sales_set_updated_at before
+update
+    on
+    public.pos_sales for each row execute function set_updated_at();
 
 
 -- public.product_kit_items definition
@@ -1098,6 +1563,22 @@ update
     public.users for each row execute function set_updated_at();
 
 
+-- public.billing_invoice_artifacts foreign keys
+
+ALTER TABLE public.billing_invoice_artifacts ADD CONSTRAINT billing_invoice_artifacts_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.pos_sales(id) ON DELETE CASCADE;
+
+
+-- public.billing_invoice_attempts foreign keys
+
+ALTER TABLE public.billing_invoice_attempts ADD CONSTRAINT billing_invoice_attempts_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.billing_invoice_jobs(id) ON DELETE CASCADE;
+ALTER TABLE public.billing_invoice_attempts ADD CONSTRAINT billing_invoice_attempts_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.pos_sales(id) ON DELETE CASCADE;
+
+
+-- public.billing_invoice_jobs foreign keys
+
+ALTER TABLE public.billing_invoice_jobs ADD CONSTRAINT billing_invoice_jobs_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.pos_sales(id) ON DELETE CASCADE;
+
+
 -- public.cash_inventory_snapshot_items foreign keys
 
 ALTER TABLE public.cash_inventory_snapshot_items ADD CONSTRAINT cash_inventory_snapshot_items_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE RESTRICT;
@@ -1211,6 +1692,63 @@ ALTER TABLE public.parts ADD CONSTRAINT parts_branch_id_fkey FOREIGN KEY (branch
 ALTER TABLE public.parts ADD CONSTRAINT parts_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.inventory_categories(id) ON DELETE SET NULL;
 ALTER TABLE public.parts ADD CONSTRAINT parts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
 ALTER TABLE public.parts ADD CONSTRAINT parts_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+-- public.pos_sale_delivery_event_items foreign keys
+
+ALTER TABLE public.pos_sale_delivery_event_items ADD CONSTRAINT pos_sale_delivery_event_items_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.pos_sale_delivery_events(id) ON DELETE CASCADE;
+ALTER TABLE public.pos_sale_delivery_event_items ADD CONSTRAINT pos_sale_delivery_event_items_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sale_delivery_event_items ADD CONSTRAINT pos_sale_delivery_event_items_sale_item_id_fkey FOREIGN KEY (sale_item_id) REFERENCES public.pos_sale_items(id) ON DELETE RESTRICT;
+
+
+-- public.pos_sale_delivery_events foreign keys
+
+ALTER TABLE public.pos_sale_delivery_events ADD CONSTRAINT pos_sale_delivery_events_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sale_delivery_events ADD CONSTRAINT pos_sale_delivery_events_delivered_by_fkey FOREIGN KEY (delivered_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.pos_sale_delivery_events ADD CONSTRAINT pos_sale_delivery_events_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.pos_sales(id) ON DELETE CASCADE;
+
+
+-- public.pos_sale_items foreign keys
+
+ALTER TABLE public.pos_sale_items ADD CONSTRAINT pos_sale_items_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sale_items ADD CONSTRAINT pos_sale_items_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sale_items ADD CONSTRAINT pos_sale_items_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.pos_sales(id) ON DELETE CASCADE;
+
+
+-- public.pos_sale_queue foreign keys
+
+ALTER TABLE public.pos_sale_queue ADD CONSTRAINT pos_sale_queue_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.pos_sale_queue ADD CONSTRAINT pos_sale_queue_approved_sale_id_fkey FOREIGN KEY (approved_sale_id) REFERENCES public.pos_sales(id) ON DELETE SET NULL;
+ALTER TABLE public.pos_sale_queue ADD CONSTRAINT pos_sale_queue_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sale_queue ADD CONSTRAINT pos_sale_queue_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+-- public.pos_sale_queue_items foreign keys
+
+ALTER TABLE public.pos_sale_queue_items ADD CONSTRAINT pos_sale_queue_items_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sale_queue_items ADD CONSTRAINT pos_sale_queue_items_queue_id_fkey FOREIGN KEY (queue_id) REFERENCES public.pos_sale_queue(id) ON DELETE CASCADE;
+
+
+-- public.pos_sale_return_items foreign keys
+
+ALTER TABLE public.pos_sale_return_items ADD CONSTRAINT pos_sale_return_items_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sale_return_items ADD CONSTRAINT pos_sale_return_items_return_id_fkey FOREIGN KEY (return_id) REFERENCES public.pos_sale_returns(id) ON DELETE CASCADE;
+ALTER TABLE public.pos_sale_return_items ADD CONSTRAINT pos_sale_return_items_sale_item_id_fkey FOREIGN KEY (sale_item_id) REFERENCES public.pos_sale_items(id) ON DELETE RESTRICT;
+
+
+-- public.pos_sale_returns foreign keys
+
+ALTER TABLE public.pos_sale_returns ADD CONSTRAINT pos_sale_returns_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sale_returns ADD CONSTRAINT pos_sale_returns_cash_session_id_fkey FOREIGN KEY (cash_session_id) REFERENCES public.cash_sessions(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sale_returns ADD CONSTRAINT pos_sale_returns_returned_by_fkey FOREIGN KEY (returned_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.pos_sale_returns ADD CONSTRAINT pos_sale_returns_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.pos_sales(id) ON DELETE RESTRICT;
+
+
+-- public.pos_sales foreign keys
+
+ALTER TABLE public.pos_sales ADD CONSTRAINT pos_sales_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sales ADD CONSTRAINT pos_sales_cash_session_id_fkey FOREIGN KEY (cash_session_id) REFERENCES public.cash_sessions(id) ON DELETE RESTRICT;
+ALTER TABLE public.pos_sales ADD CONSTRAINT pos_sales_sold_by_fkey FOREIGN KEY (sold_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 -- public.product_kit_items foreign keys

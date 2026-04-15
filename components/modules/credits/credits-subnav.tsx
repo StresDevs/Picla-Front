@@ -21,9 +21,9 @@ export function CreditsSubnav() {
         return (
           <Link key={item.href} href={item.href}>
             <button
-              className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
+              className={`px-4 py-2 text-sm font-medium rounded-full transition-colors duration-150 ${
                 isActive
-                  ? 'bg-primary text-primary-foreground shadow-md shadow-primary/30'
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
