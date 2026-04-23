@@ -29,6 +29,31 @@ function transferStatusLabel(status: string) {
   }
 }
 
+function formatTransferDate(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString('es-BO', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+}
+
+function formatTransferOptionLabel(
+  transfer: TransferRequestDetail,
+  branches: Array<{ id: string; name: string }>,
+) {
+  const fromName = branches.find((branch) => branch.id === transfer.from_branch_id)?.name ?? transfer.from_branch_id
+  const toName = branches.find((branch) => branch.id === transfer.to_branch_id)?.name ?? transfer.to_branch_id
+  const totalQuantity = transfer.items.reduce((acc, item) => acc + Number(item.quantity || 0), 0)
+  const shortId = transfer.id.slice(0, 8)
+  const productsPreview = transfer.items
+    .slice(0, 2)
+    .map((item) => item.part_name)
+    .join(', ')
+
+  return `#${shortId} | ${fromName} -> ${toName} | ${totalQuantity} und | ${formatTransferDate(transfer.requested_at)}${productsPreview ? ` | ${productsPreview}${transfer.items.length > 2 ? '...' : ''}` : ''}`
+}
+
 export default function InventoryVoidsPage() {
   const [transfers, setTransfers] = useState<TransferRequestDetail[]>([])
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
@@ -132,7 +157,7 @@ export default function InventoryVoidsPage() {
                     ) : (
                       actionableTransfers.map((transfer) => (
                         <SelectItem key={transfer.id} value={transfer.id}>
-                          {transfer.id} | {transfer.items.length} productos
+                          {formatTransferOptionLabel(transfer, branches)}
                         </SelectItem>
                       ))
                     )}

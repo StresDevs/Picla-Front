@@ -72,16 +72,16 @@
   {
     "schema": "extensions",
     "function_name": "digest",
-    "parameters": "bytea, text",
+    "parameters": "text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.digest(bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_digest$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.digest(text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_digest$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "digest",
-    "parameters": "text, text",
+    "parameters": "bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.digest(text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_digest$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.digest(bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_digest$function$\n"
   },
   {
     "schema": "extensions",
@@ -114,16 +114,16 @@
   {
     "schema": "extensions",
     "function_name": "gen_salt",
-    "parameters": "text, integer",
+    "parameters": "text",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text, integer)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt_rounds$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "gen_salt",
-    "parameters": "text",
+    "parameters": "text, integer",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text, integer)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt_rounds$function$\n"
   },
   {
     "schema": "extensions",
@@ -149,16 +149,16 @@
   {
     "schema": "extensions",
     "function_name": "hmac",
-    "parameters": "text, text, text",
+    "parameters": "bytea, bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.hmac(text, text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_hmac$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.hmac(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_hmac$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "hmac",
-    "parameters": "bytea, bytea, text",
+    "parameters": "text, text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.hmac(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_hmac$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.hmac(text, text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_hmac$function$\n"
   },
   {
     "schema": "extensions",
@@ -205,23 +205,23 @@
   {
     "schema": "extensions",
     "function_name": "pgp_pub_decrypt",
-    "parameters": "bytea, bytea, text, text",
-    "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
-  },
-  {
-    "schema": "extensions",
-    "function_name": "pgp_pub_decrypt",
     "parameters": "bytea, bytea",
     "return_type": "text",
     "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
   },
   {
     "schema": "extensions",
-    "function_name": "pgp_pub_decrypt_bytea",
+    "function_name": "pgp_pub_decrypt",
     "parameters": "bytea, bytea, text, text",
+    "return_type": "text",
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
+  },
+  {
+    "schema": "extensions",
+    "function_name": "pgp_pub_decrypt_bytea",
+    "parameters": "bytea, bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea, text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
@@ -233,9 +233,9 @@
   {
     "schema": "extensions",
     "function_name": "pgp_pub_decrypt_bytea",
-    "parameters": "bytea, bytea, text",
+    "parameters": "bytea, bytea, text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea, text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
@@ -254,16 +254,16 @@
   {
     "schema": "extensions",
     "function_name": "pgp_pub_encrypt_bytea",
-    "parameters": "bytea, bytea, text",
+    "parameters": "bytea, bytea",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "pgp_pub_encrypt_bytea",
-    "parameters": "bytea, bytea",
+    "parameters": "bytea, bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
@@ -296,16 +296,16 @@
   {
     "schema": "extensions",
     "function_name": "pgp_sym_encrypt",
-    "parameters": "text, text, text",
+    "parameters": "text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt(text, text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_text$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt(text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_text$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "pgp_sym_encrypt",
-    "parameters": "text, text",
+    "parameters": "text, text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt(text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_text$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt(text, text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_text$function$\n"
   },
   {
     "schema": "extensions",
@@ -603,6 +603,13 @@
   },
   {
     "schema": "public",
+    "function_name": "confirm_inventory_entry_reception",
+    "parameters": "p_entry_id uuid, p_received_quantity numeric, p_received_all boolean, p_reception_notes text",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.confirm_inventory_entry_reception(p_entry_id uuid, p_received_quantity numeric, p_received_all boolean DEFAULT false, p_reception_notes text DEFAULT NULL::text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_entry public.inventory_entries%rowtype;\r\n  v_new_received numeric(12, 3);\r\n  v_pending_before numeric(12, 3);\r\n  v_pending_after numeric(12, 3);\r\n  v_mark_completed boolean;\r\n  v_new_status text;\r\n  v_avg_cost numeric(12, 2);\r\n  v_avg_price numeric(12, 2);\r\n  v_reason text;\r\nbegin\r\n  if not public.inventory_has_management_access() then\r\n    raise exception 'Only admin or manager can confirm restock reception';\r\n  end if;\r\n\r\n  if p_entry_id is null then\r\n    raise exception 'Entry id is required';\r\n  end if;\r\n\r\n  if p_received_quantity is null or p_received_quantity <= 0 then\r\n    raise exception 'Received quantity must be greater than zero';\r\n  end if;\r\n\r\n  select *\r\n  into v_entry\r\n  from public.inventory_entries e\r\n  where e.id = p_entry_id\r\n  for update;\r\n\r\n  if not found then\r\n    raise exception 'Inventory entry not found';\r\n  end if;\r\n\r\n  if v_entry.restock_mode <> 'queued' then\r\n    raise exception 'Only queued restock entries can be received manually';\r\n  end if;\r\n\r\n  if not public.inventory_is_admin() and v_entry.branch_id <> public.current_user_branch_id() then\r\n    raise exception 'Manager can only confirm reception for own branch';\r\n  end if;\r\n\r\n  if v_entry.reception_status = 'completed' then\r\n    raise exception 'This restock entry is already fully received';\r\n  end if;\r\n\r\n  v_pending_before := greatest(v_entry.expected_quantity - v_entry.received_quantity, 0);\r\n\r\n  if p_received_quantity > v_pending_before then\r\n    raise exception 'Received quantity % exceeds pending quantity %', p_received_quantity, v_pending_before;\r\n  end if;\r\n\r\n  v_new_received := v_entry.received_quantity + p_received_quantity;\r\n\r\n  if coalesce(p_received_all, false) and v_new_received <> v_entry.expected_quantity then\r\n    raise exception 'If all products arrived, accumulated received quantity must match expected quantity';\r\n  end if;\r\n\r\n  v_mark_completed := coalesce(p_received_all, false) or v_new_received = v_entry.expected_quantity;\r\n  v_new_status := case\r\n    when v_mark_completed then 'completed'\r\n    when v_new_received > 0 then 'partial'\r\n    else 'pending'\r\n  end;\r\n\r\n  if v_entry.received_quantity = 0 and (v_entry.unit_cost is not null or v_entry.unit_price is not null) then\r\n    update public.parts\r\n    set\r\n      cost = case\r\n        when v_entry.unit_cost is null then cost\r\n        else round(((coalesce(cost, v_entry.unit_cost) + v_entry.unit_cost) / 2)::numeric, 2)\r\n      end,\r\n      price = case\r\n        when v_entry.unit_price is null then price\r\n        else round(((coalesce(price, v_entry.unit_price) + v_entry.unit_price) / 2)::numeric, 2)\r\n      end,\r\n      updated_by = auth.uid(),\r\n      updated_at = now()\r\n    where id = v_entry.part_id\r\n    returning cost, price into v_avg_cost, v_avg_price;\r\n\r\n    if v_entry.unit_price is not null then\r\n      insert into public.product_price_tiers (part_id, min_quantity, price)\r\n      values (v_entry.part_id, 1, coalesce(v_avg_price, v_entry.unit_price))\r\n      on conflict (part_id, min_quantity)\r\n      do update set\r\n        price = excluded.price,\r\n        updated_at = now();\r\n    end if;\r\n  else\r\n    v_avg_cost := v_entry.average_cost_applied;\r\n    v_avg_price := v_entry.average_price_applied;\r\n  end if;\r\n\r\n  v_reason := coalesce(nullif(trim(p_reception_notes), ''), 'Recepcion de restock programado');\r\n\r\n  perform public.apply_inventory_delta(\r\n    v_entry.part_id,\r\n    v_entry.branch_id,\r\n    p_received_quantity,\r\n    v_reason,\r\n    'ingreso_restock',\r\n    'inventory_entries',\r\n    v_entry.id,\r\n    jsonb_build_object(\r\n      'source_reference', v_entry.source_reference,\r\n      'supplier_name', v_entry.supplier_name,\r\n      'currency', v_entry.currency,\r\n      'exchange_rate', v_entry.exchange_rate,\r\n      'unit_cost', v_entry.unit_cost,\r\n      'unit_price', v_entry.unit_price,\r\n      'restock_mode', v_entry.restock_mode,\r\n      'estimated_arrival_date', v_entry.estimated_arrival_date,\r\n      'expected_quantity', v_entry.expected_quantity,\r\n      'received_before', v_entry.received_quantity,\r\n      'received_quantity_event', p_received_quantity,\r\n      'received_after', v_new_received,\r\n      'received_all', v_mark_completed,\r\n      'pending_after', greatest(v_entry.expected_quantity - v_new_received, 0),\r\n      'average_cost_applied', v_avg_cost,\r\n      'average_price_applied', v_avg_price,\r\n      'reception_notes', nullif(trim(coalesce(p_reception_notes, '')), '')\r\n    )\r\n  );\r\n\r\n  v_pending_after := greatest(v_entry.expected_quantity - v_new_received, 0);\r\n\r\n  update public.inventory_entries\r\n  set\r\n    received_quantity = v_new_received,\r\n    reception_status = v_new_status,\r\n    is_fully_received = v_mark_completed,\r\n    received_by = auth.uid(),\r\n    received_at = now(),\r\n    average_cost_applied = coalesce(average_cost_applied, v_avg_cost),\r\n    average_price_applied = coalesce(average_price_applied, v_avg_price),\r\n    notes = case\r\n      when nullif(trim(coalesce(p_reception_notes, '')), '') is null then notes\r\n      else concat_ws(\r\n        E'\\n',\r\n        nullif(notes, ''),\r\n        'Recepcion [' || to_char(now(), 'YYYY-MM-DD HH24:MI') || '] qty=' || trim(to_char(p_received_quantity, 'FM9999999990.###'))\r\n          || ', pending=' || trim(to_char(v_pending_after, 'FM9999999990.###'))\r\n          || ', all=' || case when v_mark_completed then 'si' else 'no' end\r\n          || ': ' || trim(p_reception_notes)\r\n      )\r\n    end\r\n  where id = v_entry.id;\r\n\r\n  return v_entry.id;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "create_branch",
     "parameters": "p_name text, p_address text, p_phone text",
     "return_type": "branches",
@@ -635,6 +642,13 @@
     "parameters": "p_branch_id uuid, p_part_id uuid, p_quantity numeric, p_reason text, p_source_reference text, p_supplier_name text, p_notes text, p_unit_cost numeric, p_unit_price numeric, p_currency text, p_exchange_rate numeric",
     "return_type": "uuid",
     "full_definition": "CREATE OR REPLACE FUNCTION public.create_inventory_entry(p_branch_id uuid, p_part_id uuid, p_quantity numeric, p_reason text DEFAULT NULL::text, p_source_reference text DEFAULT NULL::text, p_supplier_name text DEFAULT NULL::text, p_notes text DEFAULT NULL::text, p_unit_cost numeric DEFAULT NULL::numeric, p_unit_price numeric DEFAULT NULL::numeric, p_currency text DEFAULT 'BOB'::text, p_exchange_rate numeric DEFAULT NULL::numeric)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_entry_id uuid;\r\n  v_currency text;\r\n  v_reason text;\r\n  v_effective_price numeric(12,2);\r\nbegin\r\n  if not public.inventory_is_admin() then\r\n    raise exception 'Only admin can register inventory entries';\r\n  end if;\r\n\r\n  if p_branch_id is null or p_part_id is null then\r\n    raise exception 'Branch and product are required';\r\n  end if;\r\n\r\n  if p_quantity is null or p_quantity <= 0 then\r\n    raise exception 'Quantity must be greater than zero';\r\n  end if;\r\n\r\n  if not exists (\r\n    select 1\r\n    from public.parts p\r\n    where p.id = p_part_id\r\n      and p.branch_id = p_branch_id\r\n  ) then\r\n    raise exception 'Product % does not belong to branch %', p_part_id, p_branch_id;\r\n  end if;\r\n\r\n  if p_unit_cost is not null and p_unit_cost < 0 then\r\n    raise exception 'Unit cost cannot be negative';\r\n  end if;\r\n\r\n  if p_unit_price is not null and p_unit_price < 0 then\r\n    raise exception 'Unit price cannot be negative';\r\n  end if;\r\n\r\n  v_currency := upper(coalesce(nullif(trim(p_currency), ''), 'BOB'));\r\n  if v_currency not in ('BOB', 'USD') then\r\n    raise exception 'Currency must be BOB or USD';\r\n  end if;\r\n\r\n  if v_currency = 'USD' and (p_exchange_rate is null or p_exchange_rate <= 0) then\r\n    raise exception 'Exchange rate is required and must be greater than zero for USD entries';\r\n  end if;\r\n\r\n  v_reason := coalesce(nullif(trim(p_reason), ''), 'Ingreso de mercaderia');\r\n\r\n  insert into public.inventory_entries (\r\n    branch_id,\r\n    part_id,\r\n    quantity,\r\n    unit_cost,\r\n    unit_price,\r\n    currency,\r\n    exchange_rate,\r\n    source_reference,\r\n    supplier_name,\r\n    reason,\r\n    notes,\r\n    created_by\r\n  )\r\n  values (\r\n    p_branch_id,\r\n    p_part_id,\r\n    p_quantity,\r\n    p_unit_cost,\r\n    p_unit_price,\r\n    v_currency,\r\n    case when v_currency = 'USD' then p_exchange_rate else null end,\r\n    nullif(trim(coalesce(p_source_reference, '')), ''),\r\n    nullif(trim(coalesce(p_supplier_name, '')), ''),\r\n    v_reason,\r\n    nullif(trim(coalesce(p_notes, '')), ''),\r\n    auth.uid()\r\n  )\r\n  returning id into v_entry_id;\r\n\r\n  if p_unit_cost is not null or p_unit_price is not null then\r\n    update public.parts\r\n    set\r\n      cost = case\r\n        when p_unit_cost is null then cost\r\n        else round(((coalesce(cost, p_unit_cost) + p_unit_cost) / 2)::numeric, 2)\r\n      end,\r\n      price = case\r\n        when p_unit_price is null then price\r\n        else round(((coalesce(price, p_unit_price) + p_unit_price) / 2)::numeric, 2)\r\n      end,\r\n      updated_by = auth.uid(),\r\n      updated_at = now()\r\n    where id = p_part_id\r\n    returning price into v_effective_price;\r\n\r\n    if p_unit_price is not null then\r\n      insert into public.product_price_tiers (part_id, min_quantity, price)\r\n      values (p_part_id, 1, coalesce(v_effective_price, p_unit_price))\r\n      on conflict (part_id, min_quantity)\r\n      do update set\r\n        price = excluded.price,\r\n        updated_at = now();\r\n    end if;\r\n  end if;\r\n\r\n  perform public.apply_inventory_delta(\r\n    p_part_id,\r\n    p_branch_id,\r\n    p_quantity,\r\n    v_reason,\r\n    'ingreso_restock',\r\n    'inventory_entries',\r\n    v_entry_id,\r\n    jsonb_build_object(\r\n      'source_reference', p_source_reference,\r\n      'supplier_name', p_supplier_name,\r\n      'currency', v_currency,\r\n      'exchange_rate', case when v_currency = 'USD' then p_exchange_rate else null end,\r\n      'unit_cost', p_unit_cost,\r\n      'unit_price', p_unit_price\r\n    )\r\n  );\r\n\r\n  return v_entry_id;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "create_inventory_entry_v2",
+    "parameters": "p_branch_id uuid, p_part_id uuid, p_quantity numeric, p_reason text, p_source_reference text, p_supplier_name text, p_notes text, p_unit_cost numeric, p_unit_price numeric, p_currency text, p_exchange_rate numeric, p_restock_mode text, p_estimated_arrival_date date",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.create_inventory_entry_v2(p_branch_id uuid, p_part_id uuid, p_quantity numeric, p_reason text DEFAULT NULL::text, p_source_reference text DEFAULT NULL::text, p_supplier_name text DEFAULT NULL::text, p_notes text DEFAULT NULL::text, p_unit_cost numeric DEFAULT NULL::numeric, p_unit_price numeric DEFAULT NULL::numeric, p_currency text DEFAULT 'BOB'::text, p_exchange_rate numeric DEFAULT NULL::numeric, p_restock_mode text DEFAULT 'instant'::text, p_estimated_arrival_date date DEFAULT NULL::date)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_entry_id uuid;\r\n  v_currency text;\r\n  v_reason text;\r\n  v_restock_mode text;\r\n  v_avg_cost numeric(12, 2);\r\n  v_avg_price numeric(12, 2);\r\nbegin\r\n  if not public.inventory_is_admin() then\r\n    raise exception 'Only admin can register inventory entries';\r\n  end if;\r\n\r\n  if p_branch_id is null or p_part_id is null then\r\n    raise exception 'Branch and product are required';\r\n  end if;\r\n\r\n  if p_quantity is null or p_quantity <= 0 then\r\n    raise exception 'Quantity must be greater than zero';\r\n  end if;\r\n\r\n  if not exists (\r\n    select 1\r\n    from public.parts p\r\n    where p.id = p_part_id\r\n      and p.branch_id = p_branch_id\r\n  ) then\r\n    raise exception 'Product % does not belong to branch %', p_part_id, p_branch_id;\r\n  end if;\r\n\r\n  if p_unit_cost is not null and p_unit_cost < 0 then\r\n    raise exception 'Unit cost cannot be negative';\r\n  end if;\r\n\r\n  if p_unit_price is not null and p_unit_price < 0 then\r\n    raise exception 'Unit price cannot be negative';\r\n  end if;\r\n\r\n  v_currency := upper(coalesce(nullif(trim(p_currency), ''), 'BOB'));\r\n  if v_currency not in ('BOB', 'USD') then\r\n    raise exception 'Currency must be BOB or USD';\r\n  end if;\r\n\r\n  if v_currency = 'USD' and (p_exchange_rate is null or p_exchange_rate <= 0) then\r\n    raise exception 'Exchange rate is required and must be greater than zero for USD entries';\r\n  end if;\r\n\r\n  v_restock_mode := lower(coalesce(nullif(trim(p_restock_mode), ''), 'instant'));\r\n  if v_restock_mode not in ('instant', 'queued') then\r\n    raise exception 'Invalid restock mode. Use instant or queued';\r\n  end if;\r\n\r\n  if v_restock_mode = 'queued' and p_estimated_arrival_date is null then\r\n    raise exception 'Estimated arrival date is required for queued restock';\r\n  end if;\r\n\r\n  v_reason := coalesce(nullif(trim(p_reason), ''), 'Ingreso de mercaderia');\r\n\r\n  if v_restock_mode = 'instant' and (p_unit_cost is not null or p_unit_price is not null) then\r\n    update public.parts\r\n    set\r\n      cost = case\r\n        when p_unit_cost is null then cost\r\n        else round(((coalesce(cost, p_unit_cost) + p_unit_cost) / 2)::numeric, 2)\r\n      end,\r\n      price = case\r\n        when p_unit_price is null then price\r\n        else round(((coalesce(price, p_unit_price) + p_unit_price) / 2)::numeric, 2)\r\n      end,\r\n      updated_by = auth.uid(),\r\n      updated_at = now()\r\n    where id = p_part_id\r\n    returning cost, price into v_avg_cost, v_avg_price;\r\n\r\n    if p_unit_price is not null then\r\n      insert into public.product_price_tiers (part_id, min_quantity, price)\r\n      values (p_part_id, 1, coalesce(v_avg_price, p_unit_price))\r\n      on conflict (part_id, min_quantity)\r\n      do update set\r\n        price = excluded.price,\r\n        updated_at = now();\r\n    end if;\r\n  end if;\r\n\r\n  insert into public.inventory_entries (\r\n    branch_id,\r\n    part_id,\r\n    quantity,\r\n    expected_quantity,\r\n    received_quantity,\r\n    restock_mode,\r\n    reception_status,\r\n    is_fully_received,\r\n    estimated_arrival_date,\r\n    received_by,\r\n    received_at,\r\n    unit_cost,\r\n    unit_price,\r\n    average_cost_applied,\r\n    average_price_applied,\r\n    currency,\r\n    exchange_rate,\r\n    source_reference,\r\n    supplier_name,\r\n    reason,\r\n    notes,\r\n    created_by\r\n  )\r\n  values (\r\n    p_branch_id,\r\n    p_part_id,\r\n    p_quantity,\r\n    p_quantity,\r\n    case when v_restock_mode = 'instant' then p_quantity else 0 end,\r\n    v_restock_mode,\r\n    case when v_restock_mode = 'instant' then 'completed' else 'pending' end,\r\n    case when v_restock_mode = 'instant' then true else false end,\r\n    case when v_restock_mode = 'queued' then p_estimated_arrival_date else null end,\r\n    case when v_restock_mode = 'instant' then auth.uid() else null end,\r\n    case when v_restock_mode = 'instant' then now() else null end,\r\n    p_unit_cost,\r\n    p_unit_price,\r\n    v_avg_cost,\r\n    v_avg_price,\r\n    v_currency,\r\n    case when v_currency = 'USD' then p_exchange_rate else null end,\r\n    nullif(trim(coalesce(p_source_reference, '')), ''),\r\n    nullif(trim(coalesce(p_supplier_name, '')), ''),\r\n    v_reason,\r\n    nullif(trim(coalesce(p_notes, '')), ''),\r\n    auth.uid()\r\n  )\r\n  returning id into v_entry_id;\r\n\r\n  if v_restock_mode = 'instant' then\r\n    perform public.apply_inventory_delta(\r\n      p_part_id,\r\n      p_branch_id,\r\n      p_quantity,\r\n      v_reason,\r\n      'ingreso_restock',\r\n      'inventory_entries',\r\n      v_entry_id,\r\n      jsonb_build_object(\r\n        'source_reference', p_source_reference,\r\n        'supplier_name', p_supplier_name,\r\n        'currency', v_currency,\r\n        'exchange_rate', case when v_currency = 'USD' then p_exchange_rate else null end,\r\n        'unit_cost', p_unit_cost,\r\n        'unit_price', p_unit_price,\r\n        'restock_mode', v_restock_mode,\r\n        'estimated_arrival_date', null,\r\n        'expected_quantity', p_quantity,\r\n        'received_quantity', p_quantity,\r\n        'pending_quantity', 0,\r\n        'average_cost_applied', v_avg_cost,\r\n        'average_price_applied', v_avg_price\r\n      )\r\n    );\r\n  end if;\r\n\r\n  return v_entry_id;\r\nend;\r\n$function$\n"
   },
   {
     "schema": "public",
@@ -775,6 +789,13 @@
     "parameters": "p_branch_id uuid, p_from timestamp with time zone, p_to timestamp with time zone",
     "return_type": "TABLE(entry_id uuid, branch_id uuid, branch_name text, part_id uuid, part_code text, part_name text, quantity numeric, unit_cost numeric, unit_price numeric, currency text, exchange_rate numeric, source_reference text, supplier_name text, reason text, notes text, created_by uuid, created_by_name text, created_at timestamp with time zone)",
     "full_definition": "CREATE OR REPLACE FUNCTION public.get_inventory_entries(p_branch_id uuid DEFAULT NULL::uuid, p_from timestamp with time zone DEFAULT NULL::timestamp with time zone, p_to timestamp with time zone DEFAULT NULL::timestamp with time zone)\n RETURNS TABLE(entry_id uuid, branch_id uuid, branch_name text, part_id uuid, part_code text, part_name text, quantity numeric, unit_cost numeric, unit_price numeric, currency text, exchange_rate numeric, source_reference text, supplier_name text, reason text, notes text, created_by uuid, created_by_name text, created_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select\r\n    e.id as entry_id,\r\n    e.branch_id,\r\n    b.name as branch_name,\r\n    e.part_id,\r\n    p.code as part_code,\r\n    p.name as part_name,\r\n    e.quantity,\r\n    e.unit_cost,\r\n    e.unit_price,\r\n    e.currency,\r\n    e.exchange_rate,\r\n    e.source_reference,\r\n    e.supplier_name,\r\n    e.reason,\r\n    e.notes,\r\n    e.created_by,\r\n    u.full_name as created_by_name,\r\n    e.created_at\r\n  from public.inventory_entries e\r\n  join public.branches b on b.id = e.branch_id\r\n  join public.parts p on p.id = e.part_id\r\n  left join public.users u on u.id = e.created_by\r\n  where\r\n    (p_branch_id is null or e.branch_id = p_branch_id)\r\n    and (p_from is null or e.created_at >= p_from)\r\n    and (p_to is null or e.created_at <= p_to)\r\n    and (\r\n      public.inventory_is_admin()\r\n      or (\r\n        public.has_inventory_read_access()\r\n        and e.branch_id = public.current_user_branch_id()\r\n      )\r\n    )\r\n  order by e.created_at desc, e.id desc\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "get_inventory_entries_v2",
+    "parameters": "p_branch_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_only_pending boolean",
+    "return_type": "TABLE(entry_id uuid, branch_id uuid, branch_name text, part_id uuid, part_code text, part_name text, quantity numeric, expected_quantity numeric, received_quantity numeric, pending_quantity numeric, restock_mode text, reception_status text, is_fully_received boolean, estimated_arrival_date date, received_at timestamp with time zone, unit_cost numeric, unit_price numeric, average_cost_applied numeric, average_price_applied numeric, currency text, exchange_rate numeric, source_reference text, supplier_name text, reason text, notes text, created_by uuid, created_by_name text, received_by uuid, received_by_name text, created_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.get_inventory_entries_v2(p_branch_id uuid DEFAULT NULL::uuid, p_from timestamp with time zone DEFAULT NULL::timestamp with time zone, p_to timestamp with time zone DEFAULT NULL::timestamp with time zone, p_only_pending boolean DEFAULT false)\n RETURNS TABLE(entry_id uuid, branch_id uuid, branch_name text, part_id uuid, part_code text, part_name text, quantity numeric, expected_quantity numeric, received_quantity numeric, pending_quantity numeric, restock_mode text, reception_status text, is_fully_received boolean, estimated_arrival_date date, received_at timestamp with time zone, unit_cost numeric, unit_price numeric, average_cost_applied numeric, average_price_applied numeric, currency text, exchange_rate numeric, source_reference text, supplier_name text, reason text, notes text, created_by uuid, created_by_name text, received_by uuid, received_by_name text, created_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select\r\n    e.id as entry_id,\r\n    e.branch_id,\r\n    b.name as branch_name,\r\n    e.part_id,\r\n    p.code as part_code,\r\n    p.name as part_name,\r\n    e.quantity,\r\n    e.expected_quantity,\r\n    e.received_quantity,\r\n    greatest(e.expected_quantity - e.received_quantity, 0)::numeric as pending_quantity,\r\n    e.restock_mode,\r\n    e.reception_status,\r\n    e.is_fully_received,\r\n    e.estimated_arrival_date,\r\n    e.received_at,\r\n    e.unit_cost,\r\n    e.unit_price,\r\n    e.average_cost_applied,\r\n    e.average_price_applied,\r\n    e.currency,\r\n    e.exchange_rate,\r\n    e.source_reference,\r\n    e.supplier_name,\r\n    e.reason,\r\n    e.notes,\r\n    e.created_by,\r\n    u_created.full_name as created_by_name,\r\n    e.received_by,\r\n    u_received.full_name as received_by_name,\r\n    e.created_at\r\n  from public.inventory_entries e\r\n  join public.branches b on b.id = e.branch_id\r\n  join public.parts p on p.id = e.part_id\r\n  left join public.users u_created on u_created.id = e.created_by\r\n  left join public.users u_received on u_received.id = e.received_by\r\n  where\r\n    (p_branch_id is null or e.branch_id = p_branch_id)\r\n    and (p_from is null or e.created_at >= p_from)\r\n    and (p_to is null or e.created_at <= p_to)\r\n    and (not p_only_pending or e.reception_status in ('pending', 'partial'))\r\n    and (\r\n      public.inventory_is_admin()\r\n      or (\r\n        public.has_inventory_read_access()\r\n        and e.branch_id = public.current_user_branch_id()\r\n      )\r\n    )\r\n  order by e.created_at desc, e.id desc\r\n$function$\n"
   },
   {
     "schema": "public",

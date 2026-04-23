@@ -6,6 +6,7 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/common/page-header'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -224,6 +225,65 @@ function getEffectiveProductPrice(part: Part) {
   const tiers = [...(part.price_tiers || [])].sort((a, b) => a.min_quantity - b.min_quantity)
   const base = tiers.find((tier) => tier.min_quantity === 1)
   return base?.price ?? part.price
+}
+
+function SerializationToggleCard({
+  checked,
+  onCheckedChange,
+}: {
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onCheckedChange(!checked)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onCheckedChange(!checked)
+        }
+      }}
+      className={`relative overflow-hidden rounded-xl border p-3 transition-all duration-300 ${
+        checked
+          ? 'border-sky-400/60 bg-gradient-to-r from-sky-50/80 via-white to-blue-50/80 shadow-[0_0_0_1px_rgba(14,165,233,0.25)] dark:from-slate-950 dark:via-slate-900 dark:to-sky-950/60'
+          : 'border-border/70 bg-gradient-to-r from-muted/40 to-background dark:from-slate-950/60 dark:to-slate-900/40'
+      } cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50`}
+    >
+      <div className="pointer-events-none absolute inset-0 opacity-50 bg-[radial-gradient(circle_at_85%_15%,rgba(56,189,248,0.35),transparent_45%)]" />
+      <div className="relative flex items-center justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-foreground">
+            {checked ? 'Control por serie activado' : 'Control por serie desactivado'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {checked
+              ? 'Cada unidad se registrara con serial unico para trazabilidad.'
+              : 'Se manejara por cantidades sin serial individual.'}
+          </p>
+        </div>
+        <Switch
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+          className="h-6 w-11 data-[state=checked]:bg-sky-500 data-[state=unchecked]:bg-slate-300/70 dark:data-[state=unchecked]:bg-slate-700"
+        />
+      </div>
+      <div className="relative mt-3">
+        <span
+          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+            checked
+              ? 'border-sky-400/70 bg-sky-500/15 text-sky-700 dark:text-sky-200'
+              : 'border-border bg-background/70 text-muted-foreground'
+          }`}
+        >
+          {checked ? 'ACTIVO' : 'INACTIVO'}
+        </span>
+      </div>
+    </div>
+  )
 }
 
 export default function InventoryProductsPage() {
@@ -529,7 +589,8 @@ export default function InventoryProductsPage() {
     setError(null)
 
     try {
-      let imageUrl = productForm.imageUrl || null
+      let imageUrl: string | null = null
+      const trackingMode = productForm.requiresSerialization ? 'serial' : 'none'
       const generatedCode = await partsService.generateAutoCode({
         branch_id: productForm.branchId,
         category: productForm.category,
@@ -553,8 +614,8 @@ export default function InventoryProductsPage() {
         kit_price: Number(productForm.kitPrice),
         quotation_min_price: Number(minQuotationPrice.toFixed(2)),
         quotation_max_price: Number(maxQuotationPrice.toFixed(2)),
-        tracking_mode: productForm.trackingMode,
-        requires_serialization: productForm.requiresSerialization || productForm.trackingMode === 'serial',
+        tracking_mode: trackingMode,
+        requires_serialization: productForm.requiresSerialization,
         initial_quantity: Number(productForm.initialQuantity || 0),
         min_quantity: Number(productForm.minQuantity || 0),
         price_tiers: additionalTiers,
@@ -908,16 +969,12 @@ export default function InventoryProductsPage() {
                           onChange={(event) => setProductForm((prev) => ({ ...prev, imageFile: event.target.files?.[0] || null }))}
                         />
                       </div>
-                      <div className="space-y-2 md:col-span-2">
-                        <label className="text-sm font-medium text-foreground">Enlace de imagen (opcional)</label>
-                        <Input value={productForm.imageUrl} onChange={(event) => setProductForm((prev) => ({ ...prev, imageUrl: event.target.value }))} placeholder="https://..." />
-                      </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Costo</label>
+                        <label className="text-sm font-medium text-foreground">Precio de compra</label>
                         <Input type="number" step="0.01" value={productForm.cost} onChange={(event) => setProductForm((prev) => ({ ...prev, cost: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Precio base</label>
+                        <label className="text-sm font-medium text-foreground">Precio de venta</label>
                         <Input type="number" step="0.01" value={productForm.price} onChange={(event) => setProductForm((prev) => ({ ...prev, price: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
@@ -940,28 +997,12 @@ export default function InventoryProductsPage() {
                         <label className="text-sm font-medium text-foreground">Stock mínimo</label>
                         <Input type="number" step="0.01" value={productForm.minQuantity} onChange={(event) => setProductForm((prev) => ({ ...prev, minQuantity: event.target.value }))} />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Seguimiento</label>
-                        <Select value={productForm.trackingMode} onValueChange={(value: 'none' | 'serial' | 'lot') => setProductForm((prev) => ({ ...prev, trackingMode: value }))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sin seguimiento</SelectItem>
-                            <SelectItem value="serial">Serial</SelectItem>
-                            <SelectItem value="lot">Lote</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 md:col-span-2">
                         <label className="text-sm font-medium text-foreground">Requiere serialización</label>
-                        <div className="h-10 px-3 border rounded-md flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={productForm.requiresSerialization}
-                            onChange={(event) => setProductForm((prev) => ({ ...prev, requiresSerialization: event.target.checked }))}
-                          />
-                        </div>
+                        <SerializationToggleCard
+                          checked={productForm.requiresSerialization}
+                          onCheckedChange={(checked) => setProductForm((prev) => ({ ...prev, requiresSerialization: checked }))}
+                        />
                       </div>
                     </div>
 
@@ -1245,15 +1286,12 @@ export default function InventoryProductsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-medium text-foreground">Requiere serialización</label>
-                <div className="h-10 px-3 border rounded-md flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={editForm.requiresSerialization}
-                    onChange={(event) => setEditForm((prev) => ({ ...prev, requiresSerialization: event.target.checked }))}
-                  />
-                </div>
+                <SerializationToggleCard
+                  checked={editForm.requiresSerialization}
+                  onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, requiresSerialization: checked }))}
+                />
               </div>
             </div>
 

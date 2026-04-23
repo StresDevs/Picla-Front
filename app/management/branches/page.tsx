@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Building2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { ManagementSubnav } from '@/components/modules/management/management-subnav'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { showConfirmAlert } from '@/lib/sweet-alert'
 
 interface BranchRecord {
   id: string
@@ -150,7 +151,12 @@ export default function ManagementBranchesPage() {
   }
 
   const handleDeleteBranch = async (branchId: string, branchName: string) => {
-    if (!window.confirm(`¿Eliminar la sucursal ${branchName}?`)) return
+    const confirmed = await showConfirmAlert({
+      text: `Se eliminara la sucursal ${branchName}.`,
+      confirmButtonText: 'Si, eliminar',
+    })
+
+    if (!confirmed) return
 
     setFeedback(null)
     const supabase = getSupabaseClient()

@@ -636,16 +636,36 @@ CREATE TABLE public.inventory_entries (
 	notes text NULL,
 	created_by uuid NULL,
 	created_at timestamptz DEFAULT now() NOT NULL,
+	restock_mode text DEFAULT 'instant'::text NOT NULL,
+	expected_quantity numeric(12, 3) NOT NULL,
+	received_quantity numeric(12, 3) NOT NULL,
+	reception_status text DEFAULT 'completed'::text NOT NULL,
+	is_fully_received bool DEFAULT true NOT NULL,
+	estimated_arrival_date date NULL,
+	received_by uuid NULL,
+	received_at timestamptz NULL,
+	average_cost_applied numeric(12, 2) NULL,
+	average_price_applied numeric(12, 2) NULL,
 	CONSTRAINT inventory_entries_currency_check CHECK ((currency = ANY (ARRAY['BOB'::text, 'USD'::text]))),
+	CONSTRAINT inventory_entries_estimated_arrival_required_check CHECK (((restock_mode <> 'queued'::text) OR (estimated_arrival_date IS NOT NULL))),
 	CONSTRAINT inventory_entries_exchange_rate_check CHECK (((currency = 'BOB'::text) OR ((currency = 'USD'::text) AND (exchange_rate IS NOT NULL) AND (exchange_rate > (0)::numeric)))),
+	CONSTRAINT inventory_entries_expected_quantity_check CHECK ((expected_quantity > (0)::numeric)),
+	CONSTRAINT inventory_entries_fully_received_status_check CHECK (((is_fully_received AND (reception_status = 'completed'::text)) OR ((NOT is_fully_received) AND (reception_status <> 'completed'::text)))),
+	CONSTRAINT inventory_entries_instant_completed_check CHECK (((restock_mode <> 'instant'::text) OR ((reception_status = 'completed'::text) AND (received_quantity = expected_quantity) AND is_fully_received))),
 	CONSTRAINT inventory_entries_pkey PRIMARY KEY (id),
 	CONSTRAINT inventory_entries_quantity_check CHECK ((quantity > (0)::numeric)),
+	CONSTRAINT inventory_entries_received_quantity_bounds_check CHECK (((received_quantity >= (0)::numeric) AND (received_quantity <= expected_quantity))),
+	CONSTRAINT inventory_entries_reception_status_check CHECK ((reception_status = ANY (ARRAY['pending'::text, 'partial'::text, 'completed'::text]))),
+	CONSTRAINT inventory_entries_restock_mode_check CHECK ((restock_mode = ANY (ARRAY['instant'::text, 'queued'::text]))),
 	CONSTRAINT inventory_entries_unit_cost_check CHECK (((unit_cost IS NULL) OR (unit_cost >= (0)::numeric))),
 	CONSTRAINT inventory_entries_unit_price_check CHECK (((unit_price IS NULL) OR (unit_price >= (0)::numeric)))
 );
 CREATE INDEX idx_inventory_entries_branch_id ON public.inventory_entries USING btree (branch_id);
 CREATE INDEX idx_inventory_entries_created_at ON public.inventory_entries USING btree (created_at DESC);
+CREATE INDEX idx_inventory_entries_estimated_arrival_date ON public.inventory_entries USING btree (estimated_arrival_date) WHERE (estimated_arrival_date IS NOT NULL);
 CREATE INDEX idx_inventory_entries_part_id ON public.inventory_entries USING btree (part_id);
+CREATE INDEX idx_inventory_entries_reception_status ON public.inventory_entries USING btree (reception_status);
+CREATE INDEX idx_inventory_entries_restock_mode ON public.inventory_entries USING btree (restock_mode);
 
 -- Table Triggers
 
@@ -1642,6 +1662,7 @@ ALTER TABLE public.inventory_control_records ADD CONSTRAINT inventory_control_re
 ALTER TABLE public.inventory_entries ADD CONSTRAINT inventory_entries_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE CASCADE;
 ALTER TABLE public.inventory_entries ADD CONSTRAINT inventory_entries_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
 ALTER TABLE public.inventory_entries ADD CONSTRAINT inventory_entries_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE RESTRICT;
+ALTER TABLE public.inventory_entries ADD CONSTRAINT inventory_entries_received_by_fkey FOREIGN KEY (received_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 -- public.inventory_exits foreign keys

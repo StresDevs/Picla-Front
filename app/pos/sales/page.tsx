@@ -24,9 +24,10 @@ import {
   getAppSettings,
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
-import { mockBranches, mockCustomers } from '@/lib/mock/data'
+import { mockBranches } from '@/lib/mock/data'
 import { printMockInvoice } from '@/lib/mock/invoice'
 import { posService, type POSCatalogItem, type POSQueuedSale, type POSQueueLineInput } from '@/lib/supabase/pos'
+import { customersService, type CustomerRecord } from '@/lib/supabase/customers'
 
 interface CartItem {
   id: string
@@ -37,7 +38,12 @@ interface CartItem {
   unit_price: number
 }
 
-type MockCustomer = (typeof mockCustomers)[number]
+interface NewCustomerForm {
+  full_name: string
+  nit_ci: string
+  phone: string
+  email: string
+}
 
 const PAYMENT_METHODS = [
   { id: 'cash', label: 'Efectivo', icon: DollarSign },
@@ -112,6 +118,7 @@ function extractErrorMessage(error: unknown, fallback: string) {
 
 export default function POSSalesPage() {
   const [catalog, setCatalog] = useState<POSCatalogItem[]>([])
+  const [customers, setCustomers] = useState<CustomerRecord[]>([])
   const [queuedSales, setQueuedSales] = useState<POSQueuedSale[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -130,6 +137,14 @@ export default function POSSalesPage() {
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [anonymousSale, setAnonymousSale] = useState(true)
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false)
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
+  const [newCustomer, setNewCustomer] = useState<NewCustomerForm>({
+    full_name: '',
+    nit_ci: '',
+    phone: '',
+    email: '',
+  })
   const [expandedCartItemId, setExpandedCartItemId] = useState<string | null>(null)
 
   const canCompleteSale = canRoleCompleteSale(activeRole)
@@ -137,12 +152,12 @@ export default function POSSalesPage() {
   const canApproveQueue = activeRole === 'admin' || activeRole === 'manager' || activeRole === 'employee'
 
   const branchCustomers = useMemo(() => {
-    const scopedCustomers = mockCustomers.filter(
+    const scopedCustomers = customers.filter(
       (customer) => !activeBranchId || customer.branch_id === activeBranchId,
     )
 
-    return scopedCustomers.length > 0 ? scopedCustomers : mockCustomers
-  }, [activeBranchId])
+    return scopedCustomers.length > 0 ? scopedCustomers : customers
+  }, [activeBranchId, customers])
 
   const filteredCustomers = useMemo(() => {
     const term = customerSearchTerm.trim().toLowerCase()
@@ -151,12 +166,12 @@ export default function POSSalesPage() {
 
     return branchCustomers.filter((customer) => {
       return [customer.full_name, customer.nit_ci, customer.phone, customer.email]
-        .filter(Boolean)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
         .some((value) => value.toLowerCase().includes(term))
     })
   }, [branchCustomers, customerSearchTerm])
 
-  const selectedCustomer = useMemo<MockCustomer | null>(() => {
+  const selectedCustomer = useMemo<CustomerRecord | null>(() => {
     if (anonymousSale || !selectedCustomerId) return null
     return branchCustomers.find((customer) => customer.id === selectedCustomerId) ?? null
   }, [anonymousSale, branchCustomers, selectedCustomerId])
@@ -169,17 +184,27 @@ export default function POSSalesPage() {
     setError(null)
 
     try {
-      const [catalogData, queuedData] = await Promise.all([
+      const [catalogData, queuedData, customersData] = await Promise.all([
         posService.getCatalog(targetBranch),
         posService.getQueuedSales({ branch_id: targetBranch, status: 'queued' }),
+        customersService.getForSales({ branch_id: targetBranch }),
       ])
 
       setCatalog(catalogData)
       setQueuedSales(queuedData)
+      setCustomers(customersData)
 
       setCart((prev) =>
         prev.filter((item) => catalogData.some((product) => product.part_id === item.part_id)),
       )
+
+      setSelectedCustomerId((previousCustomerId) => {
+        if (previousCustomerId && customersData.some((customer) => customer.id === previousCustomerId)) {
+          return previousCustomerId
+        }
+
+        return customersData[0]?.id || ''
+      })
     } catch (loadError) {
       setError(extractErrorMessage(loadError, 'No se pudo cargar el módulo de ventas'))
     } finally {
@@ -227,7 +252,10 @@ export default function POSSalesPage() {
   const amountToCharge = paymentCurrency === 'USD' ? cartTotalUsd : cartTotalBob
 
   useEffect(() => {
-    if (anonymousSale) return
+    if (anonymousSale) {
+      setShowNewCustomerForm(false)
+      return
+    }
 
     if (branchCustomers.length > 0 && !selectedCustomerId) {
       setSelectedCustomerId(branchCustomers[0].id)
@@ -300,6 +328,53 @@ export default function POSSalesPage() {
     }))
   }
 
+  const createQuickCustomer = async () => {
+    const fullName = newCustomer.full_name.trim()
+    const nitCi = newCustomer.nit_ci.trim()
+
+    if (!fullName) {
+      setError('El nombre del cliente es obligatorio.')
+      return
+    }
+
+    if (!nitCi) {
+      setError('El NIT/CI del cliente es obligatorio.')
+      return
+    }
+
+    setError(null)
+    setFeedback(null)
+    setIsCreatingCustomer(true)
+
+    try {
+      const created = await customersService.createQuick({
+        branch_id: normalizeBranchId(activeBranchId),
+        full_name: fullName,
+        nit_ci: nitCi,
+        phone: newCustomer.phone.trim() || null,
+        email: newCustomer.email.trim() || null,
+      })
+
+      if (!created) {
+        throw new Error('No se pudo recuperar el cliente creado')
+      }
+
+      setCustomers((previous) => {
+        const withoutDuplicate = previous.filter((item) => item.id !== created.id)
+        return [created, ...withoutDuplicate].sort((a, b) => a.full_name.localeCompare(b.full_name, 'es'))
+      })
+      setSelectedCustomerId(created.id)
+      setAnonymousSale(false)
+      setShowNewCustomerForm(false)
+      setNewCustomer({ full_name: '', nit_ci: '', phone: '', email: '' })
+      setFeedback(`Cliente creado: ${created.full_name}`)
+    } catch (createError) {
+      setError(extractErrorMessage(createError, 'No se pudo crear el cliente'))
+    } finally {
+      setIsCreatingCustomer(false)
+    }
+  }
+
   const completeOrQueueSale = async () => {
     if (cart.length === 0) {
       setFeedback('Agrega productos al carrito antes de procesar la venta.')
@@ -357,6 +432,7 @@ export default function POSSalesPage() {
           created_by_name: activeUserName,
           customer_id: selectedCustomer?.id ?? null,
           customer_name: selectedCustomer?.full_name ?? resolvedCustomerName,
+          customer_nit_ci: selectedCustomer?.nit_ci ?? null,
           customer_is_anonymous: anonymousSale,
         },
       })
@@ -542,6 +618,60 @@ export default function POSSalesPage() {
                     </div>
 
                     <div className="mt-5 space-y-4">
+                      <div className="flex items-center justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9"
+                          disabled={anonymousSale}
+                          onClick={() => setShowNewCustomerForm((previous) => !previous)}
+                        >
+                          {showNewCustomerForm ? 'Ocultar nuevo cliente' : 'Nuevo cliente'}
+                        </Button>
+                      </div>
+
+                      {!anonymousSale && showNewCustomerForm ? (
+                        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                          <p className="text-sm font-semibold text-primary">Crear cliente rapido</p>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <Input
+                              placeholder="Nombre completo"
+                              value={newCustomer.full_name}
+                              onChange={(event) =>
+                                setNewCustomer((previous) => ({ ...previous, full_name: event.target.value }))
+                              }
+                            />
+                            <Input
+                              placeholder="NIT/CI"
+                              value={newCustomer.nit_ci}
+                              onChange={(event) =>
+                                setNewCustomer((previous) => ({ ...previous, nit_ci: event.target.value }))
+                              }
+                            />
+                            <Input
+                              placeholder="Telefono (opcional)"
+                              value={newCustomer.phone}
+                              onChange={(event) =>
+                                setNewCustomer((previous) => ({ ...previous, phone: event.target.value }))
+                              }
+                            />
+                            <Input
+                              placeholder="Correo (opcional)"
+                              value={newCustomer.email}
+                              onChange={(event) =>
+                                setNewCustomer((previous) => ({ ...previous, email: event.target.value }))
+                              }
+                            />
+                          </div>
+                          <div className="flex justify-end">
+                            <Button onClick={() => void createQuickCustomer()} disabled={isCreatingCustomer}>
+                              {isCreatingCustomer ? 'Guardando...' : 'Guardar cliente'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+
                       <Input
                         className="h-12 rounded-xl text-base"
                         placeholder="Buscar por nombre, CI/NIT, teléfono o correo"

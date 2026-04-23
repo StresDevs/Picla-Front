@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ManagementSubnav } from '@/components/modules/management/management-subnav'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { showConfirmAlert } from '@/lib/sweet-alert'
 
 interface UserRecord {
   id: string
@@ -207,7 +208,13 @@ export default function ManagementUsersPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar usuario?')) return
+    const confirmed = await showConfirmAlert({
+      text: 'Se eliminara el usuario seleccionado.',
+      confirmButtonText: 'Si, eliminar',
+    })
+
+    if (!confirmed) return
+
     setFeedback(null)
 
     const supabase = getSupabaseClient()
