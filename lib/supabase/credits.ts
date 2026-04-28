@@ -1,101 +1,194 @@
 import { supabase } from './client'
-import { Credit, CreditPayment } from '@/types/database'
+import type { CreditPayment } from '@/types/database'
+
+export interface CreditSettings {
+  max_open_credits_per_customer: number
+  credit_reminder_weekly_day: number
+  credit_due_daily_threshold_days: number
+}
+
+export interface CreditLimitState {
+  openCount: number
+  limit: number
+  blocked: boolean
+}
+
+export interface CreditPortfolioRow {
+  credit_id: string
+  customer_id: string
+  customer_name: string
+  branch_id: string
+  branch_name: string
+  seller_name: string
+  product_name: string
+  total_amount: number
+  paid_amount: number
+  balance: number
+  status: 'active' | 'overdue' | 'paid'
+  due_date: string
+  reminder_date: string | null
+  notes: string | null
+  created_date: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreditKardexRow {
+  movement_id: string
+  credit_id: string
+  branch_id: string
+  branch_name: string
+  customer_id: string
+  customer_name: string
+  movement_type: 'credit_created' | 'credit_payment'
+  amount: number
+  movement_date: string
+  created_at: string
+}
+
+export interface CreditAlertRow {
+  credit_id: string
+  branch_id: string
+  branch_name: string
+  customer_id: string
+  customer_name: string
+  due_date: string
+  days_to_due: number
+  alert_type: 'daily_due' | 'weekly' | null
+  weekly_day: number
+  daily_threshold_days: number
+  reminder_date: string | null
+  status: 'active' | 'overdue' | 'paid'
+}
+
+function parseSingleRpcRow<T>(data: T[] | T | null): T | null {
+  if (!data) return null
+  return Array.isArray(data) ? (data[0] ?? null) : data
+}
 
 export const creditsService = {
-  async getByBranch(branchId: string) {
-    const { data, error } = await supabase
-      .from('credits')
-      .select('*')
-      .eq('branch_id', branchId)
-      .order('created_date', { ascending: false })
-    
+  async getSettings() {
+    const { data, error } = await supabase.rpc('get_credit_settings')
+
     if (error) throw error
-    return (data as Credit[]) || []
+
+    return (
+      parseSingleRpcRow<CreditSettings>(data as CreditSettings[] | CreditSettings | null) || {
+        max_open_credits_per_customer: 2,
+        credit_reminder_weekly_day: 1,
+        credit_due_daily_threshold_days: 5,
+      }
+    )
   },
 
-  async create(credit: Omit<Credit, 'id' | 'created_at' | 'updated_at'>) {
-    const { data, error } = await supabase
-      .from('credits')
-      .insert([credit])
-      .select()
-      .single()
-    
+  async validateCustomerLimit(input: { customer_id: string; branch_id?: string | null }): Promise<CreditLimitState> {
+    const { data, error } = await supabase.rpc('validate_customer_credit_limit', {
+      p_customer_id: input.customer_id,
+      p_branch_id: input.branch_id ?? null,
+    })
+
     if (error) throw error
-    return data as Credit
+
+    const row = parseSingleRpcRow<{ open_count: number; limit_value: number; blocked: boolean }>(
+      data as Array<{ open_count: number; limit_value: number; blocked: boolean }> | null,
+    )
+
+    return {
+      openCount: row?.open_count ?? 0,
+      limit: row?.limit_value ?? 0,
+      blocked: row?.blocked ?? false,
+    }
   },
 
-  async getById(id: string) {
-    const { data, error } = await supabase
-      .from('credits')
-      .select(`
-        *,
-        credit_payments(*)
-      `)
-      .eq('id', id)
-      .single()
-    
+  async create(input: {
+    sale_id: string
+    branch_id: string
+    customer_id: string
+    seller_name: string
+    product_name: string
+    total_amount: number
+    paid_amount: number
+    due_days: number
+    reminder_date?: string | null
+    notes?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('create_credit', {
+      p_sale_id: input.sale_id,
+      p_branch_id: input.branch_id,
+      p_customer_id: input.customer_id,
+      p_seller_name: input.seller_name,
+      p_product_name: input.product_name,
+      p_total_amount: input.total_amount,
+      p_paid_amount: input.paid_amount,
+      p_due_days: input.due_days,
+      p_reminder_date: input.reminder_date ?? null,
+      p_notes: input.notes ?? null,
+    })
+
     if (error) throw error
-    return data
+    return data as string
   },
 
-  async update(id: string, credit: Partial<Credit>) {
-    const { data, error } = await supabase
-      .from('credits')
-      .update(credit)
-      .eq('id', id)
-      .select()
-      .single()
-    
+  async getPortfolio(input?: { branch_id?: string | null; customer_id?: string | null; search?: string | null }) {
+    const { data, error } = await supabase.rpc('get_credit_portfolio', {
+      p_branch_id: input?.branch_id ?? null,
+      p_customer_id: input?.customer_id ?? null,
+      p_search: input?.search ?? null,
+    })
+
     if (error) throw error
-    return data as Credit
+    return (data || []) as CreditPortfolioRow[]
   },
 
-  async getOverdue() {
-    const today = new Date().toISOString().split('T')[0]
-    const { data, error } = await supabase
-      .from('credits')
-      .select('*')
-      .lt('due_date', today)
-      .eq('status', 'active')
-    
+  async getKardex(input?: { branch_id?: string | null; customer_id?: string | null; from?: string | null; to?: string | null }) {
+    const { data, error } = await supabase.rpc('get_credit_kardex', {
+      p_branch_id: input?.branch_id ?? null,
+      p_customer_id: input?.customer_id ?? null,
+      p_from: input?.from ?? null,
+      p_to: input?.to ?? null,
+    })
+
     if (error) throw error
-    return (data as Credit[]) || []
+    return (data || []) as CreditKardexRow[]
+  },
+
+  async getAlerts(input?: { branch_id?: string | null }) {
+    const { data, error } = await supabase.rpc('get_credit_alerts', {
+      p_branch_id: input?.branch_id ?? null,
+    })
+
+    if (error) throw error
+    return (data || []) as CreditAlertRow[]
+  },
+
+  async markAlertSeen(creditId: string) {
+    const { data, error } = await supabase.rpc('mark_credit_alert_seen', {
+      p_credit_id: creditId,
+    })
+
+    if (error) throw error
+    return data as string
   },
 }
 
 export const creditPaymentsService = {
-  async addPayment(payment: Omit<CreditPayment, 'id' | 'created_at'>) {
-    const { data, error } = await supabase
-      .from('credit_payments')
-      .insert([payment])
-      .select()
-      .single()
-    
+  async addPayment(input: {
+    credit_id: string
+    amount: number
+    payment_method: string
+    payment_date?: string | null
+    notes?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('add_credit_payment', {
+      p_credit_id: input.credit_id,
+      p_amount: input.amount,
+      p_payment_method: input.payment_method,
+      p_payment_date: input.payment_date ?? null,
+      p_notes: input.notes ?? null,
+    })
+
     if (error) throw error
-
-    // Update credit balance
-    const creditData = await supabase
-      .from('credits')
-      .select('paid_amount, total_amount')
-      .eq('id', payment.credit_id)
-      .single()
-    
-    if (creditData.data) {
-      const newPaidAmount = (creditData.data.paid_amount || 0) + payment.amount
-      const newBalance = creditData.data.total_amount - newPaidAmount
-      const status = newBalance <= 0 ? 'paid' : 'active'
-
-      await supabase
-        .from('credits')
-        .update({
-          paid_amount: newPaidAmount,
-          balance: Math.max(0, newBalance),
-          status,
-        })
-        .eq('id', payment.credit_id)
-    }
-
-    return data as CreditPayment
+    return data as string
   },
 
   async getByCredit(creditId: string) {
@@ -104,7 +197,7 @@ export const creditPaymentsService = {
       .select('*')
       .eq('credit_id', creditId)
       .order('payment_date', { ascending: false })
-    
+
     if (error) throw error
     return (data as CreditPayment[]) || []
   },

@@ -183,6 +183,54 @@ update
     public.inventory_product_code_counters for each row execute function set_updated_at();
 
 
+-- public.app_settings definition
+
+-- Drop table
+
+-- DROP TABLE public.app_settings;
+
+CREATE TABLE public.app_settings (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	settings_key text DEFAULT 'default'::text NOT NULL,
+	company_name text NOT NULL,
+	company_email text NULL,
+	company_phone text NULL,
+	default_currency text DEFAULT 'BOB'::text NOT NULL,
+	usd_to_bob_rate numeric(12, 4) DEFAULT 6.96 NOT NULL,
+	max_open_credits_per_customer int4 DEFAULT 2 NOT NULL,
+	credit_reminder_weekly_day int4 DEFAULT 1 NOT NULL,
+	credit_due_daily_threshold_days int4 DEFAULT 5 NOT NULL,
+	created_by uuid NULL,
+	updated_by uuid NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT app_settings_company_name_required CHECK ((length(TRIM(BOTH FROM company_name)) > 0)),
+	CONSTRAINT app_settings_credit_daily_threshold_check CHECK ((credit_due_daily_threshold_days >= 1)),
+	CONSTRAINT app_settings_credit_weekly_day_check CHECK (((credit_reminder_weekly_day >= 0) AND (credit_reminder_weekly_day <= 6))),
+	CONSTRAINT app_settings_default_currency_check CHECK ((default_currency = ANY (ARRAY['BOB'::text, 'USD'::text]))),
+	CONSTRAINT app_settings_max_open_credits_check CHECK ((max_open_credits_per_customer >= 1)),
+	CONSTRAINT app_settings_pkey PRIMARY KEY (id),
+	CONSTRAINT app_settings_settings_key_unique UNIQUE (settings_key),
+	CONSTRAINT app_settings_usd_to_bob_rate_check CHECK ((usd_to_bob_rate > (0)::numeric))
+);
+CREATE INDEX idx_app_settings_updated_at_desc ON public.app_settings USING btree (updated_at DESC);
+
+-- Table Triggers
+
+create trigger trg_app_settings_set_updated_at before
+update
+    on
+    public.app_settings for each row execute function set_updated_at();
+create trigger trg_audit_app_settings after
+insert
+    or
+delete
+    or
+update
+    on
+    public.app_settings for each row execute function audit_trigger();
+
+
 -- public.billing_invoice_artifacts definition
 
 -- Drop table
@@ -537,6 +585,184 @@ create trigger trg_cash_sessions_set_updated_at before
 update
     on
     public.cash_sessions for each row execute function set_updated_at();
+
+
+-- public.credit_alert_settings definition
+
+-- Drop table
+
+-- DROP TABLE public.credit_alert_settings;
+
+CREATE TABLE public.credit_alert_settings (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	credit_id uuid NOT NULL,
+	is_enabled bool DEFAULT true NOT NULL,
+	weekly_day int4 NULL,
+	daily_threshold_days int4 NULL,
+	last_seen_at timestamptz NULL,
+	created_by uuid NULL,
+	updated_by uuid NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT credit_alert_settings_credit_unique UNIQUE (credit_id),
+	CONSTRAINT credit_alert_settings_daily_threshold_check CHECK (((daily_threshold_days IS NULL) OR (daily_threshold_days >= 1))),
+	CONSTRAINT credit_alert_settings_pkey PRIMARY KEY (id),
+	CONSTRAINT credit_alert_settings_weekly_day_check CHECK (((weekly_day IS NULL) OR ((weekly_day >= 0) AND (weekly_day <= 6))))
+);
+CREATE INDEX idx_credit_alert_settings_enabled ON public.credit_alert_settings USING btree (is_enabled);
+
+-- Table Triggers
+
+create trigger trg_audit_credit_alert_settings after
+insert
+    or
+delete
+    or
+update
+    on
+    public.credit_alert_settings for each row execute function audit_trigger();
+create trigger trg_credit_alert_settings_set_updated_at before
+update
+    on
+    public.credit_alert_settings for each row execute function set_updated_at();
+
+
+-- public.credit_payments definition
+
+-- Drop table
+
+-- DROP TABLE public.credit_payments;
+
+CREATE TABLE public.credit_payments (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	credit_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	amount numeric(12, 2) NOT NULL,
+	payment_date date DEFAULT CURRENT_DATE NOT NULL,
+	payment_method text NOT NULL,
+	notes text NULL,
+	created_by uuid NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT credit_payments_amount_check CHECK ((amount > (0)::numeric)),
+	CONSTRAINT credit_payments_method_required CHECK ((length(TRIM(BOTH FROM payment_method)) > 0)),
+	CONSTRAINT credit_payments_pkey PRIMARY KEY (id)
+);
+CREATE INDEX idx_credit_payments_branch_created_at_desc ON public.credit_payments USING btree (branch_id, created_at DESC);
+CREATE INDEX idx_credit_payments_credit_date ON public.credit_payments USING btree (credit_id, payment_date DESC);
+
+-- Table Triggers
+
+create trigger trg_audit_credit_payments after
+insert
+    or
+delete
+    or
+update
+    on
+    public.credit_payments for each row execute function audit_trigger();
+
+
+-- public.credits definition
+
+-- Drop table
+
+-- DROP TABLE public.credits;
+
+CREATE TABLE public.credits (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	sale_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	customer_id uuid NOT NULL,
+	seller_name text NOT NULL,
+	product_name text NOT NULL,
+	total_amount numeric(12, 2) NOT NULL,
+	paid_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	balance numeric(12, 2) DEFAULT 0 NOT NULL,
+	status text DEFAULT 'active'::text NOT NULL,
+	due_days int4 DEFAULT 1 NOT NULL,
+	due_date date NOT NULL,
+	reminder_date date NULL,
+	notes text NULL,
+	created_date date DEFAULT CURRENT_DATE NOT NULL,
+	created_by uuid NULL,
+	updated_by uuid NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT credits_balance_check CHECK ((balance >= (0)::numeric)),
+	CONSTRAINT credits_balance_lte_total_check CHECK ((balance <= total_amount)),
+	CONSTRAINT credits_due_days_check CHECK ((due_days >= 1)),
+	CONSTRAINT credits_paid_amount_check CHECK ((paid_amount >= (0)::numeric)),
+	CONSTRAINT credits_paid_lte_total_check CHECK ((paid_amount <= total_amount)),
+	CONSTRAINT credits_pkey PRIMARY KEY (id),
+	CONSTRAINT credits_product_required CHECK ((length(TRIM(BOTH FROM product_name)) > 0)),
+	CONSTRAINT credits_seller_required CHECK ((length(TRIM(BOTH FROM seller_name)) > 0)),
+	CONSTRAINT credits_status_check CHECK ((status = ANY (ARRAY['active'::text, 'overdue'::text, 'paid'::text]))),
+	CONSTRAINT credits_total_amount_check CHECK ((total_amount > (0)::numeric))
+);
+CREATE INDEX idx_credits_branch_status_due ON public.credits USING btree (branch_id, status, due_date);
+CREATE INDEX idx_credits_created_at_desc ON public.credits USING btree (created_at DESC);
+CREATE INDEX idx_credits_customer_status ON public.credits USING btree (customer_id, status);
+CREATE INDEX idx_credits_reminder_date ON public.credits USING btree (reminder_date);
+CREATE UNIQUE INDEX idx_credits_sale_unique ON public.credits USING btree (sale_id);
+
+-- Table Triggers
+
+create trigger trg_audit_credits after
+insert
+    or
+delete
+    or
+update
+    on
+    public.credits for each row execute function audit_trigger();
+create trigger trg_credits_set_updated_at before
+update
+    on
+    public.credits for each row execute function set_updated_at();
+
+
+-- public.customers definition
+
+-- Drop table
+
+-- DROP TABLE public.customers;
+
+CREATE TABLE public.customers (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	branch_id uuid NOT NULL,
+	full_name text NOT NULL,
+	nit_ci text NOT NULL,
+	phone text NULL,
+	email text NULL,
+	is_active bool DEFAULT true NOT NULL,
+	metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+	created_by uuid NULL,
+	updated_by uuid NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT customers_full_name_required CHECK ((length(TRIM(BOTH FROM full_name)) > 0)),
+	CONSTRAINT customers_nit_ci_required CHECK ((length(TRIM(BOTH FROM nit_ci)) > 0)),
+	CONSTRAINT customers_pkey PRIMARY KEY (id)
+);
+CREATE INDEX idx_customers_branch_name ON public.customers USING btree (branch_id, full_name);
+CREATE INDEX idx_customers_created_at ON public.customers USING btree (created_at DESC);
+CREATE INDEX idx_customers_email_normalized ON public.customers USING btree (lower(TRIM(BOTH FROM email))) WHERE ((email IS NOT NULL) AND (TRIM(BOTH FROM email) <> ''::text));
+CREATE UNIQUE INDEX idx_customers_unique_nit_ci_normalized ON public.customers USING btree (lower(TRIM(BOTH FROM nit_ci)));
+
+-- Table Triggers
+
+create trigger trg_audit_customers after
+insert
+    or
+delete
+    or
+update
+    on
+    public.customers for each row execute function audit_trigger();
+create trigger trg_customers_set_updated_at before
+update
+    on
+    public.customers for each row execute function set_updated_at();
 
 
 -- public.inventory definition
@@ -1436,6 +1662,133 @@ update
     public.product_price_tiers for each row execute function set_updated_at();
 
 
+-- public.quotation_history definition
+
+-- Drop table
+
+-- DROP TABLE public.quotation_history;
+
+CREATE TABLE public.quotation_history (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	quotation_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	event_type text NOT NULL,
+	actor_user_id uuid NULL,
+	payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+	notes text NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT quotation_history_event_type_check CHECK ((event_type = ANY (ARRAY['created'::text, 'cancelled'::text, 'converted'::text, 'expired'::text, 'updated'::text]))),
+	CONSTRAINT quotation_history_pkey PRIMARY KEY (id)
+);
+CREATE INDEX idx_quotation_history_branch_created_at ON public.quotation_history USING btree (branch_id, created_at DESC);
+CREATE INDEX idx_quotation_history_quotation_created_at ON public.quotation_history USING btree (quotation_id, created_at DESC);
+
+-- Table Triggers
+
+create trigger trg_audit_quotation_history after
+insert
+    or
+delete
+    or
+update
+    on
+    public.quotation_history for each row execute function audit_trigger();
+
+
+-- public.quotation_items definition
+
+-- Drop table
+
+-- DROP TABLE public.quotation_items;
+
+CREATE TABLE public.quotation_items (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	quotation_id uuid NOT NULL,
+	branch_id uuid NOT NULL,
+	part_id uuid NOT NULL,
+	part_code text NOT NULL,
+	part_name text NOT NULL,
+	quantity numeric(12, 3) NOT NULL,
+	unit_price numeric(12, 2) NOT NULL,
+	line_total numeric(12, 2) NOT NULL,
+	metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT quotation_items_line_total_check CHECK ((line_total >= (0)::numeric)),
+	CONSTRAINT quotation_items_pkey PRIMARY KEY (id),
+	CONSTRAINT quotation_items_quantity_check CHECK ((quantity > (0)::numeric)),
+	CONSTRAINT quotation_items_unit_price_check CHECK ((unit_price >= (0)::numeric))
+);
+CREATE INDEX idx_quotation_items_part_id ON public.quotation_items USING btree (part_id);
+CREATE INDEX idx_quotation_items_quotation_id ON public.quotation_items USING btree (quotation_id);
+
+-- Table Triggers
+
+create trigger trg_audit_quotation_items after
+insert
+    or
+delete
+    or
+update
+    on
+    public.quotation_items for each row execute function audit_trigger();
+create trigger trg_quotation_items_set_updated_at before
+update
+    on
+    public.quotation_items for each row execute function set_updated_at();
+
+
+-- public.quotations definition
+
+-- Drop table
+
+-- DROP TABLE public.quotations;
+
+CREATE TABLE public.quotations (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	branch_id uuid NOT NULL,
+	customer_id uuid NOT NULL,
+	quoted_by uuid NULL,
+	status text DEFAULT 'active'::text NOT NULL,
+	expires_at timestamptz NOT NULL,
+	subtotal_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	discount_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	total_amount numeric(12, 2) DEFAULT 0 NOT NULL,
+	notes text NULL,
+	metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+	converted_sale_id uuid NULL,
+	cancelled_by uuid NULL,
+	cancelled_at timestamptz NULL,
+	converted_by uuid NULL,
+	converted_at timestamptz NULL,
+	created_at timestamptz DEFAULT now() NOT NULL,
+	updated_at timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT quotations_discount_amount_check CHECK ((discount_amount >= (0)::numeric)),
+	CONSTRAINT quotations_pkey PRIMARY KEY (id),
+	CONSTRAINT quotations_status_check CHECK ((status = ANY (ARRAY['active'::text, 'cancelled'::text, 'converted'::text]))),
+	CONSTRAINT quotations_subtotal_amount_check CHECK ((subtotal_amount >= (0)::numeric)),
+	CONSTRAINT quotations_total_amount_check CHECK ((total_amount >= (0)::numeric))
+);
+CREATE INDEX idx_quotations_branch_created_at ON public.quotations USING btree (branch_id, created_at DESC);
+CREATE INDEX idx_quotations_customer_id ON public.quotations USING btree (customer_id);
+CREATE INDEX idx_quotations_status_expires_at ON public.quotations USING btree (status, expires_at);
+
+-- Table Triggers
+
+create trigger trg_audit_quotations after
+insert
+    or
+delete
+    or
+update
+    on
+    public.quotations for each row execute function audit_trigger();
+create trigger trg_quotations_set_updated_at before
+update
+    on
+    public.quotations for each row execute function set_updated_at();
+
+
 -- public.serialized_inventory_events definition
 
 -- Drop table
@@ -1583,6 +1936,12 @@ update
     public.users for each row execute function set_updated_at();
 
 
+-- public.app_settings foreign keys
+
+ALTER TABLE public.app_settings ADD CONSTRAINT app_settings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.app_settings ADD CONSTRAINT app_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
 -- public.billing_invoice_artifacts foreign keys
 
 ALTER TABLE public.billing_invoice_artifacts ADD CONSTRAINT billing_invoice_artifacts_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.pos_sales(id) ON DELETE CASCADE;
@@ -1642,6 +2001,36 @@ ALTER TABLE public.cash_movements ADD CONSTRAINT cash_movements_updated_by_fkey 
 ALTER TABLE public.cash_sessions ADD CONSTRAINT cash_sessions_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE CASCADE;
 ALTER TABLE public.cash_sessions ADD CONSTRAINT cash_sessions_closed_by_fkey FOREIGN KEY (closed_by) REFERENCES public.users(id) ON DELETE SET NULL;
 ALTER TABLE public.cash_sessions ADD CONSTRAINT cash_sessions_opened_by_fkey FOREIGN KEY (opened_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+-- public.credit_alert_settings foreign keys
+
+ALTER TABLE public.credit_alert_settings ADD CONSTRAINT credit_alert_settings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.credit_alert_settings ADD CONSTRAINT credit_alert_settings_credit_id_fkey FOREIGN KEY (credit_id) REFERENCES public.credits(id) ON DELETE CASCADE;
+ALTER TABLE public.credit_alert_settings ADD CONSTRAINT credit_alert_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+-- public.credit_payments foreign keys
+
+ALTER TABLE public.credit_payments ADD CONSTRAINT credit_payments_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.credit_payments ADD CONSTRAINT credit_payments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.credit_payments ADD CONSTRAINT credit_payments_credit_id_fkey FOREIGN KEY (credit_id) REFERENCES public.credits(id) ON DELETE CASCADE;
+
+
+-- public.credits foreign keys
+
+ALTER TABLE public.credits ADD CONSTRAINT credits_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.credits ADD CONSTRAINT credits_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.credits ADD CONSTRAINT credits_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE RESTRICT;
+ALTER TABLE public.credits ADD CONSTRAINT credits_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.pos_sales(id) ON DELETE CASCADE;
+ALTER TABLE public.credits ADD CONSTRAINT credits_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+-- public.customers foreign keys
+
+ALTER TABLE public.customers ADD CONSTRAINT customers_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.customers ADD CONSTRAINT customers_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.customers ADD CONSTRAINT customers_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 -- public.inventory foreign keys
@@ -1789,6 +2178,30 @@ ALTER TABLE public.product_kits ADD CONSTRAINT product_kits_updated_by_fkey FORE
 -- public.product_price_tiers foreign keys
 
 ALTER TABLE public.product_price_tiers ADD CONSTRAINT product_price_tiers_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE CASCADE;
+
+
+-- public.quotation_history foreign keys
+
+ALTER TABLE public.quotation_history ADD CONSTRAINT quotation_history_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.quotation_history ADD CONSTRAINT quotation_history_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.quotation_history ADD CONSTRAINT quotation_history_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES public.quotations(id) ON DELETE CASCADE;
+
+
+-- public.quotation_items foreign keys
+
+ALTER TABLE public.quotation_items ADD CONSTRAINT quotation_items_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.quotation_items ADD CONSTRAINT quotation_items_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.parts(id) ON DELETE RESTRICT;
+ALTER TABLE public.quotation_items ADD CONSTRAINT quotation_items_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES public.quotations(id) ON DELETE CASCADE;
+
+
+-- public.quotations foreign keys
+
+ALTER TABLE public.quotations ADD CONSTRAINT quotations_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE RESTRICT;
+ALTER TABLE public.quotations ADD CONSTRAINT quotations_cancelled_by_fkey FOREIGN KEY (cancelled_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.quotations ADD CONSTRAINT quotations_converted_by_fkey FOREIGN KEY (converted_by) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.quotations ADD CONSTRAINT quotations_converted_sale_id_fkey FOREIGN KEY (converted_sale_id) REFERENCES public.pos_sales(id) ON DELETE SET NULL;
+ALTER TABLE public.quotations ADD CONSTRAINT quotations_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE RESTRICT;
+ALTER TABLE public.quotations ADD CONSTRAINT quotations_quoted_by_fkey FOREIGN KEY (quoted_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 -- public.serialized_inventory_events foreign keys

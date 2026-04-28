@@ -22,6 +22,23 @@ export interface User {
   updated_at: string
 }
 
+export interface AppSettings {
+  id: string
+  settings_key: string
+  company_name: string
+  company_email: string | null
+  company_phone: string | null
+  default_currency: 'BOB' | 'USD'
+  usd_to_bob_rate: number
+  max_open_credits_per_customer: number
+  credit_reminder_weekly_day: number
+  credit_due_daily_threshold_days: number
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type ProductTrackingMode = 'none' | 'serial' | 'lot'
 
 export interface InventoryCategory {
@@ -192,15 +209,22 @@ export interface SalesReturn {
 
 export interface Credit {
   id: string
-  customer_id: string
   sale_id: string
   branch_id: string
+  customer_id: string
+  seller_name: string
+  product_name: string
   total_amount: number
   paid_amount: number
   balance: number
   status: 'active' | 'paid' | 'overdue'
+  due_days: number
   created_date: string
   due_date: string
+  reminder_date?: string | null
+  notes?: string | null
+  created_by?: string | null
+  updated_by?: string | null
   created_at: string
   updated_at: string
 }
@@ -208,9 +232,12 @@ export interface Credit {
 export interface CreditPayment {
   id: string
   credit_id: string
+  branch_id: string
   amount: number
   payment_date: string
   payment_method: string
+  notes?: string | null
+  created_by?: string | null
   created_at: string
 }
 

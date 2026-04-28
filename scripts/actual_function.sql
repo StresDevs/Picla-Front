@@ -72,16 +72,16 @@
   {
     "schema": "extensions",
     "function_name": "digest",
-    "parameters": "text, text",
+    "parameters": "bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.digest(text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_digest$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.digest(bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_digest$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "digest",
-    "parameters": "bytea, text",
+    "parameters": "text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.digest(bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_digest$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.digest(text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_digest$function$\n"
   },
   {
     "schema": "extensions",
@@ -114,16 +114,16 @@
   {
     "schema": "extensions",
     "function_name": "gen_salt",
-    "parameters": "text",
+    "parameters": "text, integer",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text, integer)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt_rounds$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "gen_salt",
-    "parameters": "text, integer",
+    "parameters": "text",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text, integer)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt_rounds$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt$function$\n"
   },
   {
     "schema": "extensions",
@@ -149,16 +149,16 @@
   {
     "schema": "extensions",
     "function_name": "hmac",
-    "parameters": "bytea, bytea, text",
+    "parameters": "text, text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.hmac(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_hmac$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.hmac(text, text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_hmac$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "hmac",
-    "parameters": "text, text, text",
+    "parameters": "bytea, bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.hmac(text, text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_hmac$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.hmac(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_hmac$function$\n"
   },
   {
     "schema": "extensions",
@@ -198,13 +198,6 @@
   {
     "schema": "extensions",
     "function_name": "pgp_pub_decrypt",
-    "parameters": "bytea, bytea, text",
-    "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
-  },
-  {
-    "schema": "extensions",
-    "function_name": "pgp_pub_decrypt",
     "parameters": "bytea, bytea",
     "return_type": "text",
     "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
@@ -212,16 +205,16 @@
   {
     "schema": "extensions",
     "function_name": "pgp_pub_decrypt",
-    "parameters": "bytea, bytea, text, text",
+    "parameters": "bytea, bytea, text",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
   },
   {
     "schema": "extensions",
-    "function_name": "pgp_pub_decrypt_bytea",
-    "parameters": "bytea, bytea, text",
-    "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
+    "function_name": "pgp_pub_decrypt",
+    "parameters": "bytea, bytea, text, text",
+    "return_type": "text",
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
   },
   {
     "schema": "extensions",
@@ -239,10 +232,10 @@
   },
   {
     "schema": "extensions",
-    "function_name": "pgp_pub_encrypt",
-    "parameters": "text, bytea",
+    "function_name": "pgp_pub_decrypt_bytea",
+    "parameters": "bytea, bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt(text, bytea)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_text$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
@@ -253,10 +246,10 @@
   },
   {
     "schema": "extensions",
-    "function_name": "pgp_pub_encrypt_bytea",
-    "parameters": "bytea, bytea",
+    "function_name": "pgp_pub_encrypt",
+    "parameters": "text, bytea",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt(text, bytea)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_text$function$\n"
   },
   {
     "schema": "extensions",
@@ -264,6 +257,13 @@
     "parameters": "bytea, bytea, text",
     "return_type": "bytea",
     "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
+  },
+  {
+    "schema": "extensions",
+    "function_name": "pgp_pub_encrypt_bytea",
+    "parameters": "bytea, bytea",
+    "return_type": "bytea",
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
@@ -310,16 +310,16 @@
   {
     "schema": "extensions",
     "function_name": "pgp_sym_encrypt_bytea",
-    "parameters": "bytea, text, text",
+    "parameters": "bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt_bytea(bytea, text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt_bytea(bytea, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "pgp_sym_encrypt_bytea",
-    "parameters": "bytea, text",
+    "parameters": "bytea, text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt_bytea(bytea, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt_bytea(bytea, text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
@@ -413,53 +413,11 @@
     "full_definition": "CREATE OR REPLACE FUNCTION extensions.uuid_ns_x500()\n RETURNS uuid\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/uuid-ossp', $function$uuid_ns_x500$function$\n"
   },
   {
-    "schema": "graphql",
-    "function_name": "_internal_resolve",
-    "parameters": "query text, variables jsonb, \"operationName\" text, extensions jsonb",
-    "return_type": "jsonb",
-    "full_definition": "CREATE OR REPLACE FUNCTION graphql._internal_resolve(query text, variables jsonb DEFAULT '{}'::jsonb, \"operationName\" text DEFAULT NULL::text, extensions jsonb DEFAULT NULL::jsonb)\n RETURNS jsonb\n LANGUAGE c\nAS '$libdir/pg_graphql', $function$resolve_wrapper$function$\n"
-  },
-  {
-    "schema": "graphql",
-    "function_name": "comment_directive",
-    "parameters": "comment_ text",
-    "return_type": "jsonb",
-    "full_definition": "CREATE OR REPLACE FUNCTION graphql.comment_directive(comment_ text)\n RETURNS jsonb\n LANGUAGE sql\n IMMUTABLE\nAS $function$\n    /*\n    comment on column public.account.name is '@graphql.name: myField'\n    */\n    select\n        coalesce(\n            (\n                regexp_match(\n                    comment_,\n                    '@graphql\\((.+)\\)'\n                )\n            )[1]::jsonb,\n            jsonb_build_object()\n        )\n$function$\n"
-  },
-  {
-    "schema": "graphql",
-    "function_name": "exception",
-    "parameters": "message text",
-    "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION graphql.exception(message text)\n RETURNS text\n LANGUAGE plpgsql\nAS $function$\nbegin\n    raise exception using errcode='22000', message=message;\nend;\n$function$\n"
-  },
-  {
-    "schema": "graphql",
-    "function_name": "get_schema_version",
-    "parameters": "",
-    "return_type": "integer",
-    "full_definition": "CREATE OR REPLACE FUNCTION graphql.get_schema_version()\n RETURNS integer\n LANGUAGE sql\n SECURITY DEFINER\nAS $function$\n    select last_value from graphql.seq_schema_version;\n$function$\n"
-  },
-  {
-    "schema": "graphql",
-    "function_name": "increment_schema_version",
-    "parameters": "",
-    "return_type": "event_trigger",
-    "full_definition": "CREATE OR REPLACE FUNCTION graphql.increment_schema_version()\n RETURNS event_trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nbegin\n    perform pg_catalog.nextval('graphql.seq_schema_version');\nend;\n$function$\n"
-  },
-  {
-    "schema": "graphql",
-    "function_name": "resolve",
-    "parameters": "query text, variables jsonb, \"operationName\" text, extensions jsonb",
-    "return_type": "jsonb",
-    "full_definition": "CREATE OR REPLACE FUNCTION graphql.resolve(query text, variables jsonb DEFAULT '{}'::jsonb, \"operationName\" text DEFAULT NULL::text, extensions jsonb DEFAULT NULL::jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\nAS $function$\ndeclare\n    res jsonb;\n    message_text text;\nbegin\n  begin\n    select graphql._internal_resolve(\"query\" := \"query\",\n                                     \"variables\" := \"variables\",\n                                     \"operationName\" := \"operationName\",\n                                     \"extensions\" := \"extensions\") into res;\n    return res;\n  exception\n    when others then\n    get stacked diagnostics message_text = message_text;\n    return\n    jsonb_build_object('data', null,\n                       'errors', jsonb_build_array(jsonb_build_object('message', message_text)));\n  end;\nend;\n$function$\n"
-  },
-  {
     "schema": "graphql_public",
     "function_name": "graphql",
     "parameters": "\"operationName\" text, query text, variables jsonb, extensions jsonb",
     "return_type": "jsonb",
-    "full_definition": "CREATE OR REPLACE FUNCTION graphql_public.graphql(\"operationName\" text DEFAULT NULL::text, query text DEFAULT NULL::text, variables jsonb DEFAULT NULL::jsonb, extensions jsonb DEFAULT NULL::jsonb)\n RETURNS jsonb\n LANGUAGE sql\nAS $function$\n            select graphql.resolve(\n                query := query,\n                variables := coalesce(variables, '{}'),\n                \"operationName\" := \"operationName\",\n                extensions := extensions\n            );\n        $function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION graphql_public.graphql(\"operationName\" text DEFAULT NULL::text, query text DEFAULT NULL::text, variables jsonb DEFAULT NULL::jsonb, extensions jsonb DEFAULT NULL::jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\nAS $function$\n            DECLARE\n                server_version float;\n            BEGIN\n                server_version = (SELECT (SPLIT_PART((select version()), ' ', 2))::float);\n\n                IF server_version >= 14 THEN\n                    RETURN jsonb_build_object(\n                        'errors', jsonb_build_array(\n                            jsonb_build_object(\n                                'message', 'pg_graphql extension is not enabled.'\n                            )\n                        )\n                    );\n                ELSE\n                    RETURN jsonb_build_object(\n                        'errors', jsonb_build_array(\n                            jsonb_build_object(\n                                'message', 'pg_graphql is only available on projects running Postgres 14 onwards.'\n                            )\n                        )\n                    );\n                END IF;\n            END;\n        $function$\n"
   },
   {
     "schema": "pgbouncer",
@@ -467,6 +425,13 @@
     "parameters": "p_usename text",
     "return_type": "TABLE(username text, password text)",
     "full_definition": "CREATE OR REPLACE FUNCTION pgbouncer.get_auth(p_usename text)\n RETURNS TABLE(username text, password text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  BEGIN\n      RAISE DEBUG 'PgBouncer auth request: %', p_usename;\n\n      RETURN QUERY\n      SELECT\n          rolname::text,\n          CASE WHEN rolvaliduntil < now()\n              THEN null\n              ELSE rolpassword::text\n          END\n      FROM pg_authid\n      WHERE rolname=$1 and rolcanlogin;\n  END;\n  $function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "add_credit_payment",
+    "parameters": "p_credit_id uuid, p_amount numeric, p_payment_method text, p_payment_date date, p_notes text",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.add_credit_payment(p_credit_id uuid, p_amount numeric, p_payment_method text, p_payment_date date DEFAULT NULL::date, p_notes text DEFAULT NULL::text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_credit public.credits%rowtype;\r\n  v_role text;\r\n  v_actor uuid;\r\n  v_amount numeric(12, 2);\r\n  v_new_paid numeric(12, 2);\r\n  v_new_balance numeric(12, 2);\r\n  v_status text;\r\n  v_payment_id uuid;\r\nBEGIN\r\n  v_role := public.current_user_role_name();\r\n  IF v_role NOT IN ('admin', 'manager', 'employee') THEN\r\n    RAISE EXCEPTION 'Only admin, manager or employee can register payments';\r\n  END IF;\r\n\r\n  IF p_credit_id IS NULL THEN\r\n    RAISE EXCEPTION 'Credit id is required';\r\n  END IF;\r\n\r\n  IF p_amount IS NULL OR p_amount <= 0 THEN\r\n    RAISE EXCEPTION 'Payment amount must be greater than zero';\r\n  END IF;\r\n\r\n  v_amount := round(p_amount::numeric, 2);\r\n\r\n  SELECT *\r\n  INTO v_credit\r\n  FROM public.credits c\r\n  WHERE c.id = p_credit_id\r\n  FOR UPDATE;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Credit not found';\r\n  END IF;\r\n\r\n  IF v_role <> 'admin' AND v_credit.branch_id <> public.current_user_branch_id() THEN\r\n    RAISE EXCEPTION 'No permission for this credit';\r\n  END IF;\r\n\r\n  IF v_credit.status = 'paid' THEN\r\n    RAISE EXCEPTION 'Credit already paid';\r\n  END IF;\r\n\r\n  v_new_paid := round((v_credit.paid_amount + v_amount)::numeric, 2);\r\n  IF v_new_paid > v_credit.total_amount THEN\r\n    RAISE EXCEPTION 'Payment exceeds credit total';\r\n  END IF;\r\n\r\n  v_new_balance := round(greatest(v_credit.total_amount - v_new_paid, 0)::numeric, 2);\r\n  v_status := CASE\r\n    WHEN v_new_balance <= 0 THEN 'paid'\r\n    WHEN v_credit.due_date < CURRENT_DATE THEN 'overdue'\r\n    ELSE 'active'\r\n  END;\r\n\r\n  v_actor := public.current_request_user_id();\r\n\r\n  INSERT INTO public.credit_payments (\r\n    credit_id,\r\n    branch_id,\r\n    amount,\r\n    payment_date,\r\n    payment_method,\r\n    notes,\r\n    created_by\r\n  )\r\n  VALUES (\r\n    v_credit.id,\r\n    v_credit.branch_id,\r\n    v_amount,\r\n    coalesce(p_payment_date, CURRENT_DATE),\r\n    trim(p_payment_method),\r\n    nullif(trim(coalesce(p_notes, '')), ''),\r\n    v_actor\r\n  )\r\n  RETURNING id INTO v_payment_id;\r\n\r\n  UPDATE public.credits\r\n  SET\r\n    paid_amount = v_new_paid,\r\n    balance = v_new_balance,\r\n    status = v_status,\r\n    updated_by = v_actor,\r\n    updated_at = now()\r\n  WHERE id = v_credit.id;\r\n\r\n  RETURN v_payment_id;\r\nEND;\r\n$function$\n"
   },
   {
     "schema": "public",
@@ -631,6 +596,13 @@
   },
   {
     "schema": "public",
+    "function_name": "create_credit",
+    "parameters": "p_sale_id uuid, p_branch_id uuid, p_customer_id uuid, p_seller_name text, p_product_name text, p_total_amount numeric, p_paid_amount numeric, p_due_days integer, p_reminder_date date, p_notes text",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.create_credit(p_sale_id uuid, p_branch_id uuid, p_customer_id uuid, p_seller_name text, p_product_name text, p_total_amount numeric, p_paid_amount numeric DEFAULT 0, p_due_days integer DEFAULT 1, p_reminder_date date DEFAULT NULL::date, p_notes text DEFAULT NULL::text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_branch_id uuid;\r\n  v_role text;\r\n  v_actor uuid;\r\n  v_due_days integer;\r\n  v_due_date date;\r\n  v_total numeric(12, 2);\r\n  v_paid numeric(12, 2);\r\n  v_balance numeric(12, 2);\r\n  v_status text;\r\n  v_credit_id uuid;\r\n  v_customer public.customers%rowtype;\r\n  v_sale public.pos_sales%rowtype;\r\n  v_limit integer;\r\n  v_open integer;\r\nBEGIN\r\n  v_role := public.current_user_role_name();\r\n  IF v_role NOT IN ('admin', 'manager', 'employee') THEN\r\n    RAISE EXCEPTION 'Only admin, manager or employee can create credits';\r\n  END IF;\r\n\r\n  IF p_sale_id IS NULL THEN\r\n    RAISE EXCEPTION 'Sale is required';\r\n  END IF;\r\n\r\n  IF p_customer_id IS NULL THEN\r\n    RAISE EXCEPTION 'Customer is required';\r\n  END IF;\r\n\r\n  v_branch_id := public.credit_resolve_branch(p_branch_id);\r\n  v_actor := public.current_request_user_id();\r\n\r\n  SELECT *\r\n  INTO v_sale\r\n  FROM public.pos_sales s\r\n  WHERE s.id = p_sale_id\r\n  FOR UPDATE;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Sale not found';\r\n  END IF;\r\n\r\n  IF v_sale.branch_id <> v_branch_id THEN\r\n    RAISE EXCEPTION 'Sale does not belong to branch %', v_branch_id;\r\n  END IF;\r\n\r\n  IF EXISTS (\r\n    SELECT 1\r\n    FROM public.credits c\r\n    WHERE c.sale_id = p_sale_id\r\n  ) THEN\r\n    RAISE EXCEPTION 'Sale already linked to a credit';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_customer\r\n  FROM public.customers c\r\n  WHERE c.id = p_customer_id\r\n    AND c.is_active = true;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Customer not found or inactive';\r\n  END IF;\r\n\r\n  IF v_customer.branch_id <> v_branch_id THEN\r\n    RAISE EXCEPTION 'Customer does not belong to branch %', v_branch_id;\r\n  END IF;\r\n\r\n  v_total := round(coalesce(p_total_amount, 0)::numeric, 2);\r\n  IF v_total <= 0 THEN\r\n    RAISE EXCEPTION 'Total amount must be greater than zero';\r\n  END IF;\r\n\r\n  v_paid := round(coalesce(p_paid_amount, 0)::numeric, 2);\r\n  IF v_paid < 0 THEN\r\n    RAISE EXCEPTION 'Paid amount cannot be negative';\r\n  END IF;\r\n\r\n  IF v_paid > v_total THEN\r\n    RAISE EXCEPTION 'Paid amount cannot exceed total';\r\n  END IF;\r\n\r\n  v_due_days := greatest(coalesce(p_due_days, 1), 1);\r\n  v_due_date := CURRENT_DATE + v_due_days;\r\n\r\n  SELECT s.max_open_credits_per_customer\r\n  INTO v_limit\r\n  FROM public.get_credit_settings() s;\r\n\r\n  v_open := (\r\n    SELECT count(1)\r\n    FROM public.credits c\r\n    WHERE c.customer_id = p_customer_id\r\n      AND c.branch_id = v_branch_id\r\n      AND c.status IN ('active', 'overdue')\r\n  );\r\n\r\n  IF v_open >= v_limit THEN\r\n    RAISE EXCEPTION 'Customer reached the open credit limit of %', v_limit;\r\n  END IF;\r\n\r\n  v_balance := round(greatest(v_total - v_paid, 0)::numeric, 2);\r\n  v_status := CASE WHEN v_balance <= 0 THEN 'paid' ELSE 'active' END;\r\n\r\n  INSERT INTO public.credits (\r\n    sale_id,\r\n    branch_id,\r\n    customer_id,\r\n    seller_name,\r\n    product_name,\r\n    total_amount,\r\n    paid_amount,\r\n    balance,\r\n    status,\r\n    due_days,\r\n    due_date,\r\n    reminder_date,\r\n    notes,\r\n    created_date,\r\n    created_by,\r\n    updated_by\r\n  )\r\n  VALUES (\r\n    p_sale_id,\r\n    v_branch_id,\r\n    p_customer_id,\r\n    trim(p_seller_name),\r\n    trim(p_product_name),\r\n    v_total,\r\n    v_paid,\r\n    v_balance,\r\n    v_status,\r\n    v_due_days,\r\n    v_due_date,\r\n    p_reminder_date,\r\n    nullif(trim(coalesce(p_notes, '')), ''),\r\n    CURRENT_DATE,\r\n    v_actor,\r\n    v_actor\r\n  )\r\n  RETURNING id INTO v_credit_id;\r\n\r\n  RETURN v_credit_id;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "create_inventory_category",
     "parameters": "p_branch_id uuid, p_name text, p_description text",
     "return_type": "uuid",
@@ -673,6 +645,13 @@
   },
   {
     "schema": "public",
+    "function_name": "credit_resolve_branch",
+    "parameters": "p_branch_id uuid",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.credit_resolve_branch(p_branch_id uuid DEFAULT NULL::uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_role text;\r\n  v_user_branch uuid;\r\n  v_result uuid;\r\nBEGIN\r\n  v_role := public.current_user_role_name();\r\n  v_user_branch := public.current_user_branch_id();\r\n\r\n  IF v_role NOT IN ('admin', 'manager', 'employee', 'read_only') THEN\r\n    RAISE EXCEPTION 'Role % cannot access credit branch scope', v_role;\r\n  END IF;\r\n\r\n  IF v_role = 'admin' THEN\r\n    v_result := coalesce(p_branch_id, v_user_branch);\r\n  ELSE\r\n    IF v_user_branch IS NULL THEN\r\n      RAISE EXCEPTION 'No branch associated with current user';\r\n    END IF;\r\n\r\n    IF p_branch_id IS NOT NULL AND p_branch_id <> v_user_branch THEN\r\n      RAISE EXCEPTION 'Role % cannot operate branch %', v_role, p_branch_id;\r\n    END IF;\r\n\r\n    v_result := v_user_branch;\r\n  END IF;\r\n\r\n  IF v_result IS NULL THEN\r\n    RAISE EXCEPTION 'No branch available for current operation';\r\n  END IF;\r\n\r\n  IF NOT EXISTS (\r\n    SELECT 1\r\n    FROM public.branches b\r\n    WHERE b.id = v_result\r\n  ) THEN\r\n    RAISE EXCEPTION 'Branch % was not found', v_result;\r\n  END IF;\r\n\r\n  RETURN v_result;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "current_request_user_id",
     "parameters": "",
     "return_type": "uuid",
@@ -691,6 +670,83 @@
     "parameters": "",
     "return_type": "text",
     "full_definition": "CREATE OR REPLACE FUNCTION public.current_user_role_name()\n RETURNS text\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select r.name\r\n  from public.users u\r\n  join public.roles r on r.id = u.role_id\r\n  where u.id = auth.uid()\r\n  limit 1\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customer_can_create",
+    "parameters": "",
+    "return_type": "boolean",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customer_can_create()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT coalesce(public.customer_current_role_name() IN ('admin', 'manager', 'employee', 'read_only'), false);\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customer_can_delete",
+    "parameters": "",
+    "return_type": "boolean",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customer_can_delete()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT coalesce(public.customer_current_role_name() IN ('admin', 'manager'), false);\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customer_can_update",
+    "parameters": "",
+    "return_type": "boolean",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customer_can_update()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT coalesce(public.customer_current_role_name() IN ('admin', 'manager', 'employee'), false);\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customer_current_role_name",
+    "parameters": "",
+    "return_type": "text",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customer_current_role_name()\n RETURNS text\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT coalesce(public.current_user_role_name(), '');\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customer_get_for_sales",
+    "parameters": "p_branch_id uuid, p_search text",
+    "return_type": "TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, created_at timestamp with time zone, updated_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customer_get_for_sales(p_branch_id uuid DEFAULT NULL::uuid, p_search text DEFAULT NULL::text)\n RETURNS TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT\r\n    c.id,\r\n    c.full_name,\r\n    c.nit_ci,\r\n    c.phone,\r\n    c.email,\r\n    c.branch_id,\r\n    c.created_at,\r\n    c.updated_at\r\n  FROM public.customers_get_list(p_branch_id, p_search, false) c\r\n  WHERE c.is_active = true\r\n  ORDER BY c.full_name ASC, c.id ASC;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customer_resolve_branch",
+    "parameters": "p_branch_id uuid",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customer_resolve_branch(p_branch_id uuid DEFAULT NULL::uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_role text;\r\n  v_user_branch uuid;\r\n  v_result uuid;\r\nBEGIN\r\n  v_role := public.customer_current_role_name();\r\n  v_user_branch := public.current_user_branch_id();\r\n\r\n  IF v_role NOT IN ('admin', 'manager', 'employee', 'read_only') THEN\r\n    RAISE EXCEPTION 'Role % cannot access customer branch scope', v_role;\r\n  END IF;\r\n\r\n  IF v_role = 'admin' THEN\r\n    v_result := coalesce(p_branch_id, v_user_branch);\r\n  ELSE\r\n    IF v_user_branch IS NULL THEN\r\n      RAISE EXCEPTION 'No branch associated with current user';\r\n    END IF;\r\n\r\n    IF p_branch_id IS NOT NULL AND p_branch_id <> v_user_branch THEN\r\n      RAISE EXCEPTION 'Role % cannot operate branch %', v_role, p_branch_id;\r\n    END IF;\r\n\r\n    v_result := v_user_branch;\r\n  END IF;\r\n\r\n  IF v_result IS NULL THEN\r\n    RAISE EXCEPTION 'No branch available for current operation';\r\n  END IF;\r\n\r\n  IF NOT EXISTS (\r\n    SELECT 1\r\n    FROM public.branches b\r\n    WHERE b.id = v_result\r\n  ) THEN\r\n    RAISE EXCEPTION 'Branch % was not found', v_result;\r\n  END IF;\r\n\r\n  RETURN v_result;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customers_create",
+    "parameters": "p_branch_id uuid, p_full_name text, p_nit_ci text, p_phone text, p_email text",
+    "return_type": "TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customers_create(p_branch_id uuid DEFAULT NULL::uuid, p_full_name text DEFAULT NULL::text, p_nit_ci text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_email text DEFAULT NULL::text)\n RETURNS TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_full_name text;\r\n  v_nit_ci text;\r\n  v_branch_id uuid;\r\n  v_actor uuid;\r\nBEGIN\r\n  IF NOT public.customer_can_create() THEN\r\n    RAISE EXCEPTION 'Role % cannot create customers', public.customer_current_role_name();\r\n  END IF;\r\n\r\n  v_full_name := trim(coalesce(p_full_name, ''));\r\n  v_nit_ci := trim(coalesce(p_nit_ci, ''));\r\n\r\n  IF v_full_name = '' THEN\r\n    RAISE EXCEPTION 'Customer full_name is required';\r\n  END IF;\r\n\r\n  IF v_nit_ci = '' THEN\r\n    RAISE EXCEPTION 'Customer nit_ci is required';\r\n  END IF;\r\n\r\n  IF EXISTS (\r\n    SELECT 1\r\n    FROM public.customers c\r\n    WHERE lower(trim(c.nit_ci)) = lower(v_nit_ci)\r\n  ) THEN\r\n    RAISE EXCEPTION 'A customer already exists with this NIT/CI';\r\n  END IF;\r\n\r\n  v_branch_id := public.customer_resolve_branch(p_branch_id);\r\n  v_actor := public.current_request_user_id();\r\n\r\n  RETURN QUERY\r\n  INSERT INTO public.customers (\r\n    full_name,\r\n    nit_ci,\r\n    phone,\r\n    email,\r\n    branch_id,\r\n    is_active,\r\n    metadata,\r\n    created_by,\r\n    updated_by,\r\n    created_at,\r\n    updated_at\r\n  )\r\n  VALUES (\r\n    v_full_name,\r\n    v_nit_ci,\r\n    nullif(trim(coalesce(p_phone, '')), ''),\r\n    nullif(trim(coalesce(p_email, '')), ''),\r\n    v_branch_id,\r\n    true,\r\n    '{}'::jsonb,\r\n    v_actor,\r\n    v_actor,\r\n    now(),\r\n    now()\r\n  )\r\n  RETURNING\r\n    customers.id,\r\n    customers.full_name,\r\n    customers.nit_ci,\r\n    customers.phone,\r\n    customers.email,\r\n    customers.branch_id,\r\n    customers.is_active,\r\n    customers.created_at,\r\n    customers.updated_at;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customers_create_quick",
+    "parameters": "p_branch_id uuid, p_full_name text, p_nit_ci text, p_phone text, p_email text",
+    "return_type": "TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, created_at timestamp with time zone, updated_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customers_create_quick(p_branch_id uuid DEFAULT NULL::uuid, p_full_name text DEFAULT NULL::text, p_nit_ci text DEFAULT NULL::text, p_phone text DEFAULT NULL::text, p_email text DEFAULT NULL::text)\n RETURNS TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT\r\n    c.id,\r\n    c.full_name,\r\n    c.nit_ci,\r\n    c.phone,\r\n    c.email,\r\n    c.branch_id,\r\n    c.created_at,\r\n    c.updated_at\r\n  FROM public.customers_create(p_branch_id, p_full_name, p_nit_ci, p_phone, p_email) c;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customers_delete",
+    "parameters": "p_customer_id uuid, p_soft_delete boolean",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customers_delete(p_customer_id uuid, p_soft_delete boolean DEFAULT true)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_customer public.customers%rowtype;\r\nBEGIN\r\n  IF NOT public.customer_can_delete() THEN\r\n    RAISE EXCEPTION 'Role % cannot delete customers', public.customer_current_role_name();\r\n  END IF;\r\n\r\n  IF p_customer_id IS NULL THEN\r\n    RAISE EXCEPTION 'Customer id is required';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_customer\r\n  FROM public.customers c\r\n  WHERE c.id = p_customer_id\r\n  FOR UPDATE;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Customer not found';\r\n  END IF;\r\n\r\n  IF public.customer_current_role_name() <> 'admin' AND v_customer.branch_id <> public.current_user_branch_id() THEN\r\n    RAISE EXCEPTION 'Cannot delete customer from another branch';\r\n  END IF;\r\n\r\n  IF p_soft_delete THEN\r\n    UPDATE public.customers c\r\n    SET\r\n      is_active = false,\r\n      updated_by = public.current_request_user_id(),\r\n      updated_at = now()\r\n    WHERE c.id = p_customer_id;\r\n  ELSE\r\n    DELETE FROM public.customers c\r\n    WHERE c.id = p_customer_id;\r\n  END IF;\r\n\r\n  RETURN p_customer_id;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customers_get_list",
+    "parameters": "p_branch_id uuid, p_search text, p_include_inactive boolean",
+    "return_type": "TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customers_get_list(p_branch_id uuid DEFAULT NULL::uuid, p_search text DEFAULT NULL::text, p_include_inactive boolean DEFAULT false)\n RETURNS TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_role text;\r\n  v_scope_branch uuid;\r\n  v_search text;\r\nBEGIN\r\n  v_role := public.customer_current_role_name();\r\n\r\n  IF v_role NOT IN ('admin', 'manager', 'employee', 'read_only') THEN\r\n    RAISE EXCEPTION 'Role % cannot access customers', v_role;\r\n  END IF;\r\n\r\n  IF v_role = 'admin' AND p_branch_id IS NULL THEN\r\n    v_scope_branch := NULL;\r\n  ELSE\r\n    v_scope_branch := public.customer_resolve_branch(p_branch_id);\r\n  END IF;\r\n\r\n  v_search := nullif(trim(coalesce(p_search, '')), '');\r\n\r\n  RETURN QUERY\r\n  SELECT\r\n    c.id,\r\n    c.full_name,\r\n    c.nit_ci,\r\n    c.phone,\r\n    c.email,\r\n    c.branch_id,\r\n    c.is_active,\r\n    c.created_at,\r\n    c.updated_at\r\n  FROM public.customers c\r\n  WHERE (\r\n      v_scope_branch IS NULL\r\n      OR c.branch_id = v_scope_branch\r\n    )\r\n    AND (\r\n      p_include_inactive = true\r\n      OR c.is_active = true\r\n    )\r\n    AND (\r\n      v_search IS NULL\r\n      OR lower(c.full_name) LIKE '%' || lower(v_search) || '%'\r\n      OR lower(c.nit_ci) LIKE '%' || lower(v_search) || '%'\r\n      OR lower(coalesce(c.phone, '')) LIKE '%' || lower(v_search) || '%'\r\n      OR lower(coalesce(c.email, '')) LIKE '%' || lower(v_search) || '%'\r\n    )\r\n  ORDER BY c.full_name ASC, c.id ASC;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "customers_update",
+    "parameters": "p_customer_id uuid, p_full_name text, p_nit_ci text, p_phone text, p_email text, p_is_active boolean",
+    "return_type": "TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.customers_update(p_customer_id uuid, p_full_name text, p_nit_ci text, p_phone text DEFAULT NULL::text, p_email text DEFAULT NULL::text, p_is_active boolean DEFAULT NULL::boolean)\n RETURNS TABLE(id uuid, full_name text, nit_ci text, phone text, email text, branch_id uuid, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_customer public.customers%rowtype;\r\n  v_full_name text;\r\n  v_nit_ci text;\r\n  v_actor uuid;\r\nBEGIN\r\n  IF NOT public.customer_can_update() THEN\r\n    RAISE EXCEPTION 'Role % cannot update customers', public.customer_current_role_name();\r\n  END IF;\r\n\r\n  IF p_customer_id IS NULL THEN\r\n    RAISE EXCEPTION 'Customer id is required';\r\n  END IF;\r\n\r\n  v_full_name := trim(coalesce(p_full_name, ''));\r\n  v_nit_ci := trim(coalesce(p_nit_ci, ''));\r\n\r\n  IF v_full_name = '' THEN\r\n    RAISE EXCEPTION 'Customer full_name is required';\r\n  END IF;\r\n\r\n  IF v_nit_ci = '' THEN\r\n    RAISE EXCEPTION 'Customer nit_ci is required';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_customer\r\n  FROM public.customers c\r\n  WHERE c.id = p_customer_id\r\n  FOR UPDATE;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Customer not found';\r\n  END IF;\r\n\r\n  IF public.customer_current_role_name() <> 'admin' AND v_customer.branch_id <> public.current_user_branch_id() THEN\r\n    RAISE EXCEPTION 'Cannot update customer from another branch';\r\n  END IF;\r\n\r\n  IF EXISTS (\r\n    SELECT 1\r\n    FROM public.customers c\r\n    WHERE c.id <> p_customer_id\r\n      AND lower(trim(c.nit_ci)) = lower(v_nit_ci)\r\n  ) THEN\r\n    RAISE EXCEPTION 'A customer already exists with this NIT/CI';\r\n  END IF;\r\n\r\n  v_actor := public.current_request_user_id();\r\n\r\n  RETURN QUERY\r\n  UPDATE public.customers c\r\n  SET\r\n    full_name = v_full_name,\r\n    nit_ci = v_nit_ci,\r\n    phone = nullif(trim(coalesce(p_phone, '')), ''),\r\n    email = nullif(trim(coalesce(p_email, '')), ''),\r\n    is_active = coalesce(p_is_active, c.is_active),\r\n    updated_by = v_actor,\r\n    updated_at = now()\r\n  WHERE c.id = p_customer_id\r\n  RETURNING\r\n    c.id,\r\n    c.full_name,\r\n    c.nit_ci,\r\n    c.phone,\r\n    c.email,\r\n    c.branch_id,\r\n    c.is_active,\r\n    c.created_at,\r\n    c.updated_at;\r\nEND;\r\n$function$\n"
   },
   {
     "schema": "public",
@@ -726,6 +782,13 @@
     "parameters": "p_branch_id uuid, p_category_name text, p_category_id uuid",
     "return_type": "text",
     "full_definition": "CREATE OR REPLACE FUNCTION public.generate_inventory_product_code(p_branch_id uuid, p_category_name text, p_category_id uuid DEFAULT NULL::uuid)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_prefix text;\r\n  v_next integer;\r\n  v_existing_max integer;\r\nbegin\r\n  if not public.inventory_is_admin() then\r\n    raise exception 'Only admin can generate product codes';\r\n  end if;\r\n\r\n  v_prefix := public.inventory_resolve_product_code_prefix(\r\n    p_branch_id,\r\n    p_category_name,\r\n    p_category_id\r\n  );\r\n\r\n  insert into public.inventory_product_code_counters (branch_id, prefix, next_number)\r\n  values (p_branch_id, v_prefix, 1)\r\n  on conflict (branch_id, prefix) do nothing;\r\n\r\n  select c.next_number\r\n  into v_next\r\n  from public.inventory_product_code_counters c\r\n  where c.branch_id = p_branch_id\r\n    and c.prefix = v_prefix\r\n  for update;\r\n\r\n  select coalesce(\r\n    max((regexp_match(p.code, '^' || v_prefix || '-([0-9]+)$'))[1]::integer),\r\n    0\r\n  )\r\n  into v_existing_max\r\n  from public.parts p\r\n  where p.branch_id = p_branch_id\r\n    and p.code ~ ('^' || v_prefix || '-[0-9]+$');\r\n\r\n  v_next := greatest(coalesce(v_next, 1), coalesce(v_existing_max, 0) + 1);\r\n\r\n  update public.inventory_product_code_counters\r\n  set\r\n    next_number = v_next + 1,\r\n    updated_at = now()\r\n  where branch_id = p_branch_id\r\n    and prefix = v_prefix;\r\n\r\n  return v_prefix || '-' || v_next::text;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "get_app_settings",
+    "parameters": "",
+    "return_type": "app_settings",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.get_app_settings()\n RETURNS app_settings\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select s.*\r\n  from public.app_settings s\r\n  where s.settings_key = 'default'\r\n  order by s.updated_at desc\r\n  limit 1;\r\n$function$\n"
   },
   {
     "schema": "public",
@@ -771,6 +834,34 @@
   },
   {
     "schema": "public",
+    "function_name": "get_credit_alerts",
+    "parameters": "p_branch_id uuid",
+    "return_type": "TABLE(credit_id uuid, branch_id uuid, branch_name text, customer_id uuid, customer_name text, due_date date, days_to_due integer, alert_type text, weekly_day integer, daily_threshold_days integer, reminder_date date, status text)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.get_credit_alerts(p_branch_id uuid DEFAULT NULL::uuid)\n RETURNS TABLE(credit_id uuid, branch_id uuid, branch_name text, customer_id uuid, customer_name text, due_date date, days_to_due integer, alert_type text, weekly_day integer, daily_threshold_days integer, reminder_date date, status text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  with base_settings as (\r\n    select\r\n      coalesce(\r\n        (select s.credit_reminder_weekly_day from public.app_settings s where s.settings_key = 'default' limit 1),\r\n        1\r\n      ) as weekly_day,\r\n      coalesce(\r\n        (select s.credit_due_daily_threshold_days from public.app_settings s where s.settings_key = 'default' limit 1),\r\n        5\r\n      ) as daily_threshold_days\r\n  ),\r\n  resolved as (\r\n    select\r\n      c.*, \r\n      b.name as branch_name,\r\n      cu.full_name as customer_name,\r\n      coalesce(a.is_enabled, true) as is_enabled,\r\n      coalesce(a.weekly_day, s.weekly_day) as weekly_day,\r\n      coalesce(a.daily_threshold_days, s.daily_threshold_days) as daily_threshold_days,\r\n      (c.due_date - current_date) as days_to_due\r\n    from public.credits c\r\n    join public.branches b on b.id = c.branch_id\r\n    join public.customers cu on cu.id = c.customer_id\r\n    left join public.credit_alert_settings a on a.credit_id = c.id\r\n    cross join base_settings s\r\n    where c.status in ('active', 'overdue')\r\n      and (\r\n        public.current_user_role_name() = 'admin'\r\n        or (\r\n          public.current_user_role_name() in ('manager', 'employee', 'read_only')\r\n          and c.branch_id = public.current_user_branch_id()\r\n        )\r\n      )\r\n      and (p_branch_id is null or c.branch_id = p_branch_id)\r\n  )\r\n  select\r\n    r.id as credit_id,\r\n    r.branch_id,\r\n    r.branch_name,\r\n    r.customer_id,\r\n    r.customer_name,\r\n    r.due_date,\r\n    r.days_to_due,\r\n    case\r\n      when r.days_to_due <= r.daily_threshold_days then 'daily_due'\r\n      when extract(dow from current_date)::int = r.weekly_day then 'weekly'\r\n      else null\r\n    end as alert_type,\r\n    r.weekly_day,\r\n    r.daily_threshold_days,\r\n    r.reminder_date,\r\n    case\r\n      when r.status <> 'paid' and r.due_date < current_date then 'overdue'\r\n      else r.status\r\n    end as status\r\n  from resolved r\r\n  where r.is_enabled = true\r\n    and (\r\n      r.days_to_due <= r.daily_threshold_days\r\n      or extract(dow from current_date)::int = r.weekly_day\r\n    )\r\n  order by r.due_date asc, r.id asc;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "get_credit_kardex",
+    "parameters": "p_branch_id uuid, p_customer_id uuid, p_from date, p_to date",
+    "return_type": "TABLE(movement_id uuid, credit_id uuid, branch_id uuid, branch_name text, customer_id uuid, customer_name text, movement_type text, amount numeric, movement_date date, created_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.get_credit_kardex(p_branch_id uuid DEFAULT NULL::uuid, p_customer_id uuid DEFAULT NULL::uuid, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date)\n RETURNS TABLE(movement_id uuid, credit_id uuid, branch_id uuid, branch_name text, customer_id uuid, customer_name text, movement_type text, amount numeric, movement_date date, created_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select\r\n    c.id as movement_id,\r\n    c.id as credit_id,\r\n    c.branch_id,\r\n    b.name as branch_name,\r\n    c.customer_id,\r\n    cu.full_name as customer_name,\r\n    'credit_created'::text as movement_type,\r\n    c.total_amount as amount,\r\n    c.created_date as movement_date,\r\n    c.created_at\r\n  from public.credits c\r\n  join public.customers cu on cu.id = c.customer_id\r\n  join public.branches b on b.id = c.branch_id\r\n  where\r\n    (p_branch_id is null or c.branch_id = p_branch_id)\r\n    and (p_customer_id is null or c.customer_id = p_customer_id)\r\n    and (p_from is null or c.created_date >= p_from)\r\n    and (p_to is null or c.created_date <= p_to)\r\n    and (\r\n      public.current_user_role_name() = 'admin'\r\n      or (\r\n        public.current_user_role_name() in ('manager', 'employee', 'read_only')\r\n        and c.branch_id = public.current_user_branch_id()\r\n      )\r\n    )\r\n\r\n  union all\r\n\r\n  select\r\n    p.id as movement_id,\r\n    p.credit_id,\r\n    c.branch_id,\r\n    b.name as branch_name,\r\n    c.customer_id,\r\n    cu.full_name as customer_name,\r\n    'credit_payment'::text as movement_type,\r\n    p.amount as amount,\r\n    p.payment_date as movement_date,\r\n    p.created_at\r\n  from public.credit_payments p\r\n  join public.credits c on c.id = p.credit_id\r\n  join public.customers cu on cu.id = c.customer_id\r\n  join public.branches b on b.id = c.branch_id\r\n  where\r\n    (p_branch_id is null or c.branch_id = p_branch_id)\r\n    and (p_customer_id is null or c.customer_id = p_customer_id)\r\n    and (p_from is null or p.payment_date >= p_from)\r\n    and (p_to is null or p.payment_date <= p_to)\r\n    and (\r\n      public.current_user_role_name() = 'admin'\r\n      or (\r\n        public.current_user_role_name() in ('manager', 'employee', 'read_only')\r\n        and c.branch_id = public.current_user_branch_id()\r\n      )\r\n    )\r\n\r\n  order by movement_date desc, movement_id desc;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "get_credit_portfolio",
+    "parameters": "p_branch_id uuid, p_customer_id uuid, p_search text",
+    "return_type": "TABLE(credit_id uuid, customer_id uuid, customer_name text, branch_id uuid, branch_name text, seller_name text, product_name text, total_amount numeric, paid_amount numeric, balance numeric, status text, due_date date, reminder_date date, notes text, created_date date, created_at timestamp with time zone, updated_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.get_credit_portfolio(p_branch_id uuid DEFAULT NULL::uuid, p_customer_id uuid DEFAULT NULL::uuid, p_search text DEFAULT NULL::text)\n RETURNS TABLE(credit_id uuid, customer_id uuid, customer_name text, branch_id uuid, branch_name text, seller_name text, product_name text, total_amount numeric, paid_amount numeric, balance numeric, status text, due_date date, reminder_date date, notes text, created_date date, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select\r\n    c.id as credit_id,\r\n    c.customer_id,\r\n    cu.full_name as customer_name,\r\n    c.branch_id,\r\n    b.name as branch_name,\r\n    c.seller_name,\r\n    c.product_name,\r\n    c.total_amount,\r\n    c.paid_amount,\r\n    c.balance,\r\n    case\r\n      when c.status <> 'paid' and c.due_date < current_date then 'overdue'\r\n      else c.status\r\n    end as status,\r\n    c.due_date,\r\n    c.reminder_date,\r\n    c.notes,\r\n    c.created_date,\r\n    c.created_at,\r\n    c.updated_at\r\n  from public.credits c\r\n  join public.customers cu on cu.id = c.customer_id\r\n  join public.branches b on b.id = c.branch_id\r\n  where\r\n    (p_branch_id is null or c.branch_id = p_branch_id)\r\n    and (p_customer_id is null or c.customer_id = p_customer_id)\r\n    and (\r\n      p_search is null\r\n      or trim(p_search) = ''\r\n      or c.id::text ilike '%' || trim(p_search) || '%'\r\n      or cu.full_name ilike '%' || trim(p_search) || '%'\r\n      or c.product_name ilike '%' || trim(p_search) || '%'\r\n    )\r\n    and (\r\n      public.current_user_role_name() = 'admin'\r\n      or (\r\n        public.current_user_role_name() in ('manager', 'employee', 'read_only')\r\n        and c.branch_id = public.current_user_branch_id()\r\n      )\r\n    )\r\n  order by c.created_at desc, c.id desc;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "get_credit_settings",
+    "parameters": "",
+    "return_type": "TABLE(max_open_credits_per_customer integer, credit_reminder_weekly_day integer, credit_due_daily_threshold_days integer)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.get_credit_settings()\n RETURNS TABLE(max_open_credits_per_customer integer, credit_reminder_weekly_day integer, credit_due_daily_threshold_days integer)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT\r\n    coalesce(\r\n      (SELECT s.max_open_credits_per_customer FROM public.app_settings s WHERE s.settings_key = 'default' LIMIT 1),\r\n      2\r\n    ) AS max_open_credits_per_customer,\r\n    coalesce(\r\n      (SELECT s.credit_reminder_weekly_day FROM public.app_settings s WHERE s.settings_key = 'default' LIMIT 1),\r\n      1\r\n    ) AS credit_reminder_weekly_day,\r\n    coalesce(\r\n      (SELECT s.credit_due_daily_threshold_days FROM public.app_settings s WHERE s.settings_key = 'default' LIMIT 1),\r\n      5\r\n    ) AS credit_due_daily_threshold_days;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "get_current_cash_session",
     "parameters": "p_branch_id uuid",
     "return_type": "TABLE(cash_session_id uuid, branch_id uuid, branch_name text, opened_by uuid, opened_by_name text, opening_role text, opened_at timestamp with time zone, opening_amount numeric, status text, expected_closing_amount numeric, closing_amount_counted numeric, variance_amount numeric, manual_income_total numeric, manual_expense_total numeric, sales_cash_total numeric, sales_return_total numeric, expected_now numeric, total_movements bigint)",
@@ -782,6 +873,13 @@
     "parameters": "",
     "return_type": "TABLE(id uuid, full_name text, email text, role_name text, branch_id uuid, branch_name text)",
     "full_definition": "CREATE OR REPLACE FUNCTION public.get_current_user_profile()\n RETURNS TABLE(id uuid, full_name text, email text, role_name text, branch_id uuid, branch_name text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select\r\n    u.id,\r\n    u.full_name,\r\n    u.email,\r\n    (select r.name from public.roles r where r.id = u.role_id) as role_name,\r\n    u.branch_id,\r\n    (select b.name from public.branches b where b.id = u.branch_id) as branch_name\r\n  from public.users u\r\n  where u.id = auth.uid();\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "get_customer_open_credits_count",
+    "parameters": "p_customer_id uuid, p_branch_id uuid",
+    "return_type": "integer",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.get_customer_open_credits_count(p_customer_id uuid, p_branch_id uuid DEFAULT NULL::uuid)\n RETURNS integer\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_branch_id uuid;\r\nBEGIN\r\n  IF p_customer_id IS NULL THEN\r\n    RAISE EXCEPTION 'Customer is required';\r\n  END IF;\r\n\r\n  v_branch_id := public.credit_resolve_branch(p_branch_id);\r\n\r\n  RETURN (\r\n    SELECT count(1)\r\n    FROM public.credits c\r\n    WHERE c.customer_id = p_customer_id\r\n      AND c.branch_id = v_branch_id\r\n      AND c.status IN ('active', 'overdue')\r\n  );\r\nEND;\r\n$function$\n"
   },
   {
     "schema": "public",
@@ -1016,6 +1114,13 @@
   },
   {
     "schema": "public",
+    "function_name": "mark_credit_alert_seen",
+    "parameters": "p_credit_id uuid",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.mark_credit_alert_seen(p_credit_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_credit public.credits%rowtype;\r\n  v_role text;\r\n  v_actor uuid;\r\nBEGIN\r\n  v_role := public.current_user_role_name();\r\n  IF v_role NOT IN ('admin', 'manager', 'employee', 'read_only') THEN\r\n    RAISE EXCEPTION 'Role cannot mark alerts';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_credit\r\n  FROM public.credits c\r\n  WHERE c.id = p_credit_id;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Credit not found';\r\n  END IF;\r\n\r\n  IF v_role <> 'admin' AND v_credit.branch_id <> public.current_user_branch_id() THEN\r\n    RAISE EXCEPTION 'No permission for this credit';\r\n  END IF;\r\n\r\n  v_actor := public.current_request_user_id();\r\n\r\n  INSERT INTO public.credit_alert_settings (\r\n    credit_id,\r\n    last_seen_at,\r\n    created_by,\r\n    updated_by\r\n  )\r\n  VALUES (\r\n    p_credit_id,\r\n    now(),\r\n    v_actor,\r\n    v_actor\r\n  )\r\n  ON CONFLICT (credit_id)\r\n  DO UPDATE SET\r\n    last_seen_at = now(),\r\n    updated_by = v_actor,\r\n    updated_at = now();\r\n\r\n  RETURN p_credit_id;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "open_cash_session",
     "parameters": "p_opening_amount numeric, p_opening_notes text, p_branch_id uuid",
     "return_type": "uuid",
@@ -1149,6 +1254,69 @@
   },
   {
     "schema": "public",
+    "function_name": "quotation_can_convert",
+    "parameters": "",
+    "return_type": "boolean",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.quotation_can_convert()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT coalesce(public.quotation_current_role_name() IN ('admin', 'manager'), false);\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "quotation_can_create",
+    "parameters": "",
+    "return_type": "boolean",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.quotation_can_create()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT coalesce(public.quotation_current_role_name() IN ('admin', 'manager', 'employee', 'read_only'), false);\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "quotation_cancel",
+    "parameters": "p_quotation_id uuid, p_reason text",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.quotation_cancel(p_quotation_id uuid, p_reason text DEFAULT NULL::text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_role text;\r\n  v_quote public.quotations%rowtype;\r\n  v_actor uuid;\r\nBEGIN\r\n  v_role := public.quotation_current_role_name();\r\n  IF v_role NOT IN ('admin', 'manager', 'employee', 'read_only') THEN\r\n    RAISE EXCEPTION 'Role % cannot cancel quotations', v_role;\r\n  END IF;\r\n\r\n  v_actor := public.current_request_user_id();\r\n  IF v_actor IS NULL THEN\r\n    RAISE EXCEPTION 'No active authenticated session';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_quote\r\n  FROM public.quotations q\r\n  WHERE q.id = p_quotation_id\r\n  FOR UPDATE;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Quotation not found';\r\n  END IF;\r\n\r\n  IF v_role <> 'admin' AND v_quote.branch_id <> public.current_user_branch_id() THEN\r\n    RAISE EXCEPTION 'Cannot cancel quotation from another branch';\r\n  END IF;\r\n\r\n  IF v_quote.status <> 'active' THEN\r\n    RAISE EXCEPTION 'Only active quotations can be cancelled';\r\n  END IF;\r\n\r\n  IF v_quote.expires_at < now() THEN\r\n    RAISE EXCEPTION 'Expired quotation cannot be cancelled';\r\n  END IF;\r\n\r\n  UPDATE public.quotations\r\n  SET\r\n    status = 'cancelled',\r\n    cancelled_by = v_actor,\r\n    cancelled_at = now(),\r\n    updated_at = now()\r\n  WHERE id = v_quote.id;\r\n\r\n  PERFORM public.quotation_log_event(\r\n    v_quote.id,\r\n    v_quote.branch_id,\r\n    'cancelled',\r\n    v_actor,\r\n    jsonb_build_object('reason', nullif(trim(coalesce(p_reason, '')), '')),\r\n    p_reason\r\n  );\r\n\r\n  RETURN v_quote.id;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "quotation_convert_to_sale",
+    "parameters": "p_quotation_id uuid, p_payment_method text, p_payment_currency text, p_exchange_rate numeric, p_sale_mode text, p_advance_amount numeric, p_metadata jsonb",
+    "return_type": "TABLE(quotation_id uuid, sale_id uuid, total_amount_bob numeric, total_amount_usd numeric, cash_movement_id uuid)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.quotation_convert_to_sale(p_quotation_id uuid, p_payment_method text, p_payment_currency text DEFAULT 'BOB'::text, p_exchange_rate numeric DEFAULT 1, p_sale_mode text DEFAULT 'immediate'::text, p_advance_amount numeric DEFAULT 0, p_metadata jsonb DEFAULT '{}'::jsonb)\n RETURNS TABLE(quotation_id uuid, sale_id uuid, total_amount_bob numeric, total_amount_usd numeric, cash_movement_id uuid)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_role text;\r\n  v_actor uuid;\r\n  v_quote public.quotations%rowtype;\r\n  v_customer public.customers%rowtype;\r\n  v_items jsonb;\r\n  v_sale record;\r\nBEGIN\r\n  v_role := public.quotation_current_role_name();\r\n  IF NOT public.quotation_can_convert() THEN\r\n    RAISE EXCEPTION 'Role % cannot convert quotations', v_role;\r\n  END IF;\r\n\r\n  v_actor := public.current_request_user_id();\r\n  IF v_actor IS NULL THEN\r\n    RAISE EXCEPTION 'No active authenticated session';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_quote\r\n  FROM public.quotations q\r\n  WHERE q.id = p_quotation_id\r\n  FOR UPDATE;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Quotation not found';\r\n  END IF;\r\n\r\n  IF v_role <> 'admin' AND v_quote.branch_id <> public.current_user_branch_id() THEN\r\n    RAISE EXCEPTION 'Cannot convert quotation from another branch';\r\n  END IF;\r\n\r\n  IF v_quote.status <> 'active' THEN\r\n    RAISE EXCEPTION 'Only active quotations can be converted';\r\n  END IF;\r\n\r\n  IF v_quote.expires_at < now() THEN\r\n    RAISE EXCEPTION 'Expired quotation cannot be converted';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_customer\r\n  FROM public.customers c\r\n  WHERE c.id = v_quote.customer_id;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Customer linked to quotation was not found';\r\n  END IF;\r\n\r\n  SELECT coalesce(\r\n    jsonb_agg(\r\n      jsonb_build_object(\r\n        'part_id', qi.part_id,\r\n        'quantity', qi.quantity,\r\n        'unit_price', qi.unit_price,\r\n        'source_type', 'product',\r\n        'source_kit_id', null\r\n      )\r\n    ),\r\n    '[]'::jsonb\r\n  )\r\n  INTO v_items\r\n  FROM public.quotation_items qi\r\n  WHERE qi.quotation_id = v_quote.id;\r\n\r\n  IF jsonb_typeof(v_items) <> 'array' OR jsonb_array_length(v_items) = 0 THEN\r\n    RAISE EXCEPTION 'Quotation has no items to convert';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_sale\r\n  FROM public.pos_create_sale(\r\n    v_quote.branch_id,\r\n    v_customer.full_name,\r\n    p_payment_method,\r\n    p_payment_currency,\r\n    p_exchange_rate,\r\n    p_sale_mode,\r\n    p_advance_amount,\r\n    v_items,\r\n    coalesce(p_metadata, '{}'::jsonb)\r\n      || jsonb_build_object(\r\n        'source_module', 'quotations/history',\r\n        'quotation_id', v_quote.id,\r\n        'customer_id', v_customer.id,\r\n        'customer_name', v_customer.full_name,\r\n        'customer_nit_ci', v_customer.nit_ci,\r\n        'customer_is_anonymous', false\r\n      )\r\n  );\r\n\r\n  UPDATE public.quotations\r\n  SET\r\n    status = 'converted',\r\n    converted_sale_id = v_sale.sale_id,\r\n    converted_by = v_actor,\r\n    converted_at = now(),\r\n    updated_at = now()\r\n  WHERE id = v_quote.id;\r\n\r\n  PERFORM public.quotation_log_event(\r\n    v_quote.id,\r\n    v_quote.branch_id,\r\n    'converted',\r\n    v_actor,\r\n    jsonb_build_object(\r\n      'sale_id', v_sale.sale_id,\r\n      'payment_method', lower(trim(coalesce(p_payment_method, ''))),\r\n      'payment_currency', upper(trim(coalesce(p_payment_currency, 'BOB')))\r\n    ),\r\n    null\r\n  );\r\n\r\n  RETURN QUERY\r\n  SELECT\r\n    v_quote.id,\r\n    v_sale.sale_id,\r\n    v_sale.total_amount_bob,\r\n    v_sale.total_amount_usd,\r\n    v_sale.cash_movement_id;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "quotation_create",
+    "parameters": "p_branch_id uuid, p_customer_id uuid, p_expires_at date, p_items jsonb, p_notes text, p_metadata jsonb",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.quotation_create(p_branch_id uuid, p_customer_id uuid, p_expires_at date, p_items jsonb, p_notes text DEFAULT NULL::text, p_metadata jsonb DEFAULT '{}'::jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_role text;\r\n  v_branch_id uuid;\r\n  v_quote_id uuid;\r\n  v_customer public.customers%rowtype;\r\n  v_item jsonb;\r\n  v_part public.parts%rowtype;\r\n  v_part_id uuid;\r\n  v_qty numeric(12,3);\r\n  v_unit_price numeric(12,2);\r\n  v_line_total numeric(12,2);\r\n  v_total numeric(12,2) := 0;\r\n  v_min_quote numeric(12,2);\r\n  v_max_quote numeric(12,2);\r\n  v_expires_at timestamptz;\r\n  v_actor uuid;\r\nBEGIN\r\n  v_role := public.quotation_current_role_name();\r\n  IF NOT public.quotation_can_create() THEN\r\n    RAISE EXCEPTION 'Role % cannot create quotations', v_role;\r\n  END IF;\r\n\r\n  v_actor := public.current_request_user_id();\r\n  IF v_actor IS NULL THEN\r\n    RAISE EXCEPTION 'No active authenticated session';\r\n  END IF;\r\n\r\n  IF p_customer_id IS NULL THEN\r\n    RAISE EXCEPTION 'Customer is required';\r\n  END IF;\r\n\r\n  IF p_expires_at IS NULL THEN\r\n    RAISE EXCEPTION 'Quotation expiration date is required';\r\n  END IF;\r\n\r\n  IF p_expires_at < current_date THEN\r\n    RAISE EXCEPTION 'Quotation expiration date must be today or in the future';\r\n  END IF;\r\n\r\n  IF jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) = 0 THEN\r\n    RAISE EXCEPTION 'At least one quotation item is required';\r\n  END IF;\r\n\r\n  v_branch_id := public.pos_resolve_branch(p_branch_id);\r\n  v_expires_at := (p_expires_at::timestamp + interval '23 hours 59 minutes 59 seconds')::timestamptz;\r\n\r\n  SELECT *\r\n  INTO v_customer\r\n  FROM public.customers c\r\n  WHERE c.id = p_customer_id;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Customer not found';\r\n  END IF;\r\n\r\n  IF coalesce(v_customer.branch_id, v_branch_id) <> v_branch_id AND v_role <> 'admin' THEN\r\n    RAISE EXCEPTION 'Customer does not belong to active branch';\r\n  END IF;\r\n\r\n  INSERT INTO public.quotations (\r\n    branch_id,\r\n    customer_id,\r\n    quoted_by,\r\n    status,\r\n    expires_at,\r\n    subtotal_amount,\r\n    discount_amount,\r\n    total_amount,\r\n    notes,\r\n    metadata,\r\n    created_at,\r\n    updated_at\r\n  )\r\n  VALUES (\r\n    v_branch_id,\r\n    v_customer.id,\r\n    v_actor,\r\n    'active',\r\n    v_expires_at,\r\n    0,\r\n    0,\r\n    0,\r\n    nullif(trim(coalesce(p_notes, '')), ''),\r\n    coalesce(p_metadata, '{}'::jsonb),\r\n    now(),\r\n    now()\r\n  )\r\n  RETURNING id INTO v_quote_id;\r\n\r\n  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)\r\n  LOOP\r\n    v_part_id := nullif(trim(coalesce(v_item->>'part_id', '')), '')::uuid;\r\n    v_qty := coalesce((v_item->>'quantity')::numeric, 0);\r\n    v_unit_price := coalesce((v_item->>'unit_price')::numeric, 0);\r\n\r\n    IF v_part_id IS NULL THEN\r\n      RAISE EXCEPTION 'Each quotation item must include part_id';\r\n    END IF;\r\n\r\n    IF v_qty <= 0 THEN\r\n      RAISE EXCEPTION 'Quantity must be greater than zero for part %', v_part_id;\r\n    END IF;\r\n\r\n    IF v_unit_price <= 0 THEN\r\n      RAISE EXCEPTION 'Unit price must be greater than zero for part %', v_part_id;\r\n    END IF;\r\n\r\n    SELECT *\r\n    INTO v_part\r\n    FROM public.parts p\r\n    WHERE p.id = v_part_id\r\n      AND p.branch_id = v_branch_id\r\n      AND coalesce(p.is_active, true) = true;\r\n\r\n    IF NOT FOUND THEN\r\n      RAISE EXCEPTION 'Part % not found in branch %', v_part_id, v_branch_id;\r\n    END IF;\r\n\r\n    v_min_quote := coalesce(v_part.quotation_min_price, round((v_part.price * 0.90)::numeric, 2));\r\n    v_max_quote := coalesce(v_part.quotation_max_price, round((v_part.price * 1.20)::numeric, 2));\r\n\r\n    IF v_unit_price < v_min_quote OR v_unit_price > v_max_quote THEN\r\n      RAISE EXCEPTION\r\n        'Price for part % must be between % and %',\r\n        v_part.code,\r\n        v_min_quote,\r\n        v_max_quote;\r\n    END IF;\r\n\r\n    v_line_total := round((v_qty * v_unit_price)::numeric, 2);\r\n    v_total := v_total + v_line_total;\r\n\r\n    INSERT INTO public.quotation_items (\r\n      quotation_id,\r\n      branch_id,\r\n      part_id,\r\n      part_code,\r\n      part_name,\r\n      quantity,\r\n      unit_price,\r\n      line_total,\r\n      metadata,\r\n      created_at,\r\n      updated_at\r\n    )\r\n    VALUES (\r\n      v_quote_id,\r\n      v_branch_id,\r\n      v_part.id,\r\n      v_part.code,\r\n      v_part.name,\r\n      v_qty,\r\n      v_unit_price,\r\n      v_line_total,\r\n      coalesce(v_item->'metadata', '{}'::jsonb),\r\n      now(),\r\n      now()\r\n    );\r\n  END LOOP;\r\n\r\n  UPDATE public.quotations q\r\n  SET\r\n    subtotal_amount = v_total,\r\n    discount_amount = 0,\r\n    total_amount = v_total,\r\n    updated_at = now()\r\n  WHERE q.id = v_quote_id;\r\n\r\n  PERFORM public.quotation_log_event(\r\n    v_quote_id,\r\n    v_branch_id,\r\n    'created',\r\n    v_actor,\r\n    jsonb_build_object('total_amount', v_total),\r\n    p_notes\r\n  );\r\n\r\n  RETURN v_quote_id;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "quotation_current_role_name",
+    "parameters": "",
+    "return_type": "text",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.quotation_current_role_name()\n RETURNS text\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  SELECT coalesce(public.current_user_role_name(), '');\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "quotation_get_history",
+    "parameters": "p_quotation_id uuid, p_branch_id uuid",
+    "return_type": "TABLE(id uuid, quotation_id uuid, branch_id uuid, event_type text, actor_user_id uuid, actor_name text, payload jsonb, notes text, created_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.quotation_get_history(p_quotation_id uuid DEFAULT NULL::uuid, p_branch_id uuid DEFAULT NULL::uuid)\n RETURNS TABLE(id uuid, quotation_id uuid, branch_id uuid, event_type text, actor_user_id uuid, actor_name text, payload jsonb, notes text, created_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_role text;\r\n  v_scope_branch uuid;\r\nBEGIN\r\n  v_role := public.current_user_role_name();\r\n  IF v_role NOT IN ('admin', 'manager', 'employee', 'read_only') THEN\r\n    RAISE EXCEPTION 'Role % cannot access quotation history', v_role;\r\n  END IF;\r\n\r\n  IF v_role = 'admin' AND p_branch_id IS NULL THEN\r\n    v_scope_branch := NULL;\r\n  ELSE\r\n    v_scope_branch := public.pos_resolve_branch(p_branch_id);\r\n  END IF;\r\n\r\n  RETURN QUERY\r\n  SELECT\r\n    h.id,\r\n    h.quotation_id,\r\n    h.branch_id,\r\n    h.event_type,\r\n    h.actor_user_id,\r\n    u.full_name,\r\n    h.payload,\r\n    h.notes,\r\n    h.created_at\r\n  FROM public.quotation_history h\r\n  LEFT JOIN public.users u ON u.id = h.actor_user_id\r\n  WHERE (\r\n      p_quotation_id IS NULL\r\n      OR h.quotation_id = p_quotation_id\r\n    )\r\n    AND (\r\n      v_scope_branch IS NULL\r\n      OR h.branch_id = v_scope_branch\r\n    )\r\n  ORDER BY h.created_at DESC, h.id DESC;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "quotation_get_list",
+    "parameters": "p_branch_id uuid, p_status text",
+    "return_type": "TABLE(quotation_id uuid, branch_id uuid, branch_name text, customer_id uuid, customer_name text, customer_nit_ci text, quoted_by uuid, quoted_by_name text, status text, expires_at timestamp with time zone, subtotal_amount numeric, discount_amount numeric, total_amount numeric, converted_sale_id uuid, notes text, metadata jsonb, created_at timestamp with time zone, updated_at timestamp with time zone, items jsonb)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.quotation_get_list(p_branch_id uuid DEFAULT NULL::uuid, p_status text DEFAULT NULL::text)\n RETURNS TABLE(quotation_id uuid, branch_id uuid, branch_name text, customer_id uuid, customer_name text, customer_nit_ci text, quoted_by uuid, quoted_by_name text, status text, expires_at timestamp with time zone, subtotal_amount numeric, discount_amount numeric, total_amount numeric, converted_sale_id uuid, notes text, metadata jsonb, created_at timestamp with time zone, updated_at timestamp with time zone, items jsonb)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_role text;\r\n  v_scope_branch uuid;\r\n  v_status text;\r\nBEGIN\r\n  v_role := public.quotation_current_role_name();\r\n  IF v_role NOT IN ('admin', 'manager', 'employee', 'read_only') THEN\r\n    RAISE EXCEPTION 'Role % cannot access quotations', v_role;\r\n  END IF;\r\n\r\n  IF v_role = 'admin' AND p_branch_id IS NULL THEN\r\n    v_scope_branch := NULL;\r\n  ELSE\r\n    v_scope_branch := public.pos_resolve_branch(p_branch_id);\r\n  END IF;\r\n\r\n  v_status := lower(trim(coalesce(p_status, '')));\r\n\r\n  RETURN QUERY\r\n  SELECT\r\n    q.id,\r\n    q.branch_id,\r\n    b.name,\r\n    q.customer_id,\r\n    c.full_name,\r\n    c.nit_ci,\r\n    q.quoted_by,\r\n    u.full_name,\r\n    q.status,\r\n    q.expires_at,\r\n    q.subtotal_amount,\r\n    q.discount_amount,\r\n    q.total_amount,\r\n    q.converted_sale_id,\r\n    q.notes,\r\n    q.metadata,\r\n    q.created_at,\r\n    q.updated_at,\r\n    coalesce((\r\n      SELECT jsonb_agg(\r\n        jsonb_build_object(\r\n          'id', qi.id,\r\n          'part_id', qi.part_id,\r\n          'part_code', qi.part_code,\r\n          'part_name', qi.part_name,\r\n          'quantity', qi.quantity,\r\n          'unit_price', qi.unit_price,\r\n          'line_total', qi.line_total,\r\n          'metadata', qi.metadata\r\n        )\r\n        ORDER BY qi.created_at ASC\r\n      )\r\n      FROM public.quotation_items qi\r\n      WHERE qi.quotation_id = q.id\r\n    ), '[]'::jsonb)\r\n  FROM public.quotations q\r\n  JOIN public.branches b ON b.id = q.branch_id\r\n  JOIN public.customers c ON c.id = q.customer_id\r\n  LEFT JOIN public.users u ON u.id = q.quoted_by\r\n  WHERE (\r\n      v_scope_branch IS NULL\r\n      OR q.branch_id = v_scope_branch\r\n    )\r\n    AND (\r\n      v_status = ''\r\n      OR q.status = v_status\r\n      OR (\r\n        v_status = 'expired'\r\n        AND q.status = 'active'\r\n        AND q.expires_at < now()\r\n      )\r\n    )\r\n  ORDER BY q.created_at DESC, q.id DESC;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "quotation_log_event",
+    "parameters": "p_quotation_id uuid, p_branch_id uuid, p_event_type text, p_actor_user_id uuid, p_payload jsonb, p_notes text",
+    "return_type": "void",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.quotation_log_event(p_quotation_id uuid, p_branch_id uuid, p_event_type text, p_actor_user_id uuid, p_payload jsonb DEFAULT '{}'::jsonb, p_notes text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_event_type text;\r\nBEGIN\r\n  IF p_quotation_id IS NULL OR p_branch_id IS NULL THEN\r\n    RETURN;\r\n  END IF;\r\n\r\n  v_event_type := lower(trim(coalesce(p_event_type, '')));\r\n\r\n  IF v_event_type NOT IN ('created', 'cancelled', 'converted', 'expired', 'updated') THEN\r\n    v_event_type := 'updated';\r\n  END IF;\r\n\r\n  INSERT INTO public.quotation_history (\r\n    quotation_id,\r\n    branch_id,\r\n    event_type,\r\n    actor_user_id,\r\n    payload,\r\n    notes,\r\n    created_at\r\n  )\r\n  VALUES (\r\n    p_quotation_id,\r\n    p_branch_id,\r\n    v_event_type,\r\n    p_actor_user_id,\r\n    coalesce(p_payload, '{}'::jsonb),\r\n    nullif(trim(coalesce(p_notes, '')), ''),\r\n    now()\r\n  );\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "record_cash_sale_movement",
     "parameters": "p_cash_session_id uuid, p_sale_id uuid, p_amount numeric, p_description text, p_metadata jsonb",
     "return_type": "uuid",
@@ -1188,6 +1356,20 @@
     "parameters": "p_request_id uuid, p_action text, p_review_notes text, p_apply_changes boolean",
     "return_type": "TABLE(request_id uuid, status text, applied boolean, movement_id uuid)",
     "full_definition": "CREATE OR REPLACE FUNCTION public.review_cash_movement_edit_request(p_request_id uuid, p_action text, p_review_notes text DEFAULT NULL::text, p_apply_changes boolean DEFAULT true)\n RETURNS TABLE(request_id uuid, status text, applied boolean, movement_id uuid)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_request public.cash_movement_edit_requests%rowtype;\r\n  v_movement public.cash_movements%rowtype;\r\n  v_user_id uuid;\r\n  v_action text;\r\n  v_applied boolean := false;\r\n  v_new_amount numeric(12,2);\r\n  v_new_description text;\r\nBEGIN\r\n  IF NOT public.cash_is_admin() THEN\r\n    RAISE EXCEPTION 'Only admin can review edit requests';\r\n  END IF;\r\n\r\n  v_user_id := public.current_request_user_id();\r\n  v_action := lower(coalesce(trim(p_action), ''));\r\n\r\n  IF v_action NOT IN ('approve', 'reject') THEN\r\n    RAISE EXCEPTION 'Invalid action. Use approve or reject';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_request\r\n  FROM public.cash_movement_edit_requests r\r\n  WHERE r.id = p_request_id\r\n  FOR UPDATE;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Edit request not found';\r\n  END IF;\r\n\r\n  IF v_request.status <> 'pending' THEN\r\n    RAISE EXCEPTION 'Only pending requests can be reviewed';\r\n  END IF;\r\n\r\n  IF v_action = 'approve' AND coalesce(p_apply_changes, true) THEN\r\n    SELECT *\r\n    INTO v_movement\r\n    FROM public.cash_movements m\r\n    WHERE m.id = v_request.movement_id\r\n    FOR UPDATE;\r\n\r\n    IF NOT FOUND THEN\r\n      RAISE EXCEPTION 'Cash movement not found for request';\r\n    END IF;\r\n\r\n    v_new_amount := coalesce(v_request.proposed_amount, v_movement.amount);\r\n    v_new_description := coalesce(v_request.proposed_description, v_movement.description);\r\n\r\n    IF v_new_amount <= 0 THEN\r\n      RAISE EXCEPTION 'Resolved movement amount must be greater than zero';\r\n    END IF;\r\n\r\n    IF v_new_amount <> v_movement.amount OR v_new_description <> v_movement.description THEN\r\n      UPDATE public.cash_movements\r\n      SET\r\n        amount = v_new_amount,\r\n        description = v_new_description,\r\n        updated_by = v_user_id,\r\n        updated_at = now()\r\n      WHERE id = v_movement.id;\r\n\r\n      INSERT INTO public.cash_movement_edit_logs (\r\n        movement_id,\r\n        request_id,\r\n        branch_id,\r\n        changed_by,\r\n        change_type,\r\n        change_reason,\r\n        old_amount,\r\n        new_amount,\r\n        old_description,\r\n        new_description,\r\n        created_at\r\n      )\r\n      VALUES (\r\n        v_movement.id,\r\n        v_request.id,\r\n        v_movement.branch_id,\r\n        v_user_id,\r\n        'request_approved',\r\n        coalesce(nullif(trim(v_request.request_reason), ''), 'Aprobacion de solicitud de edicion'),\r\n        v_movement.amount,\r\n        v_new_amount,\r\n        v_movement.description,\r\n        v_new_description,\r\n        now()\r\n      );\r\n\r\n      v_applied := true;\r\n    END IF;\r\n  END IF;\r\n\r\n  UPDATE public.cash_movement_edit_requests\r\n  SET\r\n    status = case when v_action = 'approve' then 'approved' else 'rejected' end,\r\n    review_notes = nullif(trim(coalesce(p_review_notes, '')), ''),\r\n    reviewed_by = v_user_id,\r\n    reviewed_at = now(),\r\n    applied = v_applied,\r\n    updated_at = now()\r\n  WHERE id = v_request.id;\r\n\r\n  RETURN QUERY\r\n  SELECT\r\n    v_request.id,\r\n    case when v_action = 'approve' then 'approved' else 'rejected' end,\r\n    v_applied,\r\n    v_request.movement_id;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "set_app_settings",
+    "parameters": "p_company_name text, p_company_email text, p_company_phone text, p_default_currency text, p_usd_to_bob_rate numeric, p_max_open_credits_per_customer integer, p_credit_reminder_weekly_day integer, p_credit_due_daily_threshold_days integer",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.set_app_settings(p_company_name text, p_company_email text DEFAULT NULL::text, p_company_phone text DEFAULT NULL::text, p_default_currency text DEFAULT 'BOB'::text, p_usd_to_bob_rate numeric DEFAULT 6.96, p_max_open_credits_per_customer integer DEFAULT 2, p_credit_reminder_weekly_day integer DEFAULT 1, p_credit_due_daily_threshold_days integer DEFAULT 5)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_id uuid;\r\n  v_actor uuid;\r\n  v_currency text;\r\nBEGIN\r\n  PERFORM public.ensure_admin();\r\n\r\n  v_actor := public.current_request_user_id();\r\n  v_currency := upper(trim(coalesce(p_default_currency, 'BOB')));\r\n\r\n  IF nullif(trim(coalesce(p_company_name, '')), '') IS NULL THEN\r\n    RAISE EXCEPTION 'Company name is required.';\r\n  END IF;\r\n\r\n  IF v_currency NOT IN ('BOB', 'USD') THEN\r\n    RAISE EXCEPTION 'Invalid default currency.';\r\n  END IF;\r\n\r\n  IF p_usd_to_bob_rate IS NULL OR p_usd_to_bob_rate <= 0 THEN\r\n    RAISE EXCEPTION 'USD to BOB rate must be greater than zero.';\r\n  END IF;\r\n\r\n  IF p_max_open_credits_per_customer IS NULL OR p_max_open_credits_per_customer < 1 THEN\r\n    RAISE EXCEPTION 'Max open credits per customer must be at least 1.';\r\n  END IF;\r\n\r\n  IF p_credit_reminder_weekly_day IS NULL OR p_credit_reminder_weekly_day < 0 OR p_credit_reminder_weekly_day > 6 THEN\r\n    RAISE EXCEPTION 'Weekly reminder day must be between 0 and 6.';\r\n  END IF;\r\n\r\n  IF p_credit_due_daily_threshold_days IS NULL OR p_credit_due_daily_threshold_days < 1 THEN\r\n    RAISE EXCEPTION 'Daily threshold must be at least 1 day.';\r\n  END IF;\r\n\r\n  INSERT INTO public.app_settings (\r\n    settings_key,\r\n    company_name,\r\n    company_email,\r\n    company_phone,\r\n    default_currency,\r\n    usd_to_bob_rate,\r\n    max_open_credits_per_customer,\r\n    credit_reminder_weekly_day,\r\n    credit_due_daily_threshold_days,\r\n    created_by,\r\n    updated_by\r\n  )\r\n  VALUES (\r\n    'default',\r\n    trim(p_company_name),\r\n    nullif(trim(coalesce(p_company_email, '')), ''),\r\n    nullif(trim(coalesce(p_company_phone, '')), ''),\r\n    v_currency,\r\n    p_usd_to_bob_rate,\r\n    p_max_open_credits_per_customer,\r\n    p_credit_reminder_weekly_day,\r\n    p_credit_due_daily_threshold_days,\r\n    v_actor,\r\n    v_actor\r\n  )\r\n  ON CONFLICT (settings_key)\r\n  DO UPDATE SET\r\n    company_name = excluded.company_name,\r\n    company_email = excluded.company_email,\r\n    company_phone = excluded.company_phone,\r\n    default_currency = excluded.default_currency,\r\n    usd_to_bob_rate = excluded.usd_to_bob_rate,\r\n    max_open_credits_per_customer = excluded.max_open_credits_per_customer,\r\n    credit_reminder_weekly_day = excluded.credit_reminder_weekly_day,\r\n    credit_due_daily_threshold_days = excluded.credit_due_daily_threshold_days,\r\n    updated_by = v_actor,\r\n    updated_at = now()\r\n  RETURNING id INTO v_id;\r\n\r\n  RETURN v_id;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "set_credit_alert_settings",
+    "parameters": "p_credit_id uuid, p_weekly_day integer, p_daily_threshold_days integer, p_is_enabled boolean",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.set_credit_alert_settings(p_credit_id uuid, p_weekly_day integer DEFAULT NULL::integer, p_daily_threshold_days integer DEFAULT NULL::integer, p_is_enabled boolean DEFAULT true)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_credit public.credits%rowtype;\r\n  v_role text;\r\n  v_actor uuid;\r\n  v_id uuid;\r\nBEGIN\r\n  v_role := public.current_user_role_name();\r\n  IF v_role NOT IN ('admin', 'manager', 'employee') THEN\r\n    RAISE EXCEPTION 'Only admin, manager or employee can edit alerts';\r\n  END IF;\r\n\r\n  IF p_credit_id IS NULL THEN\r\n    RAISE EXCEPTION 'Credit id is required';\r\n  END IF;\r\n\r\n  IF p_weekly_day IS NOT NULL AND (p_weekly_day < 0 OR p_weekly_day > 6) THEN\r\n    RAISE EXCEPTION 'Weekly reminder day must be between 0 and 6';\r\n  END IF;\r\n\r\n  IF p_daily_threshold_days IS NOT NULL AND p_daily_threshold_days < 1 THEN\r\n    RAISE EXCEPTION 'Daily threshold must be at least 1 day';\r\n  END IF;\r\n\r\n  SELECT *\r\n  INTO v_credit\r\n  FROM public.credits c\r\n  WHERE c.id = p_credit_id;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Credit not found';\r\n  END IF;\r\n\r\n  IF v_role <> 'admin' AND v_credit.branch_id <> public.current_user_branch_id() THEN\r\n    RAISE EXCEPTION 'No permission for this credit';\r\n  END IF;\r\n\r\n  v_actor := public.current_request_user_id();\r\n\r\n  INSERT INTO public.credit_alert_settings (\r\n    credit_id,\r\n    weekly_day,\r\n    daily_threshold_days,\r\n    is_enabled,\r\n    created_by,\r\n    updated_by\r\n  )\r\n  VALUES (\r\n    p_credit_id,\r\n    p_weekly_day,\r\n    p_daily_threshold_days,\r\n    coalesce(p_is_enabled, true),\r\n    v_actor,\r\n    v_actor\r\n  )\r\n  ON CONFLICT (credit_id)\r\n  DO UPDATE SET\r\n    weekly_day = excluded.weekly_day,\r\n    daily_threshold_days = excluded.daily_threshold_days,\r\n    is_enabled = excluded.is_enabled,\r\n    updated_by = v_actor,\r\n    updated_at = now()\r\n  RETURNING id INTO v_id;\r\n\r\n  RETURN v_id;\r\nEND;\r\n$function$\n"
   },
   {
     "schema": "public",
@@ -1300,6 +1482,13 @@
     "parameters": "p_branch_id uuid, p_code text, p_name text, p_description text, p_category text, p_category_id uuid, p_image_url text, p_cost numeric, p_price numeric, p_kit_price numeric, p_quotation_min_price numeric, p_quotation_max_price numeric, p_tracking_mode text, p_requires_serialization boolean, p_initial_quantity numeric, p_min_quantity numeric, p_max_quantity numeric, p_price_tiers jsonb",
     "return_type": "uuid",
     "full_definition": "CREATE OR REPLACE FUNCTION public.upsert_inventory_product(p_branch_id uuid, p_code text, p_name text, p_description text DEFAULT NULL::text, p_category text DEFAULT NULL::text, p_category_id uuid DEFAULT NULL::uuid, p_image_url text DEFAULT NULL::text, p_cost numeric DEFAULT 0, p_price numeric DEFAULT 0, p_kit_price numeric DEFAULT 0, p_quotation_min_price numeric DEFAULT NULL::numeric, p_quotation_max_price numeric DEFAULT NULL::numeric, p_tracking_mode text DEFAULT 'none'::text, p_requires_serialization boolean DEFAULT false, p_initial_quantity numeric DEFAULT 0, p_min_quantity numeric DEFAULT 0, p_max_quantity numeric DEFAULT NULL::numeric, p_price_tiers jsonb DEFAULT '[]'::jsonb)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_part_id uuid;\r\n  v_tier jsonb;\r\n  v_tracking_mode text;\r\nbegin\r\n  if not public.inventory_is_admin() then\r\n    raise exception 'Only admin can create or update products';\r\n  end if;\r\n\r\n  v_tracking_mode := lower(coalesce(nullif(p_tracking_mode, ''), 'none'));\r\n  if v_tracking_mode not in ('none', 'serial', 'lot') then\r\n    raise exception 'Invalid tracking_mode value: %', p_tracking_mode;\r\n  end if;\r\n\r\n  insert into public.parts (\r\n    branch_id,\r\n    code,\r\n    name,\r\n    description,\r\n    category,\r\n    category_id,\r\n    image_url,\r\n    cost,\r\n    price,\r\n    kit_price,\r\n    quotation_min_price,\r\n    quotation_max_price,\r\n    tracking_mode,\r\n    requires_serialization,\r\n    created_by,\r\n    updated_by\r\n  )\r\n  values (\r\n    p_branch_id,\r\n    trim(p_code),\r\n    trim(p_name),\r\n    p_description,\r\n    p_category,\r\n    p_category_id,\r\n    p_image_url,\r\n    coalesce(p_cost, 0),\r\n    coalesce(p_price, 0),\r\n    coalesce(p_kit_price, 0),\r\n    p_quotation_min_price,\r\n    p_quotation_max_price,\r\n    v_tracking_mode,\r\n    coalesce(p_requires_serialization, false),\r\n    auth.uid(),\r\n    auth.uid()\r\n  )\r\n  on conflict (branch_id, code)\r\n  do update set\r\n    name = excluded.name,\r\n    description = excluded.description,\r\n    category = excluded.category,\r\n    category_id = excluded.category_id,\r\n    image_url = excluded.image_url,\r\n    cost = excluded.cost,\r\n    price = excluded.price,\r\n    kit_price = excluded.kit_price,\r\n    quotation_min_price = excluded.quotation_min_price,\r\n    quotation_max_price = excluded.quotation_max_price,\r\n    tracking_mode = excluded.tracking_mode,\r\n    requires_serialization = excluded.requires_serialization,\r\n    updated_by = auth.uid(),\r\n    updated_at = now()\r\n  returning id into v_part_id;\r\n\r\n  insert into public.inventory (\r\n    part_id,\r\n    branch_id,\r\n    quantity,\r\n    min_quantity,\r\n    last_restock\r\n  )\r\n  values (\r\n    v_part_id,\r\n    p_branch_id,\r\n    greatest(coalesce(p_initial_quantity, 0), 0),\r\n    greatest(coalesce(p_min_quantity, 0), 0),\r\n    now()\r\n  )\r\n  on conflict (part_id, branch_id)\r\n  do update set\r\n    quantity = excluded.quantity,\r\n    min_quantity = excluded.min_quantity,\r\n    last_restock = excluded.last_restock,\r\n    updated_at = now();\r\n\r\n  delete from public.product_price_tiers where part_id = v_part_id;\r\n\r\n  if jsonb_typeof(p_price_tiers) = 'array' then\r\n    for v_tier in select * from jsonb_array_elements(p_price_tiers)\r\n    loop\r\n      if coalesce((v_tier->>'min_quantity')::int, 0) >= 1 and coalesce((v_tier->>'price')::numeric, -1) >= 0 then\r\n        insert into public.product_price_tiers (part_id, min_quantity, price)\r\n        values (\r\n          v_part_id,\r\n          (v_tier->>'min_quantity')::int,\r\n          (v_tier->>'price')::numeric\r\n        )\r\n        on conflict (part_id, min_quantity)\r\n        do update set\r\n          price = excluded.price,\r\n          updated_at = now();\r\n      end if;\r\n    end loop;\r\n  end if;\r\n\r\n  if not exists (select 1 from public.product_price_tiers t where t.part_id = v_part_id and t.min_quantity = 1) then\r\n    insert into public.product_price_tiers (part_id, min_quantity, price)\r\n    values (v_part_id, 1, coalesce(p_price, 0))\r\n    on conflict (part_id, min_quantity) do nothing;\r\n  end if;\r\n\r\n  return v_part_id;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "validate_customer_credit_limit",
+    "parameters": "p_customer_id uuid, p_branch_id uuid",
+    "return_type": "TABLE(open_count integer, limit_value integer, blocked boolean)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.validate_customer_credit_limit(p_customer_id uuid, p_branch_id uuid DEFAULT NULL::uuid)\n RETURNS TABLE(open_count integer, limit_value integer, blocked boolean)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_branch_id uuid;\r\n  v_limit integer;\r\n  v_open integer;\r\nBEGIN\r\n  IF p_customer_id IS NULL THEN\r\n    RAISE EXCEPTION 'Customer is required';\r\n  END IF;\r\n\r\n  v_branch_id := public.credit_resolve_branch(p_branch_id);\r\n\r\n  SELECT s.max_open_credits_per_customer\r\n  INTO v_limit\r\n  FROM public.get_credit_settings() s;\r\n\r\n  v_open := (\r\n    SELECT count(1)\r\n    FROM public.credits c\r\n    WHERE c.customer_id = p_customer_id\r\n      AND c.branch_id = v_branch_id\r\n      AND c.status IN ('active', 'overdue')\r\n  );\r\n\r\n  open_count := v_open;\r\n  limit_value := v_limit;\r\n  blocked := v_open >= v_limit;\r\n  RETURN NEXT;\r\nEND;\r\n$function$\n"
   },
   {
     "schema": "public",

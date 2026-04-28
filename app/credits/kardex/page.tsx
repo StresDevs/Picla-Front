@@ -1,42 +1,181 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { CreditsSubnav } from '@/components/modules/credits/credits-subnav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { creditsService, type CreditKardexRow } from '@/lib/supabase/credits'
+import { customersService, type CustomerRecord } from '@/lib/supabase/customers'
+import { branchesService } from '@/lib/supabase/inventory'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 
-const records = [
-  { id: 'KD-001', branch: 'Sucursal Centro', customer: 'Juan García', movement: 'Alta crédito', amount: 'Bs 1,500', date: '2026-03-01' },
-  { id: 'KD-002', branch: 'Sucursal Centro', customer: 'Juan García', movement: 'Abono', amount: 'Bs 200', date: '2026-03-19' },
-  { id: 'KD-003', branch: 'Sucursal Norte', customer: 'María T.', movement: 'Vencimiento', amount: 'Bs 860', date: '2026-03-18' },
-]
+interface BranchOption {
+  id: string
+  name: string
+}
+
+function formatMovement(movement: CreditKardexRow['movement_type']) {
+  return movement === 'credit_payment' ? 'Pago' : 'Alta crédito'
+}
 
 export default function CreditsKardexPage() {
+  const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
+  const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
+
+  const [branches, setBranches] = useState<BranchOption[]>([])
+  const [customers, setCustomers] = useState<CustomerRecord[]>([])
+
+  const [branchFilter, setBranchFilter] = useState('all')
+  const [customerFilter, setCustomerFilter] = useState('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+
+  const [records, setRecords] = useState<CreditKardexRow[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const resolvedBranchId = useMemo(() => {
+    if (activeRole !== 'admin') return activeBranchId
+    return branchFilter === 'all' ? null : branchFilter
+  }, [activeRole, activeBranchId, branchFilter])
+
+  useEffect(() => {
+    const syncContext = () => {
+      const context = getActiveUserContext()
+      setActiveRole(context.role)
+      setActiveBranchId(context.branch_id)
+      if (context.role !== 'admin') {
+        setBranchFilter(context.branch_id)
+      }
+    }
+
+    syncContext()
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, syncContext)
+    }
+  }, [])
+
+  useEffect(() => {
+    const loadFilters = async () => {
+      try {
+        const [branchRows, customerRows] = await Promise.all([
+          branchesService.getAll(),
+          customersService.getList({
+            branch_id: resolvedBranchId,
+            search: null,
+            include_inactive: false,
+          }),
+        ])
+
+        setBranches(branchRows)
+        setCustomers(customerRows)
+        setCustomerFilter((prev) => (prev !== 'all' && !customerRows.some((item) => item.id === prev) ? 'all' : prev))
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar filtros')
+      }
+    }
+
+    void loadFilters()
+  }, [resolvedBranchId])
+
+  useEffect(() => {
+    const loadKardex = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const rows = await creditsService.getKardex({
+          branch_id: resolvedBranchId,
+          customer_id: customerFilter === 'all' ? null : customerFilter,
+          from: fromDate || null,
+          to: toDate || null,
+        })
+        setRecords(rows)
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar movimientos')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void loadKardex()
+  }, [resolvedBranchId, customerFilter, fromDate, toDate])
+
   return (
     <MainLayout>
       <div className="space-y-6">
         <PageHeader title="Historial de cobros" description="Movimientos históricos de créditos y cuentas por cobrar" />
         <CreditsSubnav />
 
-        <Card className="bg-zinc-950/70 border-zinc-800">
-          <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Input placeholder="Cliente" />
-            <Input placeholder="Sucursal" />
-            <Input type="date" />
+        <Card>
+          <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="space-y-2">
+              <Label>Sucursal</Label>
+              <Select value={branchFilter} onValueChange={setBranchFilter} disabled={activeRole !== 'admin'}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {branches.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Cliente</Label>
+              <Select value={customerFilter} onValueChange={setCustomerFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Desde</Label>
+              <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Hasta</Label>
+              <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-zinc-950/70">
-          <CardHeader><CardTitle className="text-zinc-100">Movimientos</CardTitle></CardHeader>
+        <Card>
+          <CardHeader>
+            <CardTitle>Movimientos</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
-            {records.map((record) => (
-              <div key={record.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
-                <p className="font-semibold text-zinc-100">{record.id} - {record.movement}</p>
-                <p className="text-zinc-400">Cliente: {record.customer} | Sucursal: {record.branch}</p>
-                <p className="text-zinc-300">Monto: {record.amount} | Fecha: {record.date}</p>
-              </div>
-            ))}
+            {isLoading ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Cargando movimientos...</p>
+            ) : records.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No hay movimientos para los filtros seleccionados.</p>
+            ) : (
+              records.map((record) => (
+                <div key={record.movement_id} className="rounded-lg border border-border bg-card/70 p-3 text-sm">
+                  <p className="font-semibold text-foreground">{record.credit_id} - {formatMovement(record.movement_type)}</p>
+                  <p className="text-muted-foreground">Cliente: {record.customer_name} | Sucursal: {record.branch_name}</p>
+                  <p className="text-foreground/90">Monto: Bs {Number(record.amount).toFixed(2)} | Fecha: {record.movement_date}</p>
+                </div>
+              ))
+            )}
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </CardContent>
         </Card>
       </div>

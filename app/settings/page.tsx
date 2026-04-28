@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,27 +8,99 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { getAppSettings, saveAppSettings, type AppSettingsRecord } from '@/lib/mock/runtime-store'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { getSupabaseClient } from '@/lib/supabase/client'
+import type { AppSettings } from '@/types/database'
+
+const WEEK_DAYS = [
+  { value: 0, label: 'Domingo' },
+  { value: 1, label: 'Lunes' },
+  { value: 2, label: 'Martes' },
+  { value: 3, label: 'Miércoles' },
+  { value: 4, label: 'Jueves' },
+  { value: 5, label: 'Viernes' },
+  { value: 6, label: 'Sábado' },
+]
+
+const fallbackSettings: AppSettings = {
+  id: '',
+  settings_key: 'default',
+  company_name: '',
+  company_email: null,
+  company_phone: null,
+  default_currency: 'BOB',
+  usd_to_bob_rate: 6.96,
+  max_open_credits_per_customer: 2,
+  credit_reminder_weekly_day: 1,
+  credit_due_daily_threshold_days: 5,
+  created_by: null,
+  updated_by: null,
+  created_at: '',
+  updated_at: '',
+}
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
-  const [settings, setSettings] = useState<AppSettingsRecord | null>(null)
+  const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const weeklyLabel = useMemo(() => {
+    const value = settings?.credit_reminder_weekly_day ?? 1
+    return WEEK_DAYS.find((day) => day.value === value)?.label || 'Lunes'
+  }, [settings?.credit_reminder_weekly_day])
+
+  const loadSettings = async () => {
+    setError(null)
+    setFeedback(null)
+    const supabase = getSupabaseClient()
+    const { data, error: loadError } = await supabase.rpc('get_app_settings')
+
+    if (loadError) {
+      setError(`No se pudo cargar configuración: ${loadError.message}`)
+      setSettings(fallbackSettings)
+      return
+    }
+
+    const row = Array.isArray(data) ? data[0] : data
+    setSettings((row as AppSettings | null) || fallbackSettings)
+  }
 
   useEffect(() => {
     setMounted(true)
-    setSettings(getAppSettings())
+    void loadSettings()
   }, [])
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     if (!settings) return
-    saveAppSettings(settings)
+    setIsSaving(true)
+    setError(null)
+    setFeedback(null)
+
+    try {
+      const supabase = getSupabaseClient()
+      const { error: saveError } = await supabase.rpc('set_app_settings', {
+        p_company_name: settings.company_name,
+        p_company_email: settings.company_email ?? null,
+        p_company_phone: settings.company_phone ?? null,
+        p_default_currency: settings.default_currency,
+        p_usd_to_bob_rate: settings.usd_to_bob_rate,
+        p_max_open_credits_per_customer: settings.max_open_credits_per_customer,
+        p_credit_reminder_weekly_day: settings.credit_reminder_weekly_day,
+        p_credit_due_daily_threshold_days: settings.credit_due_daily_threshold_days,
+      })
+
+      if (saveError) {
+        setError(`No se pudo guardar configuración: ${saveError.message}`)
+        return
+      }
+
+      setFeedback('Configuración guardada correctamente.')
+      await loadSettings()
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   if (!mounted) {
@@ -48,7 +120,6 @@ export default function SettingsPage() {
         description="Gestiona la configuración del sistema"
       />
 
-      {/* General Settings */}
       <Card className="mb-6 bg-card">
         <CardHeader>
           <CardTitle className="text-foreground">Configuración General</CardTitle>
@@ -125,12 +196,51 @@ export default function SettingsPage() {
               />
               <p className="text-xs text-muted-foreground">Se bloquea la creación de nuevos créditos cuando el cliente alcance o supere este límite.</p>
             </div>
+            <div className="space-y-2">
+              <Label className="text-foreground">Día semanal de recordatorio</Label>
+              <Select
+                value={String(settings?.credit_reminder_weekly_day ?? 1)}
+                onValueChange={(value) => setSettings((prev) => prev ? { ...prev, credit_reminder_weekly_day: Number(value) } : prev)}
+              >
+                <SelectTrigger className="bg-input border-border text-foreground">
+                  <SelectValue placeholder={weeklyLabel} />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {WEEK_DAYS.map((day) => (
+                    <SelectItem key={day.value} value={String(day.value)}>
+                      {day.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-foreground">Umbral para alerta diaria (días)</Label>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={settings?.credit_due_daily_threshold_days ?? 5}
+                onChange={(event) => {
+                  const parsed = Math.floor(Number(event.target.value))
+                  setSettings((prev) => prev ? {
+                    ...prev,
+                    credit_due_daily_threshold_days: Number.isFinite(parsed) && parsed > 0 ? parsed : 1,
+                  } : prev)
+                }}
+                className="bg-input border-border text-foreground"
+              />
+              <p className="text-xs text-muted-foreground">Cuando faltan estos días o menos, el recordatorio se vuelve diario.</p>
+            </div>
           </div>
-          <Button className="w-full md:w-auto" onClick={handleSaveSettings}>Guardar Cambios</Button>
+          {feedback ? <p className="text-sm text-primary">{feedback}</p> : null}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <Button className="w-full md:w-auto" onClick={handleSaveSettings} disabled={isSaving}>
+            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+          </Button>
         </CardContent>
       </Card>
 
-      {/* System Information */}
       <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-foreground">Información del Sistema</CardTitle>

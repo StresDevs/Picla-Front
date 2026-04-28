@@ -1,36 +1,120 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { CreditsSubnav } from '@/components/modules/credits/credits-subnav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { creditsService, type CreditAlertRow } from '@/lib/supabase/credits'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 
-const alerts = [
-  { id: 'ALT-01', creditId: 'CR-2026-001', customer: 'Juan García', branch: 'Sucursal Centro', due: '2026-03-20', frequency: '2 veces al día', status: 'Próximo a vencer' },
-  { id: 'ALT-02', creditId: 'CR-2026-007', customer: 'María T.', branch: 'Sucursal Norte', due: '2026-03-18', frequency: '2 veces al día', status: 'Vencido' },
-]
+function formatAlertType(alert: CreditAlertRow) {
+  if (alert.alert_type === 'daily_due') return 'Diario'
+  if (alert.alert_type === 'weekly') return 'Semanal'
+  return 'Pendiente'
+}
+
+function formatStatus(status: CreditAlertRow['status']) {
+  if (status === 'overdue') return 'Vencido'
+  if (status === 'paid') return 'Pagado'
+  return 'Activo'
+}
 
 export default function CreditsAlertsPage() {
+  const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
+  const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
+
+  const [alerts, setAlerts] = useState<CreditAlertRow[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const branchScope = activeRole === 'admin' ? null : activeBranchId
+
+  const loadAlerts = async () => {
+    setIsLoading(true)
+    setFeedback(null)
+    setError(null)
+    try {
+      const rows = await creditsService.getAlerts({ branch_id: branchScope })
+      setAlerts(rows)
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar alertas')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const syncContext = () => {
+      const context = getActiveUserContext()
+      setActiveRole(context.role)
+      setActiveBranchId(context.branch_id)
+    }
+
+    syncContext()
+    void loadAlerts()
+
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
+
+    return () => {
+      window.removeEventListener(ACTIVE_ROLE_EVENT, syncContext)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadAlerts()
+  }, [branchScope])
+
+  const summaryText = useMemo(() => {
+    if (alerts.length === 0) return 'Sin alertas activas.'
+    return `${alerts.length} alertas activas.`
+  }, [alerts.length])
+
+  const handleMarkSeen = async (creditId: string) => {
+    setFeedback(null)
+    setError(null)
+    try {
+      await creditsService.markAlertSeen(creditId)
+      setFeedback('Recordatorio marcado como visto.')
+      await loadAlerts()
+    } catch (markError) {
+      setError(markError instanceof Error ? markError.message : 'No se pudo marcar el recordatorio')
+    }
+  }
+
   return (
     <MainLayout>
       <div className="space-y-6">
         <PageHeader title="Alertas de Crédito" description="Recordatorios por vencimiento para sucursal y propietario" />
         <CreditsSubnav />
 
-        <Card className="border-amber-500/45 bg-zinc-950/70">
-          <CardHeader><CardTitle className="text-zinc-100">Recordatorios activos</CardTitle></CardHeader>
+        <Card>
+          <CardHeader>
+            <CardTitle>Recordatorios activos</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
-            {alerts.map((alert) => (
-              <div key={alert.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
-                <p className="font-semibold text-zinc-100">{alert.creditId} - {alert.customer}</p>
-                <p className="text-zinc-400">{alert.branch} | Vence: {alert.due} | Frecuencia: {alert.frequency}</p>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-amber-300">{alert.status}</span>
-                  <Button size="sm" variant="outline">Marcar visto</Button>
+            {isLoading ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Cargando alertas...</p>
+            ) : alerts.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">{summaryText}</p>
+            ) : (
+              alerts.map((alert) => (
+                <div key={alert.credit_id} className="rounded-lg border border-border bg-card/70 p-3 text-sm">
+                  <p className="font-semibold text-foreground">{alert.credit_id} - {alert.customer_name}</p>
+                  <p className="text-muted-foreground">
+                    {alert.branch_name} | Vence: {new Date(alert.due_date).toLocaleDateString('es-BO')} | Frecuencia: {formatAlertType(alert)}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-amber-500">{formatStatus(alert.status)}</span>
+                    <Button size="sm" variant="outline" onClick={() => handleMarkSeen(alert.credit_id)}>Marcar visto</Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
+            {feedback ? <p className="text-sm text-primary">{feedback}</p> : null}
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </CardContent>
         </Card>
       </div>
