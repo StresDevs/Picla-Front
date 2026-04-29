@@ -175,19 +175,21 @@ export function Sidebar() {
         if (!authUser?.id) return
 
         const supabase = getSupabaseClient()
-        const { data: profile } = await supabase
+        const { data } = await supabase
           .rpc('get_current_user_profile')
           .single()
+          
+        const profile = data as any
 
         if (!profile) return
 
-        const resolvedRole = normalizeRole(profile.role_name)
-        const fallbackBranchId = profile.branch_id || 'branch-1'
+        const resolvedRole = normalizeRole(profile?.role_name)
+        const fallbackBranchId = profile?.branch_id || 'branch-1'
         const resolvedUserName =
-          profile.full_name ||
+          profile?.full_name ||
           (authUser.user_metadata as { full_name?: string } | undefined)?.full_name ||
           'Usuario'
-        const resolvedBranchName = profile.branch_name || 'Sin sucursal'
+        const resolvedBranchName = profile?.branch_name || 'Sin sucursal'
 
         if (resolvedRole === 'admin') {
           const { data: branches } = await supabase

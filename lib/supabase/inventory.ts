@@ -829,7 +829,7 @@ export const entriesService = {
       quantity: Number(row.quantity || 0),
       unit_cost: row.unit_cost === null ? null : Number(row.unit_cost),
       unit_price: row.unit_price === null ? null : Number(row.unit_price),
-      currency: row.currency === 'USD' ? 'USD' : 'BOB',
+      currency: (row.currency === 'USD' ? 'USD' : 'BOB') as 'BOB' | 'USD',
       exchange_rate: row.exchange_rate === null ? null : Number(row.exchange_rate),
       source_reference: row.source_reference,
       supplier_name: row.supplier_name,

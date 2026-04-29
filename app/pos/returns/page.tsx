@@ -201,7 +201,7 @@ export default function POSReturnsPage() {
                 { key: 'total_return_amount', label: 'Monto', render: (value) => `Bs ${Number(value || 0).toFixed(2)}` },
                 { key: 'status', label: 'Estado', render: (value) => String(value) },
               ]}
-              data={returns}
+              data={returns.map((r) => ({ ...r, id: r.return_id }))}
               emptyMessage={isLoading ? 'Cargando devoluciones...' : 'No hay devoluciones registradas'}
             />
           </CardContent>

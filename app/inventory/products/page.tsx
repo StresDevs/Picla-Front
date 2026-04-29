@@ -1359,8 +1359,14 @@ export default function InventoryProductsPage() {
                 <div className="relative aspect-[3/4] overflow-hidden">
                   <img src={part.image_url || '/placeholder.svg'} alt={part.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/placeholder.svg' }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-3 left-3 flex flex-col gap-1.5">
                     <Badge className="bg-primary/90 text-primary-foreground">{part.code}</Badge>
+                    {part.tracking_mode === 'serial' && (
+                      <Badge className="bg-sky-500/90 text-white border-sky-400/50 text-[10px] px-1.5">Serie</Badge>
+                    )}
+                    {part.tracking_mode === 'lot' && (
+                      <Badge className="bg-amber-500/90 text-black border-amber-400/50 text-[10px] px-1.5">Lote</Badge>
+                    )}
                   </div>
                   <div className="absolute bottom-3 left-3 right-3">
                     <p className="text-white text-sm font-semibold line-clamp-2">{part.name}</p>
@@ -1381,11 +1387,22 @@ export default function InventoryProductsPage() {
                   <div className="text-xs text-muted-foreground">
                     Cotización: <span className="font-semibold text-foreground">Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Seguimiento: <span className="font-semibold text-foreground">{getTrackingModeLabel(part.tracking_mode)}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Serialización: <span className="font-semibold text-foreground">{part.requires_serialization ? 'sí' : 'no'}</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {part.tracking_mode === 'serial' && (
+                      <span className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-400">
+                        Control por serie
+                      </span>
+                    )}
+                    {part.tracking_mode === 'lot' && (
+                      <span className="inline-flex items-center rounded-full border border-amber-400/50 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                        Control por lote
+                      </span>
+                    )}
+                    {part.tracking_mode === 'none' && (
+                      <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        Sin seguimiento
+                      </span>
+                    )}
                   </div>
                   <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-[11px]">
                     {tiers.length === 0 ? (
