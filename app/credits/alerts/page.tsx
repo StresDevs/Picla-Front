@@ -7,6 +7,8 @@ import { CreditsSubnav } from '@/components/modules/credits/credits-subnav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { creditsService, type CreditAlertRow } from '@/lib/supabase/credits'
+import { getSupabaseClient } from '@/lib/supabase/client'
+import { toast } from '@/hooks/use-toast'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 
 function formatAlertType(alert: CreditAlertRow) {
@@ -27,20 +29,21 @@ export default function CreditsAlertsPage() {
 
   const [alerts, setAlerts] = useState<CreditAlertRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [feedback, setFeedback] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   const branchScope = activeRole === 'admin' ? null : activeBranchId
 
   const loadAlerts = async () => {
     setIsLoading(true)
-    setFeedback(null)
-    setError(null)
     try {
       const rows = await creditsService.getAlerts({ branch_id: branchScope })
       setAlerts(rows)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar alertas')
+      toast({
+        title: 'Error al cargar alertas',
+        description:
+          loadError instanceof Error ? loadError.message : 'No se pudieron cargar alertas',
+        variant: 'destructive',
+      })
     } finally {
       setIsLoading(false)
     }
@@ -54,7 +57,6 @@ export default function CreditsAlertsPage() {
     }
 
     syncContext()
-    void loadAlerts()
 
     window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
 
@@ -64,7 +66,92 @@ export default function CreditsAlertsPage() {
   }, [])
 
   useEffect(() => {
-    void loadAlerts()
+    let eventSource: EventSource | null = null
+    let isActive = true
+
+    const startStream = async () => {
+      setIsLoading(true)
+      try {
+        const supabase = getSupabaseClient()
+        const { data } = await supabase.auth.getSession()
+        const token = data.session?.access_token
+
+        if (!token) {
+          toast({
+            title: 'Sesion expirada',
+            description: 'Vuelve a iniciar sesion para ver las alertas de credito.',
+            variant: 'destructive',
+          })
+          setIsLoading(false)
+          return
+        }
+
+        const params = new URLSearchParams({ token })
+        if (branchScope) {
+          params.set('branch_id', branchScope)
+        }
+
+        eventSource = new EventSource(`/api/credits/alerts/stream?${params.toString()}`)
+
+        eventSource.addEventListener('alerts', (event) => {
+          if (!isActive) return
+          try {
+            const data = JSON.parse(event.data) as CreditAlertRow[]
+            setAlerts(data)
+          } catch (parseError) {
+            toast({
+              title: 'Error al procesar alertas',
+              description: parseError instanceof Error ? parseError.message : 'Respuesta invalida',
+              variant: 'destructive',
+            })
+          } finally {
+            setIsLoading(false)
+          }
+        })
+
+        eventSource.addEventListener('error', (event) => {
+          if (!isActive) return
+          try {
+            const payload = JSON.parse((event as MessageEvent).data) as { error?: string }
+            toast({
+              title: 'Error en alertas',
+              description: payload.error || 'No se pudo actualizar alertas',
+              variant: 'destructive',
+            })
+          } catch {
+            toast({
+              title: 'Error en alertas',
+              description: 'No se pudo actualizar alertas',
+              variant: 'destructive',
+            })
+          }
+        })
+
+        eventSource.onerror = () => {
+          if (!isActive) return
+          toast({
+            title: 'Conexion interrumpida',
+            description: 'Intentando restablecer alertas en tiempo real.',
+            variant: 'destructive',
+          })
+        }
+      } catch (streamError) {
+        toast({
+          title: 'Error al iniciar alertas',
+          description:
+            streamError instanceof Error ? streamError.message : 'No se pudo iniciar el stream',
+          variant: 'destructive',
+        })
+        setIsLoading(false)
+      }
+    }
+
+    void startStream()
+
+    return () => {
+      isActive = false
+      eventSource?.close()
+    }
   }, [branchScope])
 
   const summaryText = useMemo(() => {
@@ -73,14 +160,20 @@ export default function CreditsAlertsPage() {
   }, [alerts.length])
 
   const handleMarkSeen = async (creditId: string) => {
-    setFeedback(null)
-    setError(null)
     try {
       await creditsService.markAlertSeen(creditId)
-      setFeedback('Recordatorio marcado como visto.')
+      toast({
+        title: 'Recordatorio actualizado',
+        description: 'Se marco el recordatorio como visto.',
+      })
       await loadAlerts()
     } catch (markError) {
-      setError(markError instanceof Error ? markError.message : 'No se pudo marcar el recordatorio')
+      toast({
+        title: 'No se pudo marcar el recordatorio',
+        description:
+          markError instanceof Error ? markError.message : 'Intenta nuevamente en unos segundos',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -113,8 +206,6 @@ export default function CreditsAlertsPage() {
                 </div>
               ))
             )}
-            {feedback ? <p className="text-sm text-primary">{feedback}</p> : null}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </CardContent>
         </Card>
       </div>

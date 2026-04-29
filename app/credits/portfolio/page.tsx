@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { creditsService, type CreditPortfolioRow } from '@/lib/supabase/credits'
 import { customersService, type CustomerRecord } from '@/lib/supabase/customers'
+import { toast } from '@/hooks/use-toast'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 
 export default function CreditsPortfolioPage() {
@@ -21,7 +22,6 @@ export default function CreditsPortfolioPage() {
   const [customerIdFilter, setCustomerIdFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const branchScope = activeRole === 'admin' ? null : activeBranchId
 
@@ -42,7 +42,6 @@ export default function CreditsPortfolioPage() {
 
   useEffect(() => {
     const loadCustomers = async () => {
-      setError(null)
       try {
         const rows = await customersService.getList({
           branch_id: branchScope,
@@ -52,7 +51,12 @@ export default function CreditsPortfolioPage() {
         setCustomers(rows)
         setCustomerIdFilter((prev) => (prev !== 'all' && !rows.some((item) => item.id === prev) ? 'all' : prev))
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar clientes')
+        toast({
+          title: 'Error al cargar clientes',
+          description:
+            loadError instanceof Error ? loadError.message : 'No se pudieron cargar clientes',
+          variant: 'destructive',
+        })
       }
     }
 
@@ -62,7 +66,6 @@ export default function CreditsPortfolioPage() {
   useEffect(() => {
     const loadCredits = async () => {
       setIsLoading(true)
-      setError(null)
       try {
         const rows = await creditsService.getPortfolio({
           branch_id: branchScope,
@@ -71,7 +74,12 @@ export default function CreditsPortfolioPage() {
         })
         setCredits(rows)
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar créditos')
+        toast({
+          title: 'Error al cargar créditos',
+          description:
+            loadError instanceof Error ? loadError.message : 'No se pudieron cargar créditos',
+          variant: 'destructive',
+        })
       } finally {
         setIsLoading(false)
       }
@@ -178,7 +186,6 @@ export default function CreditsPortfolioPage() {
                 </article>
               ))
             )}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </CardContent>
         </Card>
       </div>

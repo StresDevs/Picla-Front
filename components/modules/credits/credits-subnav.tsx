@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const items = [
-  { label: 'Nuevo Crédito', href: '/credits/new' },
   { label: 'Cartera', href: '/credits/portfolio' },
   { label: 'Pagos', href: '/credits/payments' },
   { label: 'Alertas', href: '/credits/alerts' },

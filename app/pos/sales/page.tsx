@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode } from 'lucide-react'
+import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins } from 'lucide-react'
 import {
   ACTIVE_ROLE_EVENT,
   canRoleCompleteSale,
@@ -27,7 +28,9 @@ import {
 import { mockBranches } from '@/lib/mock/data'
 import { printMockInvoice } from '@/lib/mock/invoice'
 import { posService, type POSCatalogItem, type POSQueuedSale, type POSQueueLineInput } from '@/lib/supabase/pos'
+import { creditsService } from '@/lib/supabase/credits'
 import { customersService, type CustomerRecord } from '@/lib/supabase/customers'
+import { toast } from '@/hooks/use-toast'
 
 interface CartItem {
   id: string
@@ -49,6 +52,7 @@ const PAYMENT_METHODS = [
   { id: 'cash', label: 'Efectivo', icon: DollarSign },
   { id: 'card', label: 'Tarjeta', icon: CreditCard },
   { id: 'qr', label: 'QR/Transferencia', icon: QrCode },
+  { id: 'credit', label: 'Credito', icon: HandCoins },
 ] as const
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -102,18 +106,25 @@ function extractErrorMessage(error: unknown, fallback: string) {
     const hint = typeof candidate.hint === 'string' ? candidate.hint.trim() : ''
     const code = typeof candidate.code === 'string' ? candidate.code.trim() : ''
 
-    const parts = [message, details, hint].filter((part) => part.length > 0)
-    if (parts.length > 0) {
-      return toFriendlySaleError(parts.join(' | '))
-    }
-
     if (code.length > 0) {
       return toFriendlySaleError(code)
     }
+
+    const parts = [message, details, hint].filter((part) => part.length > 0)
+    if (parts.length > 0) {
+      return toFriendlySaleError(parts.join(' — '))
+    }
   }
 
-  if (error instanceof Error && error.message) return toFriendlySaleError(error.message)
   return fallback
+}
+
+function parseDateInput(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const [year, month, day] = trimmed.split('-').map(Number)
+  if (!year || !month || !day) return null
+  return new Date(year, month - 1, day)
 }
 
 export default function POSSalesPage() {
@@ -122,14 +133,12 @@ export default function POSSalesPage() {
   const [queuedSales, setQueuedSales] = useState<POSQueuedSale[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedPayment, setSelectedPayment] = useState<'cash' | 'card' | 'qr'>('cash')
+  const [selectedPayment, setSelectedPayment] = useState<'cash' | 'card' | 'qr' | 'credit'>('cash')
   const [paymentCurrency, setPaymentCurrency] = useState<'BOB' | 'USD'>('BOB')
   const [exchangeRate, setExchangeRate] = useState(6.96)
   const [activeRole, setActiveRole] = useState<AppUserRole>('employee')
   const [activeUserName, setActiveUserName] = useState('Usuario')
   const [activeBranchId, setActiveBranchId] = useState('branch-1')
-  const [feedback, setFeedback] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [printInvoiceOnSale, setPrintInvoiceOnSale] = useState(true)
@@ -137,6 +146,12 @@ export default function POSSalesPage() {
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [anonymousSale, setAnonymousSale] = useState(true)
+  const [creditInitialPayment, setCreditInitialPayment] = useState('0')
+  const [creditInitialPaymentMethod, setCreditInitialPaymentMethod] = useState<'cash' | 'card' | 'qr'>('cash')
+  const [creditDueDays, setCreditDueDays] = useState('10')
+  const [creditReminderDate, setCreditReminderDate] = useState('')
+  const [creditNotes, setCreditNotes] = useState('')
+  const [creditSellerName, setCreditSellerName] = useState(getActiveUserContext().user_name || '')
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false)
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
   const [newCustomer, setNewCustomer] = useState<NewCustomerForm>({
@@ -150,6 +165,11 @@ export default function POSSalesPage() {
   const canCompleteSale = canRoleCompleteSale(activeRole)
   const canQueueSale = activeRole === 'read_only'
   const canApproveQueue = activeRole === 'admin' || activeRole === 'manager' || activeRole === 'employee'
+  const isCreditSale = selectedPayment === 'credit'
+  const availablePaymentMethods = useMemo(
+    () => (canQueueSale ? PAYMENT_METHODS.filter((method) => method.id !== 'credit') : PAYMENT_METHODS),
+    [canQueueSale],
+  )
 
   const branchCustomers = useMemo(() => {
     const scopedCustomers = customers.filter(
@@ -181,7 +201,6 @@ export default function POSSalesPage() {
   const reloadPOSData = async (branchId?: string | null) => {
     const targetBranch = normalizeBranchId(branchId) ?? normalizeBranchId(getActiveUserContext().branch_id)
     setIsLoading(true)
-    setError(null)
 
     try {
       const [catalogData, queuedData, customersData] = await Promise.all([
@@ -206,7 +225,11 @@ export default function POSSalesPage() {
         return customersData[0]?.id || ''
       })
     } catch (loadError) {
-      setError(extractErrorMessage(loadError, 'No se pudo cargar el módulo de ventas'))
+      toast({
+        title: 'Error al cargar POS',
+        description: extractErrorMessage(loadError, 'No se pudo cargar el módulo de ventas'),
+        variant: 'destructive',
+      })
     } finally {
       setIsLoading(false)
     }
@@ -262,9 +285,29 @@ export default function POSSalesPage() {
     }
   }, [anonymousSale, branchCustomers, selectedCustomerId])
 
+  useEffect(() => {
+    if (canQueueSale && selectedPayment === 'credit') {
+      setSelectedPayment('cash')
+    }
+  }, [canQueueSale, selectedPayment])
+
+  useEffect(() => {
+    if (selectedPayment === 'credit') {
+      setAnonymousSale(false)
+    }
+  }, [selectedPayment])
+
+  useEffect(() => {
+    setCreditSellerName((prev) => prev || activeUserName)
+  }, [activeUserName])
+
   const addToCart = (product: POSCatalogItem) => {
     if (product.stock <= 0) {
-      setFeedback('Este producto no tiene stock disponible en la sucursal activa.')
+      toast({
+        title: 'Sin stock disponible',
+        description: 'Este producto no tiene stock disponible en la sucursal activa.',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -333,17 +376,23 @@ export default function POSSalesPage() {
     const nitCi = newCustomer.nit_ci.trim()
 
     if (!fullName) {
-      setError('El nombre del cliente es obligatorio.')
+      toast({
+        title: 'Nombre obligatorio',
+        description: 'El nombre del cliente es obligatorio.',
+        variant: 'destructive',
+      })
       return
     }
 
     if (!nitCi) {
-      setError('El NIT/CI del cliente es obligatorio.')
+      toast({
+        title: 'NIT/CI obligatorio',
+        description: 'El NIT/CI del cliente es obligatorio.',
+        variant: 'destructive',
+      })
       return
     }
 
-    setError(null)
-    setFeedback(null)
     setIsCreatingCustomer(true)
 
     try {
@@ -367,9 +416,16 @@ export default function POSSalesPage() {
       setAnonymousSale(false)
       setShowNewCustomerForm(false)
       setNewCustomer({ full_name: '', nit_ci: '', phone: '', email: '' })
-      setFeedback(`Cliente creado: ${created.full_name}`)
+      toast({
+        title: 'Cliente creado',
+        description: `Cliente creado: ${created.full_name}`,
+      })
     } catch (createError) {
-      setError(extractErrorMessage(createError, 'No se pudo crear el cliente'))
+      toast({
+        title: 'No se pudo crear el cliente',
+        description: extractErrorMessage(createError, 'No se pudo crear el cliente'),
+        variant: 'destructive',
+      })
     } finally {
       setIsCreatingCustomer(false)
     }
@@ -377,17 +433,107 @@ export default function POSSalesPage() {
 
   const completeOrQueueSale = async () => {
     if (cart.length === 0) {
-      setFeedback('Agrega productos al carrito antes de procesar la venta.')
+      toast({
+        title: 'Carrito vacío',
+        description: 'Agrega productos al carrito antes de procesar la venta.',
+        variant: 'destructive',
+      })
       return false
     }
 
     if (!anonymousSale && !selectedCustomer) {
-      setError('Selecciona un cliente o activa la venta anónima antes de confirmar.')
+      toast({
+        title: 'Cliente requerido',
+        description: 'Selecciona un cliente o activa la venta anónima antes de confirmar.',
+        variant: 'destructive',
+      })
       return false
     }
 
-    setError(null)
-    setFeedback(null)
+    if (isCreditSale) {
+      if (canQueueSale) {
+        toast({
+          title: 'Credito no disponible en cola',
+          description: 'Las ventas a credito deben completarse con rol de venta directa.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      if (!selectedCustomer) {
+        toast({
+          title: 'Cliente requerido',
+          description: 'Selecciona un cliente para registrar el credito.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      if (!creditSellerName.trim()) {
+        toast({
+          title: 'Vendedor requerido',
+          description: 'Ingresa el vendedor responsable del credito.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      const parsedInitial = Number(creditInitialPayment)
+      if (!Number.isFinite(parsedInitial) || parsedInitial < 0) {
+        toast({
+          title: 'Pago inicial invalido',
+          description: 'El pago inicial debe ser mayor o igual a 0.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      if (parsedInitial > cartTotalBob) {
+        toast({
+          title: 'Pago inicial excede el total',
+          description: 'El pago inicial no puede superar el total de la venta.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      const parsedDays = Math.floor(Number(creditDueDays))
+      if (!Number.isFinite(parsedDays) || parsedDays <= 0) {
+        toast({
+          title: 'Dias de plazo invalidos',
+          description: 'Los dias de plazo deben ser mayores a 0.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      const reminder = parseDateInput(creditReminderDate)
+      if (creditReminderDate && !reminder) {
+        toast({
+          title: 'Fecha invalida',
+          description: 'La fecha de recordatorio no es valida.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      if (reminder) {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const dueDate = new Date(today)
+        dueDate.setDate(dueDate.getDate() + parsedDays)
+
+        if (reminder < today || reminder > dueDate) {
+          toast({
+            title: 'Recordatorio fuera de rango',
+            description: 'La fecha debe estar entre hoy y la fecha de vencimiento.',
+            variant: 'destructive',
+          })
+          return false
+        }
+      }
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -399,7 +545,7 @@ export default function POSSalesPage() {
         const queueId = await posService.enqueueSale({
           branch_id: branchId,
           customer_name: resolvedCustomerName,
-          payment_method: selectedPayment,
+          payment_method: (selectedPayment === 'credit' ? 'cash' : selectedPayment) as 'cash' | 'card' | 'qr',
           payment_currency: paymentCurrency,
           exchange_rate: safeExchangeRate,
           sale_mode: saleMode,
@@ -409,23 +555,30 @@ export default function POSSalesPage() {
 
         setCart([])
         await reloadPOSData(branchId)
-        setFeedback(`Venta encolada correctamente: ${queueId}`)
+        toast({
+          title: 'Venta en cola',
+          description: `Venta encolada correctamente: ${queueId}`,
+        })
         return true
       }
 
       if (!canCompleteSale) {
-        setFeedback('Tu rol no tiene permiso para completar ventas.')
+        toast({
+          title: 'Permiso insuficiente',
+          description: 'Tu rol no tiene permiso para completar ventas.',
+          variant: 'destructive',
+        })
         return
       }
 
-      const result = await posService.createSale({
+      const saleResult = await posService.createSale({
         branch_id: branchId,
         customer_name: resolvedCustomerName,
-        payment_method: selectedPayment,
+        payment_method: selectedPayment === 'credit' ? 'cash' : selectedPayment,
         payment_currency: paymentCurrency,
         exchange_rate: safeExchangeRate,
         sale_mode: saleMode,
-        advance_amount: 0,
+        advance_amount: isCreditSale ? Number(creditInitialPayment) || 0 : 0,
         items,
         metadata: {
           ui_module: 'pos/sales',
@@ -434,11 +587,37 @@ export default function POSSalesPage() {
           customer_name: selectedCustomer?.full_name ?? resolvedCustomerName,
           customer_nit_ci: selectedCustomer?.nit_ci ?? null,
           customer_is_anonymous: anonymousSale,
+          payment_type: isCreditSale ? 'credit' : selectedPayment,
         },
       })
 
+      const result = saleResult
+
       if (!result?.sale_id) {
         throw new Error('No se pudo obtener el identificador de la venta creada')
+      }
+
+      if (isCreditSale) {
+        try {
+          await creditsService.create({
+            sale_id: result.sale_id,
+            customer_id: selectedCustomer!.id,
+            product_name: cart.map((c) => c.name).join(', '),
+            branch_id: branchId ?? activeBranchId,
+            seller_name: creditSellerName.trim(),
+            total_amount: cartTotalBob,
+            paid_amount: Number(creditInitialPayment) || 0,
+            due_days: Math.floor(Number(creditDueDays)),
+            reminder_date: creditReminderDate || null,
+            notes: creditNotes.trim() || null,
+          })
+        } catch (creditErr) {
+          toast({
+            title: 'Venta creada pero fallo el credito',
+            description: extractErrorMessage(creditErr, 'No se pudo registrar el credito'),
+            variant: 'destructive',
+          })
+        }
       }
 
       if (printInvoiceOnSale) {
@@ -460,10 +639,24 @@ export default function POSSalesPage() {
 
       setCart([])
       await reloadPOSData(branchId)
-      setFeedback(`Venta registrada correctamente: ${result.sale_id}`)
+      toast({
+        title: 'Venta registrada',
+        description: `Venta registrada correctamente: ${result.sale_id}`,
+      })
+
+      if (isCreditSale) {
+        setCreditInitialPayment('0')
+        setCreditDueDays('10')
+        setCreditReminderDate('')
+        setCreditNotes('')
+      }
       return true
     } catch (submitError) {
-      setError(extractErrorMessage(submitError, 'No se pudo procesar la venta'))
+      toast({
+        title: 'No se pudo procesar la venta',
+        description: extractErrorMessage(submitError, 'No se pudo procesar la venta'),
+        variant: 'destructive',
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -472,32 +665,42 @@ export default function POSSalesPage() {
   }
 
   const approveQueuedSale = async (queueId: string) => {
-    setError(null)
-    setFeedback(null)
     setIsSubmitting(true)
 
     try {
       const result = await posService.approveQueuedSale({ queue_id: queueId })
       await reloadPOSData(activeBranchId)
-      setFeedback(`Venta en cola aprobada. Venta creada: ${result?.sale_id || 'N/A'}`)
+      toast({
+        title: 'Venta aprobada',
+        description: `Venta en cola aprobada. Venta creada: ${result?.sale_id || 'N/A'}`,
+      })
     } catch (approveError) {
-      setError(extractErrorMessage(approveError, 'No se pudo aprobar la venta en cola'))
+      toast({
+        title: 'No se pudo aprobar la venta',
+        description: extractErrorMessage(approveError, 'No se pudo aprobar la venta en cola'),
+        variant: 'destructive',
+      })
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const rejectQueuedSale = async (queueId: string) => {
-    setError(null)
-    setFeedback(null)
     setIsSubmitting(true)
 
     try {
       await posService.rejectQueuedSale({ queue_id: queueId, reason: 'Rechazada desde POS' })
       await reloadPOSData(activeBranchId)
-      setFeedback('Venta en cola rechazada correctamente.')
+      toast({
+        title: 'Venta rechazada',
+        description: 'Venta en cola rechazada correctamente.',
+      })
     } catch (rejectError) {
-      setError(extractErrorMessage(rejectError, 'No se pudo rechazar la venta en cola'))
+      toast({
+        title: 'No se pudo rechazar la venta',
+        description: extractErrorMessage(rejectError, 'No se pudo rechazar la venta en cola'),
+        variant: 'destructive',
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -528,9 +731,6 @@ export default function POSSalesPage() {
             </div>
           </CardContent>
         </Card>
-
-        {error ? <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div> : null}
-        {feedback ? <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-primary">{feedback}</div> : null}
 
         <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
           <DialogContent className="!w-[min(99vw,1600px)] !max-w-none sm:!max-w-none p-0 overflow-hidden max-h-[95vh]">

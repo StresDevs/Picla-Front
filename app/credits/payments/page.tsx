@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { creditPaymentsService } from '@/lib/supabase/credits'
+import { toast } from '@/hooks/use-toast'
 import type { CreditPayment } from '@/types/database'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 
@@ -24,8 +25,6 @@ export default function CreditsPaymentsPage() {
   const [payments, setPayments] = useState<CreditPayment[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [feedback, setFeedback] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   const canRegister = activeRole !== 'read_only'
 
@@ -54,7 +53,6 @@ export default function CreditsPaymentsPage() {
       }
 
       setIsLoading(true)
-      setError(null)
       try {
         const rows = await creditPaymentsService.getByCredit(trimmed)
         if (isActive) {
@@ -62,7 +60,12 @@ export default function CreditsPaymentsPage() {
         }
       } catch (loadError) {
         if (isActive) {
-          setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar pagos')
+          toast({
+            title: 'Error al cargar pagos',
+            description:
+              loadError instanceof Error ? loadError.message : 'No se pudieron cargar pagos',
+            variant: 'destructive',
+          })
         }
       } finally {
         if (isActive) {
@@ -79,23 +82,32 @@ export default function CreditsPaymentsPage() {
   }, [creditId])
 
   const handleRegisterPayment = async () => {
-    setFeedback(null)
-    setError(null)
-
     const trimmedCreditId = creditId.trim()
     if (!trimmedCreditId) {
-      setFeedback('Debes ingresar el ID del crédito.')
+      toast({
+        title: 'Falta el crédito',
+        description: 'Debes ingresar el ID del crédito.',
+        variant: 'destructive',
+      })
       return
     }
 
     const parsedAmount = Number(amount)
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setFeedback('El monto del pago debe ser mayor a 0.')
+      toast({
+        title: 'Monto inválido',
+        description: 'El monto del pago debe ser mayor a 0.',
+        variant: 'destructive',
+      })
       return
     }
 
     if (!paymentMethod.trim()) {
-      setFeedback('Debes indicar el método de pago.')
+      toast({
+        title: 'Falta método de pago',
+        description: 'Debes indicar el método de pago.',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -109,7 +121,10 @@ export default function CreditsPaymentsPage() {
         notes: notes.trim() || null,
       })
 
-      setFeedback('Pago registrado correctamente.')
+      toast({
+        title: 'Pago registrado',
+        description: 'El pago se guardó correctamente.',
+      })
       setAmount('')
       setPaymentMethod('')
       setPaymentDate('')
@@ -118,7 +133,11 @@ export default function CreditsPaymentsPage() {
       const rows = await creditPaymentsService.getByCredit(trimmedCreditId)
       setPayments(rows)
     } catch (saveError) {
-      setFeedback(saveError instanceof Error ? saveError.message : 'No se pudo registrar el pago')
+      toast({
+        title: 'No se pudo registrar el pago',
+        description: saveError instanceof Error ? saveError.message : 'Intenta nuevamente',
+        variant: 'destructive',
+      })
     } finally {
       setIsSaving(false)
     }
@@ -155,9 +174,6 @@ export default function CreditsPaymentsPage() {
               <Label>Notas</Label>
               <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalle opcional" />
             </div>
-
-            {feedback ? <p className="md:col-span-5 text-sm text-primary">{feedback}</p> : null}
-            {error ? <p className="md:col-span-5 text-sm text-destructive">{error}</p> : null}
 
             <Button className="md:col-span-5" onClick={handleRegisterPayment} disabled={!canRegister || isSaving}>
               {isSaving ? 'Registrando...' : 'Registrar pago'}

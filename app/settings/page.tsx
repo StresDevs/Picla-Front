@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { toast } from '@/hooks/use-toast'
 import type { AppSettings } from '@/types/database'
 
 const WEEK_DAYS = [
@@ -43,8 +44,6 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [feedback, setFeedback] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   const weeklyLabel = useMemo(() => {
     const value = settings?.credit_reminder_weekly_day ?? 1
@@ -52,13 +51,15 @@ export default function SettingsPage() {
   }, [settings?.credit_reminder_weekly_day])
 
   const loadSettings = async () => {
-    setError(null)
-    setFeedback(null)
     const supabase = getSupabaseClient()
     const { data, error: loadError } = await supabase.rpc('get_app_settings')
 
     if (loadError) {
-      setError(`No se pudo cargar configuración: ${loadError.message}`)
+      toast({
+        title: 'Error al cargar configuracion',
+        description: loadError.message,
+        variant: 'destructive',
+      })
       setSettings(fallbackSettings)
       return
     }
@@ -75,8 +76,6 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     if (!settings) return
     setIsSaving(true)
-    setError(null)
-    setFeedback(null)
 
     try {
       const supabase = getSupabaseClient()
@@ -92,11 +91,18 @@ export default function SettingsPage() {
       })
 
       if (saveError) {
-        setError(`No se pudo guardar configuración: ${saveError.message}`)
+        toast({
+          title: 'Error al guardar configuracion',
+          description: saveError.message,
+          variant: 'destructive',
+        })
         return
       }
 
-      setFeedback('Configuración guardada correctamente.')
+      toast({
+        title: 'Configuracion guardada',
+        description: 'Los cambios se aplicaron correctamente.',
+      })
       await loadSettings()
     } finally {
       setIsSaving(false)
@@ -233,8 +239,6 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">Cuando faltan estos días o menos, el recordatorio se vuelve diario.</p>
             </div>
           </div>
-          {feedback ? <p className="text-sm text-primary">{feedback}</p> : null}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button className="w-full md:w-auto" onClick={handleSaveSettings} disabled={isSaving}>
             {isSaving ? 'Guardando...' : 'Guardar Cambios'}
           </Button>

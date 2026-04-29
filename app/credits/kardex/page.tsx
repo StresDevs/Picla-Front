@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { creditsService, type CreditKardexRow } from '@/lib/supabase/credits'
 import { customersService, type CustomerRecord } from '@/lib/supabase/customers'
 import { branchesService } from '@/lib/supabase/inventory'
+import { toast } from '@/hooks/use-toast'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 
 interface BranchOption {
@@ -36,7 +37,6 @@ export default function CreditsKardexPage() {
 
   const [records, setRecords] = useState<CreditKardexRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const resolvedBranchId = useMemo(() => {
     if (activeRole !== 'admin') return activeBranchId
@@ -77,7 +77,12 @@ export default function CreditsKardexPage() {
         setCustomers(customerRows)
         setCustomerFilter((prev) => (prev !== 'all' && !customerRows.some((item) => item.id === prev) ? 'all' : prev))
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar filtros')
+        toast({
+          title: 'Error al cargar filtros',
+          description:
+            loadError instanceof Error ? loadError.message : 'No se pudo cargar filtros',
+          variant: 'destructive',
+        })
       }
     }
 
@@ -87,7 +92,6 @@ export default function CreditsKardexPage() {
   useEffect(() => {
     const loadKardex = async () => {
       setIsLoading(true)
-      setError(null)
       try {
         const rows = await creditsService.getKardex({
           branch_id: resolvedBranchId,
@@ -97,7 +101,12 @@ export default function CreditsKardexPage() {
         })
         setRecords(rows)
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar movimientos')
+        toast({
+          title: 'Error al cargar movimientos',
+          description:
+            loadError instanceof Error ? loadError.message : 'No se pudieron cargar movimientos',
+          variant: 'destructive',
+        })
       } finally {
         setIsLoading(false)
       }
@@ -175,7 +184,6 @@ export default function CreditsKardexPage() {
                 </div>
               ))
             )}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </CardContent>
         </Card>
       </div>
