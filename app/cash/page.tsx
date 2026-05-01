@@ -17,6 +17,7 @@ import {
   type CurrentCashSession,
 } from '@/lib/supabase/cash'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
+import { ErrorAlertModal, parseErrorDetails, type ErrorAlertDetails } from '@/components/common/error-alert-modal'
 import {
   Wallet,
   Clock3,
@@ -52,6 +53,8 @@ function movementTitle(movementType: CashMovement['movement_type']) {
       return 'Venta con tarjeta'
     case 'sale_qr':
       return 'Venta por QR/transferencia'
+    case 'sale_credit_advance' as CashMovement['movement_type']:
+      return 'Pago inicial de venta a crédito'
     case 'sale_return_cash':
       return 'Devolucion de venta en efectivo'
     case 'sale_return_card':
@@ -72,6 +75,7 @@ function isPositiveMovement(movementType: CashMovement['movement_type']) {
     movementType === 'sale_cash' ||
     movementType === 'sale_card' ||
     movementType === 'sale_qr' ||
+    (movementType as string) === 'sale_credit_advance' ||
     movementType === 'manual_income'
   )
 }
@@ -103,6 +107,7 @@ export default function CashPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [criticalError, setCriticalError] = useState<ErrorAlertDetails | null>(null)
 
   const [openModalOpen, setOpenModalOpen] = useState(false)
   const [movementModalOpen, setMovementModalOpen] = useState(false)
@@ -298,7 +303,8 @@ export default function CashPage() {
       await loadCashData()
       setFeedback('Caja abierta correctamente. Se registro snapshot de inventario de apertura.')
     } catch (openError) {
-      setError(openError instanceof Error ? openError.message : 'No se pudo abrir caja')
+      const errDetails = parseErrorDetails(openError, 'No se pudo abrir caja')
+      setCriticalError({ title: 'Error al abrir caja', ...errDetails })
     } finally {
       setIsSubmitting(false)
     }
@@ -392,7 +398,8 @@ export default function CashPage() {
           setFeedback('Caja cerrada correctamente.')
         }
       } catch (closeError) {
-        setError(closeError instanceof Error ? closeError.message : 'No se pudo cerrar caja')
+        const errDetails = parseErrorDetails(closeError, 'No se pudo cerrar caja')
+        setCriticalError({ title: 'Error al cerrar caja', ...errDetails })
       } finally {
         setIsSubmitting(false)
       }
@@ -527,6 +534,11 @@ export default function CashPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
+        <ErrorAlertModal
+          open={criticalError !== null}
+          onClose={() => setCriticalError(null)}
+          error={criticalError}
+        />
         <PageHeader
           title="Caja Registradora"
           description="Gestiona la apertura/cierre por rol, movimientos y control de correcciones"

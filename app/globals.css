@@ -208,6 +208,27 @@
     z-index: 220 !important;
   }
 
+  /* Toasts: fondo sólido siempre visible */
+  [data-sonner-toaster],
+  [data-radix-toast-viewport] {
+    z-index: 9999 !important;
+  }
+
+  [data-sonner-toast],
+  [data-radix-toast-root] {
+    background-color: hsl(var(--card)) !important;
+    border-color: hsl(var(--border)) !important;
+    opacity: 1 !important;
+    backdrop-filter: none !important;
+  }
+
+  [data-sonner-toast][data-type='error'],
+  [data-radix-toast-root][data-variant='destructive'] {
+    background-color: hsl(0 40% 14%) !important;
+    border-color: hsl(0 60% 35%) !important;
+    color: hsl(0 80% 90%) !important;
+  }
+
   input[type='date'] {
     cursor: pointer;
     color-scheme: light;

@@ -38,7 +38,7 @@ export interface POSQueuedSale {
   created_by: string | null
   created_by_role: 'admin' | 'manager' | 'employee' | 'read_only'
   customer_name: string | null
-  payment_method: 'cash' | 'card' | 'qr'
+  payment_method: 'cash' | 'card' | 'qr' | 'credit'
   payment_currency: 'BOB' | 'USD'
   exchange_rate: number
   total_amount_bob: number
@@ -75,7 +75,7 @@ export interface POSSaleRecord {
   branch_id: string
   sold_by: string | null
   customer_name: string | null
-  payment_method: 'cash' | 'card' | 'qr'
+  payment_method: 'cash' | 'card' | 'qr' | 'credit'
   payment_currency: 'BOB' | 'USD'
   total_amount: number
   sale_mode: 'immediate' | 'advance'
@@ -110,7 +110,7 @@ export interface POSPendingDelivery {
   sale_id: string
   branch_id: string
   customer_name: string | null
-  payment_method: 'cash' | 'card' | 'qr'
+  payment_method: 'cash' | 'card' | 'qr' | 'credit'
   total_amount: number
   pending_amount: number
   delivery_status: 'pending' | 'partial' | 'delivered'
@@ -204,7 +204,7 @@ export const posService = {
   async createSale(input: {
     branch_id: string | null
     customer_name?: string | null
-    payment_method: 'cash' | 'card' | 'qr'
+    payment_method: 'cash' | 'card' | 'qr' | 'credit'
     payment_currency: 'BOB' | 'USD'
     exchange_rate: number
     sale_mode: 'immediate' | 'advance'

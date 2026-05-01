@@ -31,6 +31,7 @@ import { posService, type POSCatalogItem, type POSQueuedSale, type POSQueueLineI
 import { creditsService } from '@/lib/supabase/credits'
 import { customersService, type CustomerRecord } from '@/lib/supabase/customers'
 import { toast } from '@/hooks/use-toast'
+import { ErrorAlertModal, parseErrorDetails, type ErrorAlertDetails } from '@/components/common/error-alert-modal'
 
 interface CartItem {
   id: string
@@ -93,30 +94,7 @@ function toFriendlySaleError(rawMessage: string) {
 }
 
 function extractErrorMessage(error: unknown, fallback: string) {
-  if (error && typeof error === 'object') {
-    const candidate = error as {
-      message?: unknown
-      details?: unknown
-      hint?: unknown
-      code?: unknown
-    }
-
-    const message = typeof candidate.message === 'string' ? candidate.message.trim() : ''
-    const details = typeof candidate.details === 'string' ? candidate.details.trim() : ''
-    const hint = typeof candidate.hint === 'string' ? candidate.hint.trim() : ''
-    const code = typeof candidate.code === 'string' ? candidate.code.trim() : ''
-
-    if (code.length > 0) {
-      return toFriendlySaleError(code)
-    }
-
-    const parts = [message, details, hint].filter((part) => part.length > 0)
-    if (parts.length > 0) {
-      return toFriendlySaleError(parts.join(' — '))
-    }
-  }
-
-  return fallback
+  return parseErrorDetails(error, fallback).message
 }
 
 function parseDateInput(value: string) {
@@ -143,6 +121,7 @@ export default function POSSalesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [printInvoiceOnSale, setPrintInvoiceOnSale] = useState(true)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+  const [errorModal, setErrorModal] = useState<ErrorAlertDetails | null>(null)
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [anonymousSale, setAnonymousSale] = useState(true)
@@ -574,7 +553,7 @@ export default function POSSalesPage() {
       const saleResult = await posService.createSale({
         branch_id: branchId,
         customer_name: resolvedCustomerName,
-        payment_method: selectedPayment === 'credit' ? 'cash' : selectedPayment,
+        payment_method: selectedPayment,
         payment_currency: paymentCurrency,
         exchange_rate: safeExchangeRate,
         sale_mode: saleMode,
@@ -612,10 +591,13 @@ export default function POSSalesPage() {
             notes: creditNotes.trim() || null,
           })
         } catch (creditErr) {
-          toast({
-            title: 'Venta creada pero fallo el credito',
-            description: extractErrorMessage(creditErr, 'No se pudo registrar el credito'),
-            variant: 'destructive',
+          const errDetails = parseErrorDetails(creditErr, 'No se pudo registrar el crédito')
+          setErrorModal({
+            title: 'Venta creada pero falló el crédito',
+            message: errDetails.message,
+            code: errDetails.code,
+            details: errDetails.details,
+            hint: errDetails.hint,
           })
         }
       }
@@ -652,10 +634,13 @@ export default function POSSalesPage() {
       }
       return true
     } catch (submitError) {
-      toast({
-        title: 'No se pudo procesar la venta',
-        description: extractErrorMessage(submitError, 'No se pudo procesar la venta'),
-        variant: 'destructive',
+      const errDetails = parseErrorDetails(submitError, 'No se pudo procesar la venta')
+      setErrorModal({
+        title: 'Error al procesar la venta',
+        message: toFriendlySaleError(errDetails.message),
+        code: errDetails.code,
+        details: errDetails.details,
+        hint: errDetails.hint,
       })
     } finally {
       setIsSubmitting(false)
@@ -675,10 +660,13 @@ export default function POSSalesPage() {
         description: `Venta en cola aprobada. Venta creada: ${result?.sale_id || 'N/A'}`,
       })
     } catch (approveError) {
-      toast({
-        title: 'No se pudo aprobar la venta',
-        description: extractErrorMessage(approveError, 'No se pudo aprobar la venta en cola'),
-        variant: 'destructive',
+      const errDetails = parseErrorDetails(approveError, 'No se pudo aprobar la venta en cola')
+      setErrorModal({
+        title: 'Error al aprobar la venta',
+        message: errDetails.message,
+        code: errDetails.code,
+        details: errDetails.details,
+        hint: errDetails.hint,
       })
     } finally {
       setIsSubmitting(false)
@@ -709,6 +697,11 @@ export default function POSSalesPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
+        <ErrorAlertModal
+          open={errorModal !== null}
+          onClose={() => setErrorModal(null)}
+          error={errorModal}
+        />
         <PageHeader title="Punto de Venta" description="Ventas por sucursal con validación de caja abierta y cola para solo lectura" />
 
         <Card>
@@ -933,9 +926,9 @@ export default function POSSalesPage() {
                       <Badge variant="outline" className="w-fit">{selectedPayment.toUpperCase()}</Badge>
                     </div>
 
-                    <Tabs value={selectedPayment} onValueChange={(value) => setSelectedPayment(value as 'cash' | 'card' | 'qr')} className="mt-5">
-                      <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl p-2 sm:grid-cols-3">
-                        {PAYMENT_METHODS.map((method) => (
+                    <Tabs value={selectedPayment} onValueChange={(value) => setSelectedPayment(value as 'cash' | 'card' | 'qr' | 'credit')} className="mt-5">
+                      <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl p-2 sm:grid-cols-4">
+                        {availablePaymentMethods.map((method) => (
                           <TabsTrigger key={method.id} value={method.id} className="h-12 justify-center gap-2 rounded-xl py-3 text-sm">
                             <method.icon className="h-4 w-4" />
                             {method.label}
@@ -943,7 +936,7 @@ export default function POSSalesPage() {
                         ))}
                       </TabsList>
 
-                      {PAYMENT_METHODS.map((method) => (
+                      {availablePaymentMethods.map((method) => (
                         <TabsContent key={method.id} value={method.id} className="mt-4 rounded-2xl border border-border/60 bg-background/70 p-5">
                           <div className="flex items-center gap-2 text-sm font-medium">
                             <method.icon className="h-4 w-4 text-primary" />
@@ -954,11 +947,94 @@ export default function POSSalesPage() {
                               ? 'Registra el cobro con efectivo y valida el monto recibido.'
                               : method.id === 'card'
                               ? 'Usa este modo para pagos con tarjeta.'
-                              : 'Usa este modo para pagos por QR o transferencia.'}
+                              : method.id === 'qr'
+                              ? 'Usa este modo para pagos por QR o transferencia.'
+                              : 'La venta se registrará a crédito. Completa los detalles del crédito a continuación.'}
                           </p>
                         </TabsContent>
                       ))}
                     </Tabs>
+
+                    {/* Campos de crédito visibles en el dialog cuando payment = credit */}
+                    {isCreditSale && (
+                      <div className="mt-5 rounded-2xl border border-amber-500/40 bg-amber-500/8 p-5 space-y-4">
+                        <div className="flex items-center gap-2">
+                          <HandCoins className="h-4 w-4 text-amber-400" />
+                          <p className="text-sm font-semibold text-amber-300">Detalles del crédito</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Pago inicial (Bs)</label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              value={creditInitialPayment}
+                              onChange={(event) => setCreditInitialPayment(event.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Saldo restante: Bs {Math.max(cartTotalBob - (Number(creditInitialPayment) || 0), 0).toFixed(2)}
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Método del pago inicial</label>
+                            <Select
+                              value={creditInitialPaymentMethod}
+                              onValueChange={(value) => setCreditInitialPaymentMethod(value as 'cash' | 'card' | 'qr')}
+                              disabled={Number(creditInitialPayment) <= 0}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="cash">Efectivo</SelectItem>
+                                <SelectItem value="card">Tarjeta</SelectItem>
+                                <SelectItem value="qr">QR/Transferencia</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Días de plazo *</label>
+                            <Input
+                              type="number"
+                              min="1"
+                              placeholder="10"
+                              value={creditDueDays}
+                              onChange={(event) => setCreditDueDays(event.target.value)}
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Fecha de recordatorio (opcional)</label>
+                            <Input
+                              type="date"
+                              value={creditReminderDate}
+                              onChange={(event) => setCreditReminderDate(event.target.value)}
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Nombre del vendedor *</label>
+                            <Input
+                              placeholder="Nombre del responsable"
+                              value={creditSellerName}
+                              onChange={(event) => setCreditSellerName(event.target.value)}
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-muted-foreground">Notas (opcional)</label>
+                            <Input
+                              placeholder="Observaciones del crédito..."
+                              value={creditNotes}
+                              onChange={(event) => setCreditNotes(event.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
