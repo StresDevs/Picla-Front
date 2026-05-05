@@ -30,16 +30,16 @@
   {
     "schema": "extensions",
     "function_name": "armor",
-    "parameters": "bytea",
+    "parameters": "bytea, text[], text[]",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.armor(bytea)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_armor$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.armor(bytea, text[], text[])\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_armor$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "armor",
-    "parameters": "bytea, text[], text[]",
+    "parameters": "bytea",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.armor(bytea, text[], text[])\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_armor$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.armor(bytea)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_armor$function$\n"
   },
   {
     "schema": "extensions",
@@ -114,16 +114,16 @@
   {
     "schema": "extensions",
     "function_name": "gen_salt",
-    "parameters": "text",
+    "parameters": "text, integer",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text, integer)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt_rounds$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "gen_salt",
-    "parameters": "text, integer",
+    "parameters": "text",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text, integer)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt_rounds$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.gen_salt(text)\n RETURNS text\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pg_gen_salt$function$\n"
   },
   {
     "schema": "extensions",
@@ -198,16 +198,16 @@
   {
     "schema": "extensions",
     "function_name": "pgp_pub_decrypt",
-    "parameters": "bytea, bytea, text",
+    "parameters": "bytea, bytea, text, text",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "pgp_pub_decrypt",
-    "parameters": "bytea, bytea, text, text",
+    "parameters": "bytea, bytea, text",
     "return_type": "text",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt(bytea, bytea, text)\n RETURNS text\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_text$function$\n"
   },
   {
     "schema": "extensions",
@@ -226,16 +226,16 @@
   {
     "schema": "extensions",
     "function_name": "pgp_pub_decrypt_bytea",
-    "parameters": "bytea, bytea, text, text",
+    "parameters": "bytea, bytea",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea, text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "pgp_pub_decrypt_bytea",
-    "parameters": "bytea, bytea",
+    "parameters": "bytea, bytea, text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_decrypt_bytea(bytea, bytea, text, text)\n RETURNS bytea\n LANGUAGE c\n IMMUTABLE PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_decrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
@@ -254,16 +254,16 @@
   {
     "schema": "extensions",
     "function_name": "pgp_pub_encrypt_bytea",
-    "parameters": "bytea, bytea",
+    "parameters": "bytea, bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "pgp_pub_encrypt_bytea",
-    "parameters": "bytea, bytea, text",
+    "parameters": "bytea, bytea",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_pub_encrypt_bytea(bytea, bytea)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_pub_encrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
@@ -310,16 +310,16 @@
   {
     "schema": "extensions",
     "function_name": "pgp_sym_encrypt_bytea",
-    "parameters": "bytea, text, text",
+    "parameters": "bytea, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt_bytea(bytea, text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt_bytea(bytea, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
     "function_name": "pgp_sym_encrypt_bytea",
-    "parameters": "bytea, text",
+    "parameters": "bytea, text, text",
     "return_type": "bytea",
-    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt_bytea(bytea, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_bytea$function$\n"
+    "full_definition": "CREATE OR REPLACE FUNCTION extensions.pgp_sym_encrypt_bytea(bytea, text, text)\n RETURNS bytea\n LANGUAGE c\n PARALLEL SAFE STRICT\nAS '$libdir/pgcrypto', $function$pgp_sym_encrypt_bytea$function$\n"
   },
   {
     "schema": "extensions",
@@ -561,6 +561,13 @@
   },
   {
     "schema": "public",
+    "function_name": "complete_first_login",
+    "parameters": "",
+    "return_type": "boolean",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.complete_first_login()\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_user uuid;\r\nBEGIN\r\n  v_user := public.current_request_user_id();\r\n\r\n  IF v_user IS NULL THEN\r\n    RAISE EXCEPTION 'No hay sesion autenticada.';\r\n  END IF;\r\n\r\n  UPDATE public.users\r\n  SET\r\n    must_change_password = false,\r\n    updated_at = now()\r\n  WHERE id = v_user;\r\n\r\n  RETURN true;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "complete_inventory_transfer_request",
     "parameters": "p_transfer_id uuid, p_reason text",
     "return_type": "uuid",
@@ -757,6 +764,13 @@
   },
   {
     "schema": "public",
+    "function_name": "delete_inventory_category",
+    "parameters": "p_category_id uuid",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.delete_inventory_category(p_category_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_category public.inventory_categories%rowtype;\r\nbegin\r\n  -- Solo admin\r\n  if not public.inventory_is_admin() then\r\n    raise exception 'Solo el admin puede eliminar categorías';\r\n  end if;\r\n\r\n  -- Verificar que la categoría exista\r\n  select *\r\n  into v_category\r\n  from public.inventory_categories\r\n  where id = p_category_id\r\n  for update;\r\n\r\n  if not found then\r\n    raise exception 'Categoría no encontrada';\r\n  end if;\r\n\r\n  -- Soft delete: marcar como inactiva\r\n  update public.inventory_categories\r\n  set\r\n    is_active = false,\r\n    updated_at = now()\r\n  where id = p_category_id;\r\n\r\n  return p_category_id;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "delete_user",
     "parameters": "p_id uuid",
     "return_type": "boolean",
@@ -878,8 +892,8 @@
     "schema": "public",
     "function_name": "get_current_user_profile",
     "parameters": "",
-    "return_type": "TABLE(id uuid, full_name text, email text, role_name text, branch_id uuid, branch_name text)",
-    "full_definition": "CREATE OR REPLACE FUNCTION public.get_current_user_profile()\n RETURNS TABLE(id uuid, full_name text, email text, role_name text, branch_id uuid, branch_name text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select\r\n    u.id,\r\n    u.full_name,\r\n    u.email,\r\n    (select r.name from public.roles r where r.id = u.role_id) as role_name,\r\n    u.branch_id,\r\n    (select b.name from public.branches b where b.id = u.branch_id) as branch_name\r\n  from public.users u\r\n  where u.id = auth.uid();\r\n$function$\n"
+    "return_type": "TABLE(id uuid, full_name text, email text, username text, must_change_password boolean, role_name text, branch_id uuid, branch_name text)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.get_current_user_profile()\n RETURNS TABLE(id uuid, full_name text, email text, username text, must_change_password boolean, role_name text, branch_id uuid, branch_name text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select\r\n    u.id,\r\n    u.full_name,\r\n    u.email,\r\n    u.username,\r\n    u.must_change_password,\r\n    (select r.name from public.roles r where r.id = u.role_id) as role_name,\r\n    u.branch_id,\r\n    (select b.name from public.branches b where b.id = u.branch_id) as branch_name\r\n  from public.users u\r\n  where u.id = auth.uid();\r\n$function$\n"
   },
   {
     "schema": "public",
@@ -894,6 +908,13 @@
     "parameters": "p_branch_id uuid",
     "return_type": "jsonb",
     "full_definition": "CREATE OR REPLACE FUNCTION public.get_dashboard_summary(p_branch_id uuid DEFAULT NULL::uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_user_id uuid := auth.uid();\r\n  v_result jsonb;\r\n  v_today date := CURRENT_DATE;\r\n  v_week_start date := CURRENT_DATE - INTERVAL '6 days';\r\nBEGIN\r\n  IF v_user_id IS NULL THEN\r\n    RAISE EXCEPTION 'No active authenticated session';\r\n  END IF;\r\n\r\n  SELECT jsonb_build_object(\r\n    -- KPIs de ventas\r\n    'sales_today', (\r\n      SELECT COALESCE(SUM(total_amount), 0)\r\n      FROM pos_sales\r\n      WHERE status = 'completed'\r\n        AND created_at::date = v_today\r\n        AND (p_branch_id IS NULL OR branch_id = p_branch_id)\r\n    ),\r\n    'sales_today_count', (\r\n      SELECT COUNT(*)\r\n      FROM pos_sales\r\n      WHERE status = 'completed'\r\n        AND created_at::date = v_today\r\n        AND (p_branch_id IS NULL OR branch_id = p_branch_id)\r\n    ),\r\n    'sales_week', (\r\n      SELECT COALESCE(SUM(total_amount), 0)\r\n      FROM pos_sales\r\n      WHERE status = 'completed'\r\n        AND created_at::date >= v_week_start\r\n        AND (p_branch_id IS NULL OR branch_id = p_branch_id)\r\n    ),\r\n    -- Créditos activos\r\n    'credits_active_count', (\r\n      SELECT COUNT(*)\r\n      FROM credits\r\n      WHERE status IN ('active', 'overdue')\r\n        AND (p_branch_id IS NULL OR branch_id = p_branch_id)\r\n    ),\r\n    'credits_active_balance', (\r\n      SELECT COALESCE(SUM(balance), 0)\r\n      FROM credits\r\n      WHERE status IN ('active', 'overdue')\r\n        AND (p_branch_id IS NULL OR branch_id = p_branch_id)\r\n    ),\r\n    'credits_overdue_count', (\r\n      SELECT COUNT(*)\r\n      FROM credits\r\n      WHERE status = 'overdue'\r\n        AND (p_branch_id IS NULL OR branch_id = p_branch_id)\r\n    ),\r\n    -- Inventario crítico (quantity <= min_quantity)\r\n    'low_stock_count', (\r\n      SELECT COUNT(*)\r\n      FROM inventory i\r\n      WHERE i.quantity <= i.min_quantity\r\n        AND i.quantity > 0\r\n        AND (p_branch_id IS NULL OR i.branch_id = p_branch_id)\r\n    ),\r\n    'zero_stock_count', (\r\n      SELECT COUNT(*)\r\n      FROM inventory i\r\n      WHERE i.quantity = 0\r\n        AND (p_branch_id IS NULL OR i.branch_id = p_branch_id)\r\n    ),\r\n    -- Ventas últimos 7 días por día\r\n    'sales_last_7_days', (\r\n      SELECT COALESCE(jsonb_agg(\r\n        jsonb_build_object('date', day_series::date, 'total', COALESCE(day_total, 0), 'count', COALESCE(day_count, 0))\r\n        ORDER BY day_series\r\n      ), '[]'::jsonb)\r\n      FROM generate_series(v_week_start::timestamp, v_today::timestamp, '1 day'::interval) AS day_series\r\n      LEFT JOIN (\r\n        SELECT created_at::date AS sale_date,\r\n               SUM(total_amount) AS day_total,\r\n               COUNT(*) AS day_count\r\n        FROM pos_sales\r\n        WHERE status = 'completed'\r\n          AND created_at::date >= v_week_start\r\n          AND (p_branch_id IS NULL OR branch_id = p_branch_id)\r\n        GROUP BY created_at::date\r\n      ) sub ON sub.sale_date = day_series::date\r\n    ),\r\n    -- Ventas por método de pago (semana)\r\n    'sales_by_method', (\r\n      SELECT COALESCE(jsonb_agg(jsonb_build_object('method', payment_method, 'total', method_total)), '[]'::jsonb)\r\n      FROM (\r\n        SELECT payment_method, SUM(total_amount) AS method_total\r\n        FROM pos_sales\r\n        WHERE status = 'completed'\r\n          AND created_at::date >= v_week_start\r\n          AND (p_branch_id IS NULL OR branch_id = p_branch_id)\r\n        GROUP BY payment_method\r\n        ORDER BY method_total DESC\r\n      ) methods\r\n    ),\r\n    -- Top 5 productos más vendidos esta semana\r\n    'top_products_week', (\r\n      SELECT COALESCE(jsonb_agg(jsonb_build_object('name', part_name, 'quantity', qty, 'total', rev) ORDER BY rev DESC), '[]'::jsonb)\r\n      FROM (\r\n        SELECT si.part_name,\r\n               SUM(si.quantity) AS qty,\r\n               SUM(si.line_total) AS rev\r\n        FROM pos_sale_items si\r\n        JOIN pos_sales s ON s.id = si.sale_id\r\n        WHERE s.status = 'completed'\r\n          AND s.created_at::date >= v_week_start\r\n          AND (p_branch_id IS NULL OR s.branch_id = p_branch_id)\r\n        GROUP BY si.part_name\r\n        ORDER BY rev DESC\r\n        LIMIT 5\r\n      ) top\r\n    )\r\n  ) INTO v_result;\r\n\r\n  RETURN v_result;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "get_inventory_categories_list",
+    "parameters": "p_branch_id uuid, p_include_inactive boolean",
+    "return_type": "TABLE(category_id uuid, branch_id uuid, category_name text, description text, is_active boolean, product_count bigint, created_at timestamp with time zone, updated_at timestamp with time zone)",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.get_inventory_categories_list(p_branch_id uuid, p_include_inactive boolean DEFAULT false)\n RETURNS TABLE(category_id uuid, branch_id uuid, category_name text, description text, is_active boolean, product_count bigint, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nbegin\r\n  -- Verificar acceso de lectura\r\n  if not public.has_inventory_read_access() then\r\n    raise exception 'Sin acceso de lectura al inventario';\r\n  end if;\r\n\r\n  -- Verificar scope de sucursal (admin ve todo, otros solo su branch)\r\n  if not public.inventory_is_admin() and p_branch_id <> public.current_user_branch_id() then\r\n    raise exception 'Sin acceso a categorías de otra sucursal';\r\n  end if;\r\n\r\n  return query\r\n    select\r\n      c.id as category_id,\r\n      c.branch_id,\r\n      c.name as category_name,\r\n      c.description,\r\n      c.is_active,\r\n      count(p.id)::bigint as product_count,\r\n      c.created_at,\r\n      c.updated_at\r\n    from public.inventory_categories c\r\n    left join public.parts p\r\n      on p.category_id = c.id\r\n      and p.is_active = true\r\n    where c.branch_id = p_branch_id\r\n      and (p_include_inactive or c.is_active = true)\r\n    group by c.id, c.branch_id, c.name, c.description, c.is_active, c.created_at, c.updated_at\r\n    order by c.name asc;\r\nend;\r\n$function$\n"
   },
   {
     "schema": "public",
@@ -1457,6 +1478,13 @@
   },
   {
     "schema": "public",
+    "function_name": "soft_delete_inventory_product",
+    "parameters": "p_part_id uuid",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.soft_delete_inventory_product(p_part_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_part public.parts%rowtype;\r\nbegin\r\n  -- Solo admin\r\n  if not public.inventory_is_admin() then\r\n    raise exception 'Solo el admin puede eliminar productos';\r\n  end if;\r\n\r\n  -- Verificar que el producto exista\r\n  select *\r\n  into v_part\r\n  from public.parts\r\n  where id = p_part_id\r\n  for update;\r\n\r\n  if not found then\r\n    raise exception 'Producto no encontrado';\r\n  end if;\r\n\r\n  -- Verificar que no esté ya eliminado\r\n  if not v_part.is_active then\r\n    raise exception 'El producto ya fue eliminado anteriormente';\r\n  end if;\r\n\r\n  -- Soft delete: marcar como inactivo\r\n  update public.parts\r\n  set\r\n    is_active = false,\r\n    updated_by = auth.uid(),\r\n    updated_at = now()\r\n  where id = p_part_id;\r\n\r\n  return p_part_id;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function_name": "strict_word_similarity",
     "parameters": "text, text",
     "return_type": "real",
@@ -1496,6 +1524,13 @@
     "parameters": "p_id uuid, p_name text, p_address text, p_phone text",
     "return_type": "branches",
     "full_definition": "CREATE OR REPLACE FUNCTION public.update_branch(p_id uuid, p_name text, p_address text DEFAULT NULL::text, p_phone text DEFAULT NULL::text)\n RETURNS branches\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nDECLARE\r\n  v_branch public.branches;\r\nBEGIN\r\n  PERFORM public.ensure_admin();\r\n\r\n  IF p_id IS NULL THEN\r\n    RAISE EXCEPTION 'El id de sucursal es obligatorio.';\r\n  END IF;\r\n\r\n  IF NULLIF(TRIM(p_name), '') IS NULL THEN\r\n    RAISE EXCEPTION 'El nombre de la sucursal es obligatorio.';\r\n  END IF;\r\n\r\n  UPDATE public.branches\r\n  SET\r\n    name = TRIM(p_name),\r\n    address = NULLIF(TRIM(COALESCE(p_address, '')), ''),\r\n    phone = NULLIF(TRIM(COALESCE(p_phone, '')), '')\r\n  WHERE id = p_id\r\n  RETURNING * INTO v_branch;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Sucursal no encontrada.';\r\n  END IF;\r\n\r\n  RETURN v_branch;\r\nEND;\r\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function_name": "update_inventory_category",
+    "parameters": "p_category_id uuid, p_name text, p_description text, p_is_active boolean",
+    "return_type": "uuid",
+    "full_definition": "CREATE OR REPLACE FUNCTION public.update_inventory_category(p_category_id uuid, p_name text DEFAULT NULL::text, p_description text DEFAULT NULL::text, p_is_active boolean DEFAULT NULL::boolean)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_category public.inventory_categories%rowtype;\r\n  v_new_name text;\r\nbegin\r\n  -- Solo admin\r\n  if not public.inventory_is_admin() then\r\n    raise exception 'Solo el admin puede actualizar categorías';\r\n  end if;\r\n\r\n  -- Verificar que la categoría exista\r\n  select *\r\n  into v_category\r\n  from public.inventory_categories\r\n  where id = p_category_id\r\n  for update;\r\n\r\n  if not found then\r\n    raise exception 'Categoría no encontrada';\r\n  end if;\r\n\r\n  -- Determinar nuevo nombre (trim)\r\n  v_new_name := coalesce(nullif(trim(p_name), ''), v_category.name);\r\n\r\n  -- Verificar duplicado si el nombre cambió\r\n  if lower(v_new_name) <> lower(v_category.name) then\r\n    if exists (\r\n      select 1\r\n      from public.inventory_categories\r\n      where branch_id = v_category.branch_id\r\n        and lower(name) = lower(v_new_name)\r\n        and id <> p_category_id\r\n    ) then\r\n      raise exception 'Ya existe una categoría con el nombre \"%\" en esta sucursal', v_new_name;\r\n    end if;\r\n  end if;\r\n\r\n  -- Actualizar\r\n  update public.inventory_categories\r\n  set\r\n    name = v_new_name,\r\n    description = coalesce(p_description, v_category.description),\r\n    is_active = coalesce(p_is_active, v_category.is_active),\r\n    updated_at = now()\r\n  where id = p_category_id;\r\n\r\n  return p_category_id;\r\nend;\r\n$function$\n"
   },
   {
     "schema": "public",

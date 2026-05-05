@@ -107,6 +107,7 @@ CREATE TABLE public.inventory_categories (
 	CONSTRAINT inventory_categories_pkey PRIMARY KEY (id),
 	CONSTRAINT inventory_categories_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE CASCADE
 );
+CREATE INDEX idx_inventory_categories_branch_active ON public.inventory_categories USING btree (branch_id, is_active);
 CREATE INDEX idx_inventory_categories_branch_id ON public.inventory_categories USING btree (branch_id);
 CREATE INDEX idx_inventory_categories_name ON public.inventory_categories USING btree (name);
 
@@ -1169,9 +1170,11 @@ CREATE TABLE public.parts (
 	CONSTRAINT parts_quote_range_check CHECK (((quotation_min_price IS NULL) OR (quotation_max_price IS NULL) OR (quotation_max_price >= quotation_min_price))),
 	CONSTRAINT parts_tracking_mode_check CHECK ((tracking_mode = ANY (ARRAY['none'::text, 'serial'::text, 'lot'::text])))
 );
+CREATE INDEX idx_parts_branch_active ON public.parts USING btree (branch_id, is_active) WHERE (is_active = true);
 CREATE UNIQUE INDEX idx_parts_branch_code_unique ON public.parts USING btree (branch_id, code);
 CREATE INDEX idx_parts_branch_id ON public.parts USING btree (branch_id);
 CREATE INDEX idx_parts_category ON public.parts USING btree (category);
+CREATE INDEX idx_parts_category_id ON public.parts USING btree (category_id) WHERE (category_id IS NOT NULL);
 CREATE INDEX idx_parts_requires_serialization ON public.parts USING btree (requires_serialization);
 CREATE INDEX idx_parts_tracking_mode ON public.parts USING btree (tracking_mode);
 
@@ -1913,12 +1916,15 @@ CREATE TABLE public.users (
 	created_at timestamptz DEFAULT now() NOT NULL,
 	updated_at timestamptz DEFAULT now() NOT NULL,
 	role_id uuid NOT NULL,
+	username text NULL,
+	must_change_password bool DEFAULT true NOT NULL,
 	CONSTRAINT users_email_key UNIQUE (email),
 	CONSTRAINT users_pkey PRIMARY KEY (id)
 );
 CREATE INDEX idx_users_branch_id ON public.users USING btree (branch_id);
 CREATE INDEX idx_users_id_is_active ON public.users USING btree (id, is_active);
 CREATE INDEX idx_users_role_id_is_active ON public.users USING btree (role_id, is_active);
+CREATE UNIQUE INDEX idx_users_username_unique_ci ON public.users USING btree (lower(TRIM(BOTH FROM username))) WHERE (username IS NOT NULL);
 
 -- Table Triggers
 

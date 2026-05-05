@@ -20,6 +20,7 @@ import {
   Cpu,
   Building2,
   UserRound,
+  KeyRound,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useEffect, useMemo, useState } from 'react'
@@ -479,6 +480,16 @@ export function Sidebar() {
           {/* Bottom Section */}
           <div className="space-y-2 border-t border-sidebar-border/80 pt-4 mt-4">
             <ThemeSwitcher />
+            <Button
+              asChild
+              variant="ghost"
+              className="w-full justify-start gap-3 rounded-xl py-2.5 text-sidebar-foreground hover:bg-sidebar-accent/60"
+            >
+              <Link href="/management/change-password" onClick={() => setIsOpen(false)}>
+                <KeyRound className="w-5 h-5" />
+                <span>Cambiar contraseña</span>
+              </Link>
+            </Button>
             <Button
               variant="ghost"
               onClick={handleLogout}
