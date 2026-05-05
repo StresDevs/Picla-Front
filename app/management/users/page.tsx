@@ -64,6 +64,17 @@ const emptyUserForm: UserFormData = {
   isActive: true,
 }
 
+const roleDisplayNames: Record<string, string> = {
+  admin: 'Administrador',
+  manager: 'Gerente',
+  employee: 'Empleado',
+  read_only: 'Solo lectura',
+}
+
+function getRoleDisplayName(roleName: string) {
+  return roleDisplayNames[roleName] || roleName
+}
+
 export default function ManagementUsersPage() {
   const [users, setUsers] = useState<UserRecord[]>([])
   const [roles, setRoles] = useState<RoleRecord[]>([])
@@ -383,8 +394,8 @@ export default function ManagementUsersPage() {
                       <Select value={userForm.roleId} onValueChange={(value) => setUserForm((prev) => ({ ...prev, roleId: value }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {roles.map((role) => (
-                            <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+                      {roles.map((role) => (
+                            <SelectItem key={role.id} value={role.id}>{getRoleDisplayName(role.name)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -424,9 +435,12 @@ export default function ManagementUsersPage() {
                 {
                   key: 'role_id',
                   label: 'Rol',
-                  render: (v) => (
-                    <Badge className="bg-primary/15 text-primary">{roleMap.get(String(v)) ?? String(v)}</Badge>
-                  ),
+                  render: (v) => {
+                    const name = roleMap.get(String(v)) ?? String(v)
+                    return (
+                      <Badge className="bg-primary/15 text-primary">{getRoleDisplayName(name)}</Badge>
+                    )
+                  },
                 },
                 {
                   key: 'is_active',
