@@ -83,12 +83,17 @@ export function MainLayout({
 
         const { data: userProfile } = await supabase
           .from('users')
-          .select('id, is_active')
+          .select('id, is_active, must_change_password')
           .eq('id', authUser.id)
           .single()
 
         if (!userProfile?.is_active) {
           router.replace('/login')
+          return
+        }
+
+        if (userProfile?.must_change_password && pathname !== '/change-password') {
+          router.replace('/change-password')
           return
         }
 

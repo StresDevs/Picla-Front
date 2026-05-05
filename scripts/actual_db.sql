@@ -516,7 +516,7 @@ CREATE TABLE public.cash_movements (
 	updated_at timestamptz DEFAULT now() NOT NULL,
 	CONSTRAINT cash_movements_amount_check CHECK ((amount > (0)::numeric)),
 	CONSTRAINT cash_movements_pkey PRIMARY KEY (id),
-	CONSTRAINT cash_movements_type_check CHECK ((movement_type = ANY (ARRAY['manual_income'::text, 'manual_expense'::text, 'sale_cash'::text, 'sale_return_cash'::text, 'sale_card'::text, 'sale_qr'::text, 'sale_return_card'::text, 'sale_return_qr'::text])))
+	CONSTRAINT cash_movements_type_check CHECK ((movement_type = ANY (ARRAY['manual_income'::text, 'manual_expense'::text, 'sale_cash'::text, 'sale_return_cash'::text, 'sale_card'::text, 'sale_return_card'::text, 'sale_qr'::text, 'sale_return_qr'::text, 'sale_credit_advance'::text])))
 );
 CREATE INDEX idx_cash_movements_branch_created_at ON public.cash_movements USING btree (branch_id, created_at DESC);
 CREATE INDEX idx_cash_movements_reference ON public.cash_movements USING btree (reference_table, reference_id);
@@ -1515,7 +1515,7 @@ CREATE TABLE public.pos_sales (
 	CONSTRAINT pos_sales_discount_amount_check CHECK ((discount_amount >= (0)::numeric)),
 	CONSTRAINT pos_sales_exchange_rate_check CHECK ((exchange_rate > (0)::numeric)),
 	CONSTRAINT pos_sales_payment_currency_check CHECK ((payment_currency = ANY (ARRAY['BOB'::text, 'USD'::text]))),
-	CONSTRAINT pos_sales_payment_method_check CHECK ((payment_method = ANY (ARRAY['cash'::text, 'card'::text, 'qr'::text]))),
+	CONSTRAINT pos_sales_payment_method_check CHECK ((payment_method = ANY (ARRAY['cash'::text, 'card'::text, 'qr'::text, 'credit'::text]))),
 	CONSTRAINT pos_sales_pending_amount_check CHECK ((pending_amount >= (0)::numeric)),
 	CONSTRAINT pos_sales_pkey PRIMARY KEY (id),
 	CONSTRAINT pos_sales_sale_mode_check CHECK ((sale_mode = ANY (ARRAY['immediate'::text, 'advance'::text]))),

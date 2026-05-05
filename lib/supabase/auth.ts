@@ -9,6 +9,10 @@ export async function signInEmployee({ email, password }: EmployeeSignInInput) {
   return supabase.auth.signInWithPassword({ email, password })
 }
 
+export async function sendPasswordResetEmail(email: string, redirectTo?: string) {
+  return supabase.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined)
+}
+
 export async function signOutEmployee() {
   return supabase.auth.signOut()
 }

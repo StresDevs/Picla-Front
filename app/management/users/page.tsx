@@ -17,6 +17,7 @@ import { showConfirmAlert } from '@/lib/sweet-alert'
 interface UserRecord {
   id: string
   full_name: string
+  username: string | null
   email: string
   phone: string | null
   branch_id: string
@@ -38,19 +39,26 @@ interface BranchRecord {
 
 interface UserFormData {
   fullName: string
+  username: string
   email: string
   phone: string
-  password: string
   branchId: string
   roleId: string
   isActive: boolean
 }
 
+interface CreatedCredentials {
+  username: string
+  tempPassword: string
+  email: string
+  emailSent: boolean
+}
+
 const emptyUserForm: UserFormData = {
   fullName: '',
+  username: '',
   email: '',
   phone: '',
-  password: '',
   branchId: '',
   roleId: '',
   isActive: true,
@@ -64,6 +72,8 @@ export default function ManagementUsersPage() {
   const [userForm, setUserForm] = useState<UserFormData>(emptyUserForm)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [dialogFeedback, setDialogFeedback] = useState<string | null>(null)
+  const [createdCredentials, setCreatedCredentials] = useState<CreatedCredentials | null>(null)
+  const [copyNotice, setCopyNotice] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
@@ -115,16 +125,23 @@ export default function ManagementUsersPage() {
     }
   }, [roles, userForm.roleId])
 
+  const handleCopyValue = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopyNotice(`${label} copiado.`)
+      setTimeout(() => setCopyNotice(null), 2500)
+    } catch {
+      setCopyNotice('No se pudo copiar el valor.')
+      setTimeout(() => setCopyNotice(null), 2500)
+    }
+  }
+
   const handleCreateUser = async () => {
     setDialogFeedback(null)
+    setCopyNotice(null)
 
-    if (!userForm.fullName.trim() || !userForm.email.trim() || !userForm.password.trim() || !userForm.branchId || !userForm.roleId) {
-      setDialogFeedback('Completa nombre, correo, contraseña, sucursal y rol.')
-      return
-    }
-
-    if (userForm.password.trim().length < 8) {
-      setDialogFeedback('La contraseña debe tener al menos 8 caracteres.')
+    if (!userForm.fullName.trim() || !userForm.email.trim() || !userForm.branchId || !userForm.roleId) {
+      setDialogFeedback('Completa nombre, correo, sucursal y rol.')
       return
     }
 
@@ -151,11 +168,11 @@ export default function ManagementUsersPage() {
       },
       body: JSON.stringify({
         email: userForm.email.trim(),
-        password: userForm.password.trim(),
         full_name: userForm.fullName.trim(),
         phone: userForm.phone.trim() || null,
         branch_id: userForm.branchId,
         role: roleName,
+        send_reset_email: true,
       }),
     })
 
@@ -166,11 +183,16 @@ export default function ManagementUsersPage() {
       return
     }
 
+    setCreatedCredentials({
+      username: payload.username,
+      tempPassword: payload.temp_password,
+      email: payload.email,
+      emailSent: Boolean(payload.email_sent),
+    })
     setUserForm(emptyUserForm)
     setEditingUserId(null)
     setDialogFeedback(null)
     setFeedback('Usuario creado correctamente.')
-    setIsDialogOpen(false)
     await loadUsers()
   }
 
@@ -232,6 +254,8 @@ export default function ManagementUsersPage() {
   const openNewDialog = () => {
     setEditingUserId(null)
     setDialogFeedback(null)
+    setCreatedCredentials(null)
+    setCopyNotice(null)
     setUserForm(emptyUserForm)
     setIsDialogOpen(true)
   }
@@ -239,11 +263,13 @@ export default function ManagementUsersPage() {
   const openEditDialog = (user: UserRecord) => {
     setEditingUserId(user.id)
     setDialogFeedback(null)
+    setCreatedCredentials(null)
+    setCopyNotice(null)
     setUserForm({
       fullName: user.full_name,
+      username: user.username || '',
       email: user.email,
       phone: user.phone || '',
-      password: '',
       branchId: user.branch_id,
       roleId: user.role_id,
       isActive: user.is_active,
@@ -271,13 +297,17 @@ export default function ManagementUsersPage() {
             <div className="flex justify-end">
               <Dialog open={isDialogOpen} onOpenChange={(open) => {
                 setIsDialogOpen(open)
-                if (!open) setDialogFeedback(null)
+                if (!open) {
+                  setDialogFeedback(null)
+                  setCreatedCredentials(null)
+                  setCopyNotice(null)
+                }
               }}>
                 <Button onClick={openNewDialog}>Nuevo Usuario</Button>
                 <DialogContent className="sm:max-w-xl">
                   <DialogHeader>
                     <DialogTitle>{editingUserId ? 'Editar' : 'Nuevo'} Usuario</DialogTitle>
-                    <DialogDescription>Nombre, correo, contraseña, sucursal y rol.</DialogDescription>
+                    <DialogDescription>Nombre, correo, sucursal y rol. Se genera usuario y contraseña temporal.</DialogDescription>
                   </DialogHeader>
 
                   {dialogFeedback ? (
@@ -286,11 +316,49 @@ export default function ManagementUsersPage() {
                     </div>
                   ) : null}
 
+                  {createdCredentials ? (
+                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                      <p className="font-semibold">Credenciales generadas</p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <label className="text-xs uppercase tracking-wide text-emerald-100/70">Usuario</label>
+                          <div className="flex items-center gap-2">
+                            <Input value={createdCredentials.username} readOnly />
+                            <Button size="sm" variant="outline" onClick={() => handleCopyValue(createdCredentials.username, 'Usuario')}>
+                              Copiar
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs uppercase tracking-wide text-emerald-100/70">Contrasena temporal</label>
+                          <div className="flex items-center gap-2">
+                            <Input value={createdCredentials.tempPassword} readOnly />
+                            <Button size="sm" variant="outline" onClick={() => handleCopyValue(createdCredentials.tempPassword, 'Contrasena')}>
+                              Copiar
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-emerald-100/70">
+                        {createdCredentials.emailSent
+                          ? `Se envio un correo de recuperacion a ${createdCredentials.email}.`
+                          : 'No se envio correo de recuperacion.'}
+                      </p>
+                      {copyNotice ? <p className="mt-2 text-xs text-emerald-200">{copyNotice}</p> : null}
+                    </div>
+                  ) : null}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2 md:col-span-2">
                       <label className="text-sm font-medium">Nombre Completo</label>
                       <Input value={userForm.fullName} onChange={(e) => setUserForm((prev) => ({ ...prev, fullName: e.target.value }))} />
                     </div>
+                    {editingUserId ? (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Usuario</label>
+                        <Input value={userForm.username} readOnly />
+                      </div>
+                    ) : null}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Correo</label>
                       <Input type="email" value={userForm.email} onChange={(e) => setUserForm((prev) => ({ ...prev, email: e.target.value }))} />
@@ -299,13 +367,6 @@ export default function ManagementUsersPage() {
                       <label className="text-sm font-medium">Teléfono</label>
                       <Input value={userForm.phone} onChange={(e) => setUserForm((prev) => ({ ...prev, phone: e.target.value }))} />
                     </div>
-                    {!editingUserId ? (
-                      <div className="space-y-2 md:col-span-2">
-                        <label className="text-sm font-medium">Contraseña</label>
-                        <Input type="password" value={userForm.password} onChange={(e) => setUserForm((prev) => ({ ...prev, password: e.target.value }))} />
-                        <p className="text-xs text-muted-foreground">El admin define la contraseña manualmente.</p>
-                      </div>
-                    ) : null}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Sucursal asignada</label>
                       <Select value={userForm.branchId} onValueChange={(value) => setUserForm((prev) => ({ ...prev, branchId: value }))}>
@@ -353,6 +414,7 @@ export default function ManagementUsersPage() {
             <DataTable
               columns={[
                 { key: 'full_name', label: 'Nombre', render: (v) => String(v) },
+                { key: 'username', label: 'Usuario', render: (v) => (v ? String(v) : '-') },
                 { key: 'email', label: 'Correo', render: (v) => String(v) },
                 {
                   key: 'branch_id',

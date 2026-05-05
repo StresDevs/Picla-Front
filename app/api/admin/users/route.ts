@@ -1,13 +1,61 @@
+import { randomBytes } from 'crypto'
 import { NextResponse } from 'next/server'
 import { createSupabaseAdminClient, createSupabaseServerClient } from '@/lib/supabase/server'
 
 type CreateUserBody = {
   email: string
-  password: string
   full_name: string
   phone?: string
   branch_id: string
   role?: 'admin' | 'manager' | 'employee' | 'read_only'
+  send_reset_email?: boolean
+}
+
+const USERNAME_BASE_MAX = 24
+const USERNAME_MAX_ATTEMPTS = 40
+
+function normalizeUsernameBase(fullName: string) {
+  const cleaned = fullName
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.+|\.+$/g, '')
+    .replace(/\.+/g, '.')
+
+  const base = cleaned || 'usuario'
+  return base.slice(0, USERNAME_BASE_MAX)
+}
+
+async function resolveUniqueUsername(supabaseAdmin: ReturnType<typeof createSupabaseAdminClient>, base: string) {
+  let candidate = base
+
+  for (let attempt = 0; attempt < USERNAME_MAX_ATTEMPTS; attempt += 1) {
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .ilike('username', candidate)
+      .limit(1)
+
+    if (error) {
+      throw new Error(`No se pudo validar el usuario: ${error.message}`)
+    }
+
+    if (!data || data.length === 0) {
+      return candidate
+    }
+
+    const suffix = String(attempt + 2)
+    const trimmedBase = base.slice(0, Math.max(1, USERNAME_BASE_MAX - suffix.length))
+    candidate = `${trimmedBase}${suffix}`
+  }
+
+  throw new Error('No se pudo generar un usuario unico. Intenta con otro nombre.')
+}
+
+function generateTempPassword() {
+  return randomBytes(12).toString('base64url')
 }
 
 function getBearerToken(request: Request) {
@@ -36,21 +84,14 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as CreateUserBody
     const email = body.email?.trim().toLowerCase()
-    const password = body.password
     const fullName = body.full_name?.trim()
     const phone = body.phone?.trim() || null
     const branchId = body.branch_id
     const roleName = body.role?.trim() || 'employee'
+    const shouldSendResetEmail = body.send_reset_email !== false
 
-    if (!email || !password || !fullName || !branchId) {
+    if (!email || !fullName || !branchId) {
       return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 })
-    }
-
-    if (password.length < 8) {
-      return NextResponse.json(
-        { error: 'La contraseña debe tener al menos 8 caracteres' },
-        { status: 400 }
-      )
     }
 
     const supabaseAdmin = createSupabaseAdminClient()
@@ -91,10 +132,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Sucursal no encontrada' }, { status: 400 })
     }
 
+    const usernameBase = normalizeUsernameBase(fullName)
+    const username = await resolveUniqueUsername(supabaseAdmin, usernameBase)
+    const tempPassword = generateTempPassword()
+
     const { data: authUserData, error: authCreateError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password,
+      password: tempPassword,
       email_confirm: true,
+      user_metadata: {
+        full_name: fullName,
+        username,
+        must_change_password: true,
+      },
     })
 
     if (authCreateError || !authUserData.user) {
@@ -112,8 +162,10 @@ export async function POST(request: Request) {
         full_name: fullName,
         phone,
         email,
+        username,
         role_id: roleData.id,
         branch_id: branchId,
+        must_change_password: true,
       },
     ])
 
@@ -142,11 +194,28 @@ export async function POST(request: Request) {
       )
     }
 
+    let emailSent = false
+    if (shouldSendResetEmail) {
+      const origin = request.headers.get('origin')
+      const redirectTo = origin ? `${origin}/change-password` : undefined
+
+      const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      })
+
+      if (!resetError) {
+        emailSent = true
+      }
+    }
+
     return NextResponse.json(
       {
         id: userId,
         email,
         full_name: fullName,
+        username,
+        temp_password: tempPassword,
+        email_sent: emailSent,
         role: roleName,
         branch_id: branchId,
       },
