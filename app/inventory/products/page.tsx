@@ -10,6 +10,16 @@ import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/common/page-header'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -308,6 +318,8 @@ export default function InventoryProductsPage() {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Part | null>(null)
   const [editingProductId, setEditingProductId] = useState<string | null>(null)
+  const [isDeleteProductOpen, setIsDeleteProductOpen] = useState(false)
+  const [deleteProductTarget, setDeleteProductTarget] = useState<Part | null>(null)
   const [categoryName, setCategoryName] = useState('')
   const [categoryDescription, setCategoryDescription] = useState('')
   const [categoryBranchId, setCategoryBranchId] = useState(() => getActiveUserContext().branch_id)
@@ -551,6 +563,31 @@ export default function InventoryProductsPage() {
       setIsCategoryOpen(false)
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : 'No se pudo crear la categoría')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const openDeleteProduct = (part: Part) => {
+    setDeleteProductTarget(part)
+    setIsDeleteProductOpen(true)
+  }
+
+  const handleDeleteProduct = async () => {
+    if (!canModify || !deleteProductTarget) return
+
+    setIsSaving(true)
+    setError(null)
+
+    try {
+      await partsService.delete(deleteProductTarget.id)
+      await refreshData(activeBranchId)
+      setIsDeleteProductOpen(false)
+      setDeleteProductTarget(null)
+      setIsDetailOpen(false)
+      setSelectedProduct(null)
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'No se pudo eliminar el producto')
     } finally {
       setIsSaving(false)
     }
@@ -1171,15 +1208,28 @@ export default function InventoryProductsPage() {
 
                 <div className="flex justify-end gap-2">
                   {canModify ? (
-                    <Button
-                      onClick={() => {
-                        if (selectedProduct) {
-                          openEditProduct(selectedProduct)
-                        }
-                      }}
-                    >
-                      Editar producto
-                    </Button>
+                    <>
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          if (selectedProduct) {
+                            openDeleteProduct(selectedProduct)
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Eliminar
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (selectedProduct) {
+                            openEditProduct(selectedProduct)
+                          }
+                        }}
+                      >
+                        Editar producto
+                      </Button>
+                    </>
                   ) : null}
                   <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Cerrar</Button>
                 </div>
@@ -1418,14 +1468,54 @@ export default function InventoryProductsPage() {
                       </div>
                     )}
                   </div>
-                  <Button className="mt-auto w-full" size="sm" variant="outline" onClick={() => openProductDetail(part)}>
-                    <Boxes className="w-4 h-4 mr-2" /> Ver detalle
-                  </Button>
+                  <div className="mt-auto flex gap-1.5">
+                    <Button className="flex-1" size="sm" variant="outline" onClick={() => openProductDetail(part)}>
+                      <Boxes className="w-4 h-4 mr-2" />
+                      Ver detalle
+                    </Button>
+                    {canModify ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 hover:border-red-500/30"
+                        title="Eliminar producto"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openDeleteProduct(part)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               </article>
             )
           })}
         </div>
+
+        {/* Delete Product Confirmation */}
+        <AlertDialog open={isDeleteProductOpen} onOpenChange={setIsDeleteProductOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
+              <AlertDialogDescription>
+                El producto <strong>&quot;{deleteProductTarget?.name}&quot;</strong> ({deleteProductTarget?.code}) será
+                desactivado. No se eliminará permanentemente y podrá ser restaurado por un administrador.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isSaving}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => void handleDeleteProduct()}
+                disabled={isSaving}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isSaving ? 'Eliminando...' : 'Eliminar producto'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   )

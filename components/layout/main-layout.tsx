@@ -17,7 +17,7 @@ export function MainLayout({
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
-    const basicInventoryRoutes = new Set(['/inventory/products', '/inventory/kits'])
+    const basicInventoryRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
     const inventoryOpsRoutes = [
       '/inventory/entries',
       '/inventory/exits',

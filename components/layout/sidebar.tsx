@@ -56,6 +56,7 @@ const menuItems: MenuItem[] = [
     icon: Package,
     subItems: [
       { label: 'Productos', href: '/inventory/products' },
+      { label: 'Categorías', href: '/inventory/categories' },
       { label: 'Kits', href: '/inventory/kits' },
       { label: 'Ingresos', href: '/inventory/entries' },
       { label: 'Salidas', href: '/inventory/exits' },
@@ -141,7 +142,7 @@ const menuItems: MenuItem[] = [
   },
 ]
 
-const inventoryBasicRoutes = new Set(['/inventory/products', '/inventory/kits'])
+const inventoryBasicRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
 
 export function Sidebar() {
   const router = useRouter()
@@ -261,6 +262,7 @@ export function Sidebar() {
           icon: Package,
           subItems: [
             { label: 'Productos', href: '/inventory/products' },
+            { label: 'Categorías', href: '/inventory/categories' },
             { label: 'Kits', href: '/inventory/kits' },
           ],
         },

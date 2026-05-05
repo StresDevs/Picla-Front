@@ -351,6 +351,7 @@ export const partsService = {
       .from('parts')
       .select('*, product_price_tiers(*)')
       .eq('branch_id', branchId)
+      .eq('is_active', true)
       .order('name', { ascending: true })
     
     if (error) throw error
@@ -448,10 +449,9 @@ export const partsService = {
   },
 
   async delete(id: string) {
-    const { error } = await supabase
-      .from('parts')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.rpc('soft_delete_inventory_product', {
+      p_part_id: id,
+    })
 
     if (error) throw error
   },
@@ -503,6 +503,17 @@ export const partsService = {
   },
 }
 
+export interface CategoryListItem {
+  category_id: string
+  branch_id: string
+  category_name: string
+  description: string | null
+  is_active: boolean
+  product_count: number
+  created_at: string
+  updated_at: string
+}
+
 export const categoriesService = {
   async getAll(branchId: string) {
     const { data, error } = await supabase
@@ -514,6 +525,19 @@ export const categoriesService = {
     
     if (error) throw error
     return (data as InventoryCategory[]) || []
+  },
+
+  async getList(branchId: string, includeInactive = false) {
+    const { data, error } = await supabase.rpc('get_inventory_categories_list', {
+      p_branch_id: branchId,
+      p_include_inactive: includeInactive,
+    })
+
+    if (error) throw error
+    return ((data || []) as CategoryListItem[]).map((row) => ({
+      ...row,
+      product_count: Number(row.product_count || 0),
+    }))
   },
 
   async create(input: { branch_id: string; name: string; description?: string | null }) {
@@ -533,6 +557,32 @@ export const categoriesService = {
 
     if (error) throw error
     return data as InventoryCategory
+  },
+
+  async update(input: {
+    category_id: string
+    name?: string | null
+    description?: string | null
+    is_active?: boolean | null
+  }) {
+    const { data, error } = await supabase.rpc('update_inventory_category', {
+      p_category_id: input.category_id,
+      p_name: input.name ?? null,
+      p_description: input.description ?? null,
+      p_is_active: input.is_active ?? null,
+    })
+
+    if (error) throw error
+    return data as string
+  },
+
+  async delete(categoryId: string) {
+    const { data, error } = await supabase.rpc('delete_inventory_category', {
+      p_category_id: categoryId,
+    })
+
+    if (error) throw error
+    return data as string
   },
 }
 

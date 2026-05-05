@@ -11,6 +11,7 @@ import {
 
 const items = [
   { label: 'Productos', href: '/inventory/products' },
+  { label: 'Categorías', href: '/inventory/categories' },
   { label: 'Kits', href: '/inventory/kits' },
   { label: 'Ingresos', href: '/inventory/entries' },
   { label: 'Salidas', href: '/inventory/exits' },
@@ -22,7 +23,7 @@ const items = [
   { label: 'Control', href: '/inventory/control' },
 ]
 
-const basicInventoryItems = new Set(['/inventory/products', '/inventory/kits'])
+const basicInventoryItems = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
 
 export function InventorySubnav() {
   const pathname = usePathname()
