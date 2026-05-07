@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Button } from '@/components/ui/button'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 import {
   branchesService,
@@ -16,6 +17,8 @@ import {
   type InventorySnapshotHistoryRow,
   type InventorySnapshotItemRow,
 } from '@/lib/supabase/inventory'
+import { generateSnapshotPdf } from '@/lib/pdf/generators'
+import { Download } from 'lucide-react'
 
 function snapshotTypeLabel(snapshotType: string) {
   return snapshotType === 'open' ? 'Apertura' : 'Cierre'
@@ -342,6 +345,30 @@ export default function InventoryStockHistoryPage() {
                             </table>
                           </div>
                         )}
+
+                        <div className="flex justify-end mt-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isLoadingItems || items.length === 0}
+                            onClick={() => {
+                              generateSnapshotPdf({
+                                branchName: snapshot.branch_name,
+                                snapshotType: snapshot.snapshot_type,
+                                takenAt: snapshot.taken_at,
+                                takenByName: snapshot.taken_by_name || 'N/A',
+                                cashSessionId: snapshot.cash_session_id,
+                                items: items.map((item) => ({
+                                  code: item.part_code || '-',
+                                  name: item.part_name || '-',
+                                  quantity: Number(item.quantity || 0),
+                                })),
+                              })
+                            }}
+                          >
+                            <Download className="mr-2 h-4 w-4" /> Descargar PDF
+                          </Button>
+                        </div>
                       </AccordionContent>
                     </AccordionItem>
                   )

@@ -50,7 +50,7 @@ function emptyKitForm(branchId: string, products: Part[]): KitForm {
     description: '',
     category: 'General',
     branch_id: branchId,
-    items: first ? [createKitItemForm(first.id, String(first.kit_price || first.price))] : [],
+    items: first ? [createKitItemForm(first.id, String(first.kit_price ?? first.price))] : [],
   }
 }
 
@@ -83,7 +83,7 @@ export default function InventoryKitsPage() {
           items: [
             createKitItemForm(
               loadedProducts[0].id,
-              String(loadedProducts[0].kit_price || loadedProducts[0].price)
+              String(loadedProducts[0].kit_price ?? loadedProducts[0].price)
             ),
           ],
         }
@@ -120,7 +120,7 @@ export default function InventoryKitsPage() {
       ...prev,
       items: [
         ...prev.items,
-        createKitItemForm(fallback?.id || '', String(fallback?.kit_price || fallback?.price || '')),
+        createKitItemForm(fallback?.id || '', String(fallback?.kit_price ?? fallback?.price ?? '')),
       ],
     }))
   }
@@ -141,7 +141,7 @@ export default function InventoryKitsPage() {
       const fallback = products[0]
       return {
         ...prev,
-        items: [createKitItemForm(fallback.id, String(fallback.kit_price || fallback.price))],
+        items: [createKitItemForm(fallback.id, String(fallback.kit_price ?? fallback.price))],
       }
     })
   }
@@ -157,7 +157,7 @@ export default function InventoryKitsPage() {
         quantity: Number(item.quantity),
         kit_price: Number(item.kit_price),
       }))
-      .filter((item) => item.part_id && item.quantity > 0 && item.kit_price > 0)
+      .filter((item) => item.part_id && item.quantity > 0 && item.kit_price >= 0)
 
     if (items.length === 0) return
 
@@ -267,7 +267,7 @@ export default function InventoryKitsPage() {
                                 const part = products.find((p) => p.id === value)
                                 updateItem(item.id, {
                                   part_id: value === 'none' ? '' : value,
-                                  kit_price: String(part?.kit_price || part?.price || ''),
+                                  kit_price: String(part?.kit_price ?? part?.price ?? ''),
                                 })
                               }}
                             >

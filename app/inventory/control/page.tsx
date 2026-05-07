@@ -19,6 +19,8 @@ import {
   type InventoryControlView,
 } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
+import { generateInventoryPdf, type InventoryReportRow } from '@/lib/pdf/generators'
+import { Download } from 'lucide-react'
 
 export default function InventoryControlPage() {
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
@@ -265,6 +267,32 @@ export default function InventoryControlPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const branchName = branches.find((b) => b.id === branchFilter)?.name || 'Todas'
+              const reportRows: InventoryReportRow[] = filteredLogs.map((r) => ({
+                code: r.part_code,
+                name: r.part_name,
+                stock: Number(r.system_quantity),
+                category: '',
+                cost: 0,
+                price: 0,
+              }))
+              // Deduplicate by product name
+              const uniqueMap = new Map<string, InventoryReportRow>()
+              for (const row of reportRows) {
+                if (!uniqueMap.has(row.code)) uniqueMap.set(row.code, row)
+              }
+              generateInventoryPdf({ branchName, rows: Array.from(uniqueMap.values()) })
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" /> Descargar PDF
+          </Button>
         </div>
 
         <Card className="bg-zinc-950/70 border-zinc-800">

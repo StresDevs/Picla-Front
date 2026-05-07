@@ -18,14 +18,16 @@ import {
   type PendingTransferSummary,
   type TransferRequestDetail,
 } from '@/lib/supabase/inventory'
-import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext, getAppSettings, type AppUserRole } from '@/lib/mock/runtime-store'
 import { Boxes, Plus, Trash2 } from 'lucide-react'
 import type { Part } from '@/types/database'
+import { generateTransferPdf, type TransferConfirmationItem } from '@/lib/pdf/generators'
 
 interface BulkRow {
   id: string
   partId: string
   quantity: string
+  unitPrice: string
 }
 
 function transferStatusLabel(status: string) {
@@ -50,6 +52,7 @@ function createBulkRow(partId = ''): BulkRow {
     id: `row-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
     partId,
     quantity: '',
+    unitPrice: '',
   }
 }
 
@@ -71,6 +74,7 @@ export default function InventoryTransfersPage() {
   const [fromBranch, setFromBranch] = useState('')
   const [toBranch, setToBranch] = useState('')
   const [quantity, setQuantity] = useState('')
+  const [unitPrice, setUnitPrice] = useState('')
   const [notes, setNotes] = useState('')
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([])
 
@@ -258,6 +262,7 @@ export default function InventoryTransfersPage() {
 
   const resetForm = () => {
     setQuantity('')
+    setUnitPrice('')
     setNotes('')
     setBulkRows((prev) => {
       const defaultPart = prev[0]?.partId || products[0]?.id || ''
@@ -273,15 +278,34 @@ export default function InventoryTransfersPage() {
     setError(null)
     setFeedback(null)
     try {
-      await transferService.createRequest({
+      const transferId = await transferService.createRequest({
         from_branch_id: fromBranch,
         to_branch_id: toBranch,
         notes: notes || 'Traspaso unitario',
-        items: [{ part_id: selectedPart.id, quantity: qty }],
+        items: [{ part_id: selectedPart.id, quantity: qty, unit_price: unitPrice ? Number(unitPrice) : null }],
+      })
+
+      // Generate confirmation PDF
+      const fromName = branches.find((b) => b.id === fromBranch)?.name || fromBranch
+      const toName = branches.find((b) => b.id === toBranch)?.name || toBranch
+      const pdfItems: TransferConfirmationItem[] = [{
+        name: selectedPart.name,
+        quantity: qty,
+        priceOrigin: Number(selectedPart.price || 0),
+        priceDestination: unitPrice ? Number(unitPrice) : Number(selectedPart.price || 0),
+      }]
+      generateTransferPdf({
+        transferNumber: typeof transferId === 'string' ? transferId : 'N/A',
+        date: new Date(),
+        exchangeRate: getAppSettings().usd_to_bob_rate,
+        fromBranchName: fromName,
+        toBranchName: toName,
+        items: pdfItems,
       })
 
       await loadTransfers(activeBranchId || null)
       setQuantity('')
+      setUnitPrice('')
       setNotes('')
       setFeedback('Traspaso registrado como pendiente. Puedes completarlo desde la cola de la derecha.')
     } catch (createError) {
@@ -300,6 +324,7 @@ export default function InventoryTransfersPage() {
         return {
           product,
           quantity: Number(row.quantity),
+          unitPrice: row.unitPrice,
         }
       })
       .filter((row) => row.product && row.quantity > 0)
@@ -309,14 +334,33 @@ export default function InventoryTransfersPage() {
     setFeedback(null)
 
     try {
-      await transferService.createRequest({
+      const transferId = await transferService.createRequest({
         from_branch_id: fromBranch,
         to_branch_id: toBranch,
         notes: notes || 'Traspaso masivo',
         items: rows.map((row) => ({
           part_id: row.product!.id,
           quantity: row.quantity,
+          unit_price: row.unitPrice ? Number(row.unitPrice) : null,
         })),
+      })
+
+      // Generate confirmation PDF
+      const fromName = branches.find((b) => b.id === fromBranch)?.name || fromBranch
+      const toName = branches.find((b) => b.id === toBranch)?.name || toBranch
+      const pdfItems: TransferConfirmationItem[] = rows.map((row) => ({
+        name: row.product!.name,
+        quantity: row.quantity,
+        priceOrigin: Number(row.product!.price || 0),
+        priceDestination: row.unitPrice ? Number(row.unitPrice) : Number(row.product!.price || 0),
+      }))
+      generateTransferPdf({
+        transferNumber: typeof transferId === 'string' ? transferId : 'N/A',
+        date: new Date(),
+        exchangeRate: getAppSettings().usd_to_bob_rate,
+        fromBranchName: fromName,
+        toBranchName: toName,
+        items: pdfItems,
       })
 
       await loadTransfers(activeBranchId || null)
@@ -447,6 +491,11 @@ export default function InventoryTransfersPage() {
                     <label className="text-sm font-medium">Cantidad</label>
                     <Input type="number" value={quantity} onChange={(event) => setQuantity(event.target.value)} placeholder="0" />
                   </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Precio unitario (opcional)</label>
+                    <Input type="number" step="0.01" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} placeholder="Precio de venta en destino" />
+                    <p className="text-[10px] text-muted-foreground">Si se indica, se promediará con el precio actual del producto en destino.</p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3 rounded-xl border border-border/70 p-4">
@@ -474,12 +523,21 @@ export default function InventoryTransfersPage() {
                             Stock disponible: <span className="font-semibold">{stockByPartId[row.partId] ?? 0}</span>
                           </div>
                         </div>
-                        <div className="md:col-span-3">
+                        <div className="md:col-span-2">
                           <Input
                             type="number"
                             value={row.quantity}
                             onChange={(event) => updateBulkRow(row.id, { quantity: event.target.value })}
                             placeholder="Cantidad"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={row.unitPrice}
+                            onChange={(event) => updateBulkRow(row.id, { unitPrice: event.target.value })}
+                            placeholder="Precio (opc.)"
                           />
                         </div>
                         <div className="md:col-span-2 flex items-center justify-end">

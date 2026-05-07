@@ -16,7 +16,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { posService, type POSQueuedSale, type POSSaleRecord } from '@/lib/supabase/pos'
-import { ShoppingCart, ChevronRight, FileSearch } from 'lucide-react'
+import { ShoppingCart, ChevronRight, FileSearch, Download } from 'lucide-react'
+import { generateSaleInvoicePdf, generateCashSessionPdf } from '@/lib/pdf/generators'
+import { getAppSettings } from '@/lib/mock/runtime-store'
 
 const paymentLabels: Record<string, string> = {
   cash: 'Efectivo',
@@ -233,6 +235,53 @@ export default function POSSalesHistoryPage() {
             </div>
           </CardContent>
         </Card>
+
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={filteredSales.length === 0}
+            onClick={() => {
+              const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
+              const settings = getAppSettings()
+              generateCashSessionPdf({
+                branchName,
+                sessionDate: new Date().toLocaleDateString('es-BO'),
+                cashier: 'N/A',
+                exchangeRate: settings.usd_to_bob_rate,
+                sales: filteredSales.map((sale) => {
+                  const items = (sale.items || []).map((item) => {
+                    const bob = Number(item.line_total || 0)
+                    return {
+                      code: '',
+                      name: item.part_name,
+                      quantity: Number(item.quantity || 0),
+                      unit: 'PZA',
+                      unitPrice: Number(item.unit_price || 0),
+                      totalBob: bob,
+                      totalUsd: settings.usd_to_bob_rate > 0 ? bob / settings.usd_to_bob_rate : 0,
+                    }
+                  })
+                  const subtotal = items.reduce((s, i) => s + i.totalBob, 0)
+                  const total = Number(sale.total_amount || 0)
+                  return {
+                    saleId: sale.sale_id,
+                    date: sale.created_at,
+                    customer: sale.customer_name ?? 'Mostrador',
+                    paymentMethod: paymentLabels[sale.payment_method] ?? sale.payment_method,
+                    items,
+                    subtotalBob: subtotal,
+                    discount: subtotal - total > 0.01 ? subtotal - total : 0,
+                    totalBob: total,
+                    totalUsd: settings.usd_to_bob_rate > 0 ? total / settings.usd_to_bob_rate : 0,
+                  }
+                }),
+              })
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" /> Descargar informe PDF
+          </Button>
+        </div>
 
         {/* Summary KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -473,7 +522,32 @@ export default function POSSalesHistoryPage() {
                 </p>
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!selectedSale) return
+                    const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
+                    generateSaleInvoicePdf({
+                      saleId: selectedSale.sale_id,
+                      date: selectedSale.created_at,
+                      customer: selectedSale.customer_name ?? 'Mostrador',
+                      paymentMethod: paymentLabels[selectedSale.payment_method] ?? selectedSale.payment_method,
+                      branchName,
+                      items: (selectedSale.items || []).map((item) => ({
+                        code: '',
+                        name: item.part_name,
+                        quantity: Number(item.quantity),
+                        unitPrice: Number(item.unit_price || 0),
+                        lineTotal: Number(item.line_total || 0),
+                      })),
+                      total: Number(selectedSale.total_amount || 0),
+                      exchangeRate: getAppSettings().usd_to_bob_rate,
+                    })
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" /> Factura PDF
+                </Button>
                 <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Cerrar</Button>
               </div>
             </div>

@@ -30,6 +30,7 @@ interface ImportPriceRow {
   kitPrice: string
   quotationMinPrice: string
   quotationMaxPrice: string
+  stock: string
 }
 
 function normalizeCode(value: string) {
@@ -64,6 +65,7 @@ function buildImportRows(sourceProducts: Part[], targetProducts: Part[]) {
         source.quotation_max_price === undefined || source.quotation_max_price === null
           ? ''
           : formatAdjusted(Number(source.quotation_max_price)),
+      stock: '',
     } as ImportPriceRow
   })
 }
@@ -82,6 +84,7 @@ export default function InventoryCatalogImportPage() {
   const [isImportLoading, setIsImportLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [importWithStock, setImportWithStock] = useState(false)
 
   useEffect(() => {
     const syncContext = () => {
@@ -204,7 +207,7 @@ export default function InventoryCatalogImportPage() {
         const adjustedPrice = Number(row.price || source.price || 0)
         const safeSourcePrice = Number(source.price || 0)
         const factor = safeSourcePrice > 0 ? adjustedPrice / safeSourcePrice : 1
-        const adjustedKitPrice = Number(row.kitPrice || source.kit_price || source.price || 0)
+        const adjustedKitPrice = Number(row.kitPrice !== '' && row.kitPrice !== undefined ? row.kitPrice : (source.kit_price ?? source.price ?? 0))
 
         const adjustedTiers = (source.price_tiers || []).map((tier) => ({
           id: tier.id,
@@ -221,6 +224,7 @@ export default function InventoryCatalogImportPage() {
           quotation_min_price: row.quotationMinPrice ? Number(row.quotationMinPrice) : null,
           quotation_max_price: row.quotationMaxPrice ? Number(row.quotationMaxPrice) : null,
           price_tiers: adjustedTiers,
+          stock: importWithStock && row.stock ? Number(row.stock) : undefined,
         })
       }
 
@@ -229,7 +233,14 @@ export default function InventoryCatalogImportPage() {
         partsService.getAll(importToBranch),
       ])
       setImportRows(buildImportRows(sourceProducts, targetProducts))
-      setFeedback(`Importación completada: ${selectedRows.length} productos sincronizados.`)
+
+      const existingWithStock = importWithStock
+        ? selectedRows.filter((row) => row.targetPartId && Number(row.stock || 0) > 0)
+        : []
+      const stockSuffix = existingWithStock.length > 0
+        ? ` (${existingWithStock.length} productos existentes recibieron stock adicional: ${existingWithStock.map((r) => r.sourcePart.name).join(', ')})`
+        : ''
+      setFeedback(`Importación completada: ${selectedRows.length} productos sincronizados.${stockSuffix}`)
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'No se pudo importar catálogo')
     } finally {
@@ -321,6 +332,22 @@ export default function InventoryCatalogImportPage() {
                   </Button>
                 </div>
               </div>
+
+              <div className="flex items-center gap-3 rounded-lg border border-border/70 p-3">
+                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={importWithStock}
+                    onChange={(event) => setImportWithStock(event.target.checked)}
+                  />
+                  Importar con stock
+                </label>
+                <span className="text-xs text-muted-foreground">
+                  {importWithStock
+                    ? 'Se importará la cantidad de stock indicada por producto. Si el producto ya existe, se sumará al stock actual.'
+                    : 'Solo se importarán precios y datos del catálogo, sin modificar stock.'}
+                </span>
+              </div>
             </div>
 
             {feedback ? (
@@ -373,6 +400,16 @@ export default function InventoryCatalogImportPage() {
                     <label className="text-xs">Cotización máxima</label>
                     <Input type="number" step="0.01" value={row.quotationMaxPrice} onChange={(event) => updateImportRow(row.id, { quotationMaxPrice: event.target.value })} />
                   </div>
+
+                  {importWithStock ? (
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="text-xs">Stock / Cantidad</label>
+                      <Input type="number" step="1" min="0" placeholder="0" value={row.stock} onChange={(event) => updateImportRow(row.id, { stock: event.target.value })} />
+                      {row.targetPartId && Number(row.stock || 0) > 0 ? (
+                        <p className="text-[10px] text-amber-500">Producto existente: se sumará al stock actual</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ))}
 

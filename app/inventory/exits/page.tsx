@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { branchesService, exitsService, inventoryService, partsService, type InventoryExitView } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
+import { generateExitsPdf } from '@/lib/pdf/generators'
+import { Download } from 'lucide-react'
 
 export default function InventoryExitsPage() {
   const [products, setProducts] = useState<Part[]>([])
@@ -160,8 +162,8 @@ export default function InventoryExitsPage() {
     const product = products.find((item) => item.id === productId)
     const qty = Number(quantity)
 
-    if (!product || qty <= 0 || !reason.trim()) {
-      setFeedback('Completa producto, cantidad y motivo para registrar salida.')
+    if (!product || qty <= 0) {
+      setFeedback('Completa producto y cantidad para registrar salida.')
       return
     }
 
@@ -319,7 +321,36 @@ export default function InventoryExitsPage() {
 
         <Card className="bg-zinc-950/70">
           <CardHeader>
-            <CardTitle className="text-zinc-100">Lista de salidas registradas</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-zinc-100">Lista de salidas registradas</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={filtered.length === 0}
+                onClick={() => {
+                  const branchName = branchFilter === 'all'
+                    ? 'Todas las sucursales'
+                    : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
+                  generateExitsPdf({
+                    branchName,
+                    from: fromDate || undefined,
+                    to: toDate || undefined,
+                    rows: filtered.map((r) => ({
+                      code: r.part_code || '-',
+                      name: r.part_name,
+                      quantity: Number(r.quantity),
+                      cost: Number(r.cost ?? 0),
+                      reason: r.reason || '',
+                      branchName: r.branch_name || branchName,
+                      date: r.created_at,
+                      category: r.category || '-',
+                    })),
+                  })
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" /> Descargar PDF
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {filtered.map((record) => (

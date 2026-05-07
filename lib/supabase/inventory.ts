@@ -648,7 +648,7 @@ export const transferService = {
     from_branch_id: string
     to_branch_id: string
     notes?: string | null
-    items: Array<{ part_id: string; quantity: number }>
+    items: Array<{ part_id: string; quantity: number; unit_price?: number | null }>
   }) {
     const { data, error } = await supabase.rpc('create_inventory_transfer_request', {
       p_from_branch_id: input.from_branch_id,
@@ -712,6 +712,7 @@ export const catalogImportService = {
     quotation_min_price?: number | null
     quotation_max_price?: number | null
     price_tiers?: ProductPriceTier[]
+    stock?: number
   }) {
     const targetPartId = input.targetPartId || null
     const safePrice = Number.isFinite(input.price) ? input.price : Number(input.sourcePart.price || 0)
@@ -749,7 +750,7 @@ export const catalogImportService = {
         quotation_max_price: safeMaxQuotation,
         tracking_mode: input.sourcePart.tracking_mode || 'none',
         requires_serialization: input.sourcePart.requires_serialization ?? input.sourcePart.tracking_mode === 'serial',
-        initial_quantity: 0,
+        initial_quantity: input.stock && input.stock > 0 ? input.stock : 0,
         min_quantity: 0,
         price_tiers: normalizedTiers.map((tier) => ({
           id: `tier-create-${tier.min_quantity}`,
@@ -802,6 +803,33 @@ export const catalogImportService = {
       if (insertTierError) throw insertTierError
     }
 
+    // Increment stock if requested
+    if (input.stock && input.stock > 0) {
+      const { data: invRow } = await supabase
+        .from('inventory')
+        .select('id, quantity')
+        .eq('part_id', targetPartId)
+        .eq('branch_id', input.targetBranchId)
+        .maybeSingle()
+
+      if (invRow) {
+        await supabase
+          .from('inventory')
+          .update({ quantity: Number(invRow.quantity || 0) + input.stock })
+          .eq('id', invRow.id)
+      } else {
+        await supabase
+          .from('inventory')
+          .insert({
+            part_id: targetPartId,
+            branch_id: input.targetBranchId,
+            quantity: input.stock,
+            min_quantity: 0,
+            last_restock: new Date().toISOString(),
+          })
+      }
+    }
+
     return targetPartId
   },
 
@@ -837,8 +865,10 @@ export const entriesService = {
     unit_price?: number | null
     currency?: 'BOB' | 'USD'
     exchange_rate?: number | null
+    quotation_min_price?: number | null
+    quotation_max_price?: number | null
   }) {
-    const { data, error } = await supabase.rpc('create_inventory_entry', {
+    const { data, error } = await supabase.rpc('create_inventory_entry_v2', {
       p_branch_id: input.branch_id,
       p_part_id: input.part_id,
       p_quantity: input.quantity,
@@ -850,6 +880,7 @@ export const entriesService = {
       p_unit_price: input.unit_price ?? null,
       p_currency: input.currency || 'BOB',
       p_exchange_rate: input.exchange_rate ?? null,
+      p_restock_mode: 'instant',
     })
 
     if (error) throw error

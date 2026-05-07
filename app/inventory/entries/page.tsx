@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 import { branchesService, entriesService, inventoryService, partsService, type InventoryEntryView } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
+import { generateEntriesPdf } from '@/lib/pdf/generators'
+import { Download } from 'lucide-react'
 
 function toIsoStart(date: string) {
   if (!date) return null
@@ -318,7 +320,38 @@ export default function InventoryEntriesPage() {
 
         <Card className="bg-zinc-950/70">
           <CardHeader>
-            <CardTitle className="text-zinc-100">Listado de Ingresos (Día / Mes / Año)</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-zinc-100">Listado de Ingresos (Día / Mes / Año)</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={entries.length === 0}
+                onClick={() => {
+                  const branchName = branchFilter === 'all'
+                    ? 'Todas las sucursales'
+                    : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
+                  generateEntriesPdf({
+                    branchName,
+                    from: fromDate || undefined,
+                    to: toDate || undefined,
+                    rows: entries.map((e) => ({
+                      date: e.created_at,
+                      code: e.part_code || '-',
+                      name: e.part_name,
+                      quantity: Number(e.quantity),
+                      unitCost: e.unit_cost ?? null,
+                      unitPrice: e.unit_price ?? null,
+                      supplier: e.supplier_name || '',
+                      reference: e.source_reference || '',
+                      reason: e.reason || '',
+                      branchName: e.branch_name || branchName,
+                    })),
+                  })
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" /> Descargar PDF
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

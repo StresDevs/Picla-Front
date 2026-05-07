@@ -165,7 +165,7 @@ const toProductForm = (part: Part): ProductFormData => {
     imageFile: null,
     cost: String(part.cost),
     price: String(part.price),
-    kitPrice: String(part.kit_price || part.price),
+    kitPrice: String(part.kit_price ?? part.price),
     quotationMinPrice: String(part.quotation_min_price ?? ''),
     quotationMaxPrice: String(part.quotation_max_price ?? ''),
     trackingMode: part.tracking_mode || 'none',
@@ -496,7 +496,7 @@ export default function InventoryProductsPage() {
   const saveEditedProduct = async () => {
     if (!canModify || !editingProductId) return
 
-    if (!editForm.name || !editForm.code || !editForm.category || !editForm.cost || !editForm.price || !editForm.kitPrice || !editForm.branchId) {
+    if (!editForm.name || !editForm.code || !editForm.category || !editForm.cost || !editForm.price || !editForm.branchId) {
       return
     }
 
@@ -622,7 +622,7 @@ export default function InventoryProductsPage() {
   const createProduct = async () => {
     if (!canModify) return
 
-    if (!productForm.name || !productForm.category || !productForm.cost || !productForm.price || !productForm.kitPrice || !productForm.branchId) {
+    if (!productForm.name || !productForm.category || !productForm.cost || !productForm.price || !productForm.branchId) {
       return
     }
 
@@ -764,7 +764,7 @@ export default function InventoryProductsPage() {
             image_url: row.imageUrl || null,
             cost: Number(row.cost),
             price: Number(row.price),
-            kit_price: Number(row.kitPrice || row.price),
+            kit_price: Number(row.kitPrice !== '' ? row.kitPrice : row.price),
             quotation_min_price: row.quotationMinPrice ? Number(row.quotationMinPrice) : null,
             quotation_max_price: row.quotationMaxPrice ? Number(row.quotationMaxPrice) : null,
             tracking_mode: row.trackingMode,
@@ -1228,7 +1228,7 @@ export default function InventoryProductsPage() {
                   <p><span className="font-medium">Sucursal:</span> {branches.find((b) => b.id === selectedProduct.branch_id)?.name || selectedProduct.branch_id}</p>
                   <p><span className="font-medium">Costo:</span> Bs {selectedProduct.cost.toFixed(2)}</p>
                   <p><span className="font-medium">Precio base:</span> Bs {selectedProduct.price.toFixed(2)}</p>
-                  <p><span className="font-medium">Precio kit:</span> Bs {(selectedProduct.kit_price || selectedProduct.price).toFixed(2)}</p>
+                  <p><span className="font-medium">Precio kit:</span> Bs {(selectedProduct.kit_price ?? selectedProduct.price).toFixed(2)}</p>
                   <p><span className="font-medium">Seguimiento:</span> {getTrackingModeLabel(selectedProduct.tracking_mode)}</p>
                   <p><span className="font-medium">Serialización:</span> {selectedProduct.requires_serialization ? 'sí' : 'no'}</p>
                   <p><span className="font-medium">Cotización:</span> Bs {(selectedProduct.quotation_min_price ?? selectedProduct.price * 0.9).toFixed(2)} - Bs {(selectedProduct.quotation_max_price ?? selectedProduct.price * 1.2).toFixed(2)}</p>
@@ -1486,7 +1486,7 @@ export default function InventoryProductsPage() {
                       <p className="text-lg font-bold text-primary">Bs {getEffectiveProductPrice(part).toFixed(2)}</p>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Precio kit: <span className="font-semibold text-foreground">Bs {(part.kit_price || part.price).toFixed(2)}</span>
+                      Precio kit: <span className="font-semibold text-foreground">Bs {(part.kit_price ?? part.price).toFixed(2)}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Cotización: <span className="font-semibold text-foreground">Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</span>
@@ -1588,7 +1588,7 @@ export default function InventoryProductsPage() {
                         <p><span className="font-medium">Sucursal:</span> {branchName}</p>
                         <p><span className="font-medium">Stock disponible:</span> {stockValue}</p>
                         <p><span className="font-medium">Costo:</span> Bs {part.cost.toFixed(2)}</p>
-                        <p><span className="font-medium">Precio kit:</span> Bs {(part.kit_price || part.price).toFixed(2)}</p>
+                        <p><span className="font-medium">Precio kit:</span> Bs {(part.kit_price ?? part.price).toFixed(2)}</p>
                         <p><span className="font-medium">Cotización:</span> Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</p>
                       </div>
 
