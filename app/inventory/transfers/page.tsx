@@ -12,6 +12,7 @@ import { DataTable } from '@/components/common/data-table'
 import { Badge } from '@/components/ui/badge'
 import {
   branchesService,
+  inventoryService,
   partsService,
   transferService,
   type PendingTransferSummary,
@@ -54,6 +55,7 @@ function createBulkRow(partId = ''): BulkRow {
 
 export default function InventoryTransfersPage() {
   const [products, setProducts] = useState<Part[]>([])
+  const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
   const [transfers, setTransfers] = useState<TransferRequestDetail[]>([])
   const [pendingTransfers, setPendingTransfers] = useState<PendingTransferSummary[]>([])
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
@@ -174,12 +176,21 @@ export default function InventoryTransfersPage() {
       if (!fromBranch) {
         setProducts([])
         setPartId('')
+        setStockByPartId({})
         return
       }
 
       try {
-        const loaded = await partsService.getAll(fromBranch)
+        const [loaded, inventoryRows] = await Promise.all([
+          partsService.getAll(fromBranch),
+          inventoryService.getByBranch(fromBranch),
+        ])
+        const stockMap: Record<string, number> = {}
+        for (const row of inventoryRows) {
+          stockMap[row.part_id] = Number(row.quantity || 0)
+        }
         setProducts(loaded)
+        setStockByPartId(stockMap)
 
         if (loaded.length > 0) {
           setPartId((prev) => prev || loaded[0].id)
@@ -200,6 +211,7 @@ export default function InventoryTransfersPage() {
   }, [fromBranch])
 
   const selectedPart = useMemo(() => products.find((item) => item.id === partId), [products, partId])
+  const selectedStock = useMemo(() => stockByPartId[partId] ?? 0, [stockByPartId, partId])
 
   const transferRows = useMemo(() => {
     return transfers.map((transfer) => {
@@ -427,6 +439,9 @@ export default function InventoryTransfersPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">
+                      Stock disponible en origen: <span className="font-semibold">{selectedStock}</span>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Cantidad</label>
@@ -455,6 +470,9 @@ export default function InventoryTransfersPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                          <div className="mt-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">
+                            Stock disponible: <span className="font-semibold">{stockByPartId[row.partId] ?? 0}</span>
+                          </div>
                         </div>
                         <div className="md:col-span-3">
                           <Input

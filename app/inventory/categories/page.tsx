@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,7 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { categoriesService, type CategoryListItem } from '@/lib/supabase/inventory'
+import { categoriesService, inventoryService, partsService, type CategoryListItem } from '@/lib/supabase/inventory'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import {
   ACTIVE_ROLE_EVENT,
@@ -30,15 +30,17 @@ import {
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
 import {
+  ChevronDown,
   FolderOpen,
+  Package,
   Pencil,
   Plus,
   Search,
-  Trash2,
   ToggleLeft,
   ToggleRight,
-  Package,
+  Trash2,
 } from 'lucide-react'
+import type { Part } from '@/types/database'
 
 interface BranchOption {
   id: string
@@ -47,6 +49,8 @@ interface BranchOption {
 
 export default function InventoryCategoriesPage() {
   const [categories, setCategories] = useState<CategoryListItem[]>([])
+  const [products, setProducts] = useState<Part[]>([])
+  const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
   const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
@@ -57,6 +61,7 @@ export default function InventoryCategoriesPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
 
   // Create dialog
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -81,8 +86,18 @@ export default function InventoryCategoriesPage() {
     setError(null)
 
     try {
-      const data = await categoriesService.getList(branchId, showInactive)
+      const [data, productRows, inventoryRows] = await Promise.all([
+        categoriesService.getList(branchId, showInactive),
+        partsService.getAll(branchId),
+        inventoryService.getByBranch(branchId),
+      ])
+      const stockMap: Record<string, number> = {}
+      for (const row of inventoryRows) {
+        stockMap[row.part_id] = Number(row.quantity || 0)
+      }
       setCategories(data)
+      setProducts(productRows)
+      setStockByPartId(stockMap)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar las categorías')
     } finally {
@@ -145,6 +160,26 @@ export default function InventoryCategoriesPage() {
         (cat.description && cat.description.toLowerCase().includes(term)),
     )
   }, [categories, searchTerm])
+
+  const productsByCategory = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; code: string; stock: number }>>()
+
+    for (const product of products) {
+      const categoryName = product.category || ''
+      if (!categoryName) continue
+
+      const stockValue = stockByPartId[product.id] ?? 0
+      const list = map.get(categoryName) ?? []
+      list.push({ id: product.id, code: product.code, stock: stockValue })
+      map.set(categoryName, list)
+    }
+
+    for (const list of map.values()) {
+      list.sort((a, b) => a.code.localeCompare(b.code))
+    }
+
+    return map
+  }, [products, stockByPartId])
 
   // ─── Handlers ────────────────────────────────────────────────
 
@@ -428,89 +463,131 @@ export default function InventoryCategoriesPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCategories.map((cat) => (
-                    <TableRow
-                      key={cat.category_id}
-                      className={`transition-colors duration-150 ${
-                        !cat.is_active ? 'opacity-50' : 'hover:bg-muted/30'
-                      }`}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${cat.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                          <span className="font-medium">{cat.category_name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground max-w-[300px] truncate">
-                        {cat.description || '—'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className="gap-1">
-                          <Package className="w-3 h-3" />
-                          {cat.product_count}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {cat.is_active ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
-                            Activa
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30">
-                            Inactiva
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(cat.created_at).toLocaleDateString('es-BO', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </TableCell>
-                      {canModify ? (
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
-                              title="Editar"
-                              onClick={() => openEdit(cat)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`h-8 w-8 p-0 ${
-                                cat.is_active
-                                  ? 'hover:bg-amber-500/10 hover:text-amber-600'
-                                  : 'hover:bg-emerald-500/10 hover:text-emerald-600'
-                              }`}
-                              title={cat.is_active ? 'Desactivar' : 'Reactivar'}
-                              onClick={() => void handleToggleActive(cat)}
-                            >
-                              {cat.is_active ? (
-                                <ToggleRight className="h-4 w-4" />
-                              ) : (
-                                <ToggleLeft className="h-4 w-4" />
-                              )}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-red-500/10 hover:text-red-600"
-                              title="Eliminar (soft delete)"
-                              onClick={() => openDelete(cat)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      ) : null}
-                    </TableRow>
-                  ))
+                  filteredCategories.map((cat) => {
+                    const isExpanded = expandedCategoryId === cat.category_id
+                    const categoryProducts = productsByCategory.get(cat.category_name) ?? []
+
+                    return (
+                      <Fragment key={cat.category_id}>
+                        <TableRow
+                          className={`transition-colors duration-150 ${
+                            !cat.is_active ? 'opacity-50' : 'hover:bg-muted/30'
+                          }`}
+                        >
+                          <TableCell>
+                            <div className="flex items-start gap-2">
+                              <div className={`mt-2 w-2 h-2 rounded-full ${cat.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                              <div>
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-2 text-left"
+                                  onClick={() => setExpandedCategoryId((prev) => (prev === cat.category_id ? null : cat.category_id))}
+                                  aria-expanded={isExpanded}
+                                >
+                                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                  <span className="font-medium">{cat.category_name}</span>
+                                </button>
+                                <p className="ml-6 text-xs text-muted-foreground">
+                                  {isExpanded ? 'Ocultar productos' : 'Ver productos'}
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground max-w-[300px] truncate">
+                            {cat.description || '—'}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="gap-1">
+                              <Package className="w-3 h-3" />
+                              {cat.product_count}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {cat.is_active ? (
+                              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                                Activa
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30">
+                                Inactiva
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {new Date(cat.created_at).toLocaleDateString('es-BO', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </TableCell>
+                          {canModify ? (
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+                                  title="Editar"
+                                  onClick={() => openEdit(cat)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`h-8 w-8 p-0 ${
+                                    cat.is_active
+                                      ? 'hover:bg-amber-500/10 hover:text-amber-600'
+                                      : 'hover:bg-emerald-500/10 hover:text-emerald-600'
+                                  }`}
+                                  title={cat.is_active ? 'Desactivar' : 'Reactivar'}
+                                  onClick={() => void handleToggleActive(cat)}
+                                >
+                                  {cat.is_active ? (
+                                    <ToggleRight className="h-4 w-4" />
+                                  ) : (
+                                    <ToggleLeft className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 hover:bg-red-500/10 hover:text-red-600"
+                                  title="Eliminar (soft delete)"
+                                  onClick={() => openDelete(cat)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          ) : null}
+                        </TableRow>
+                        {isExpanded ? (
+                          <TableRow className="bg-muted/10">
+                            <TableCell colSpan={canModify ? 6 : 5}>
+                              <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+                                <p className="text-xs text-muted-foreground mb-2">Productos en la categoria</p>
+                                {categoryProducts.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground">Sin productos registrados.</p>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
+                                    {categoryProducts.map((product) => (
+                                      <div key={product.id} className="flex items-center justify-between rounded-md border border-border/60 bg-card/80 px-3 py-2">
+                                        <span className="font-medium">Codigo: {product.code}</span>
+                                        <span className={product.stock <= 0 ? 'font-semibold text-red-600' : 'font-semibold text-foreground'}>
+                                          Stock: {product.stock}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </Fragment>
+                    )
+                  })
                 )}
               </TableBody>
             </Table>

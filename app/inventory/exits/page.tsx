@@ -11,11 +11,12 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
-import { branchesService, exitsService, partsService, type InventoryExitView } from '@/lib/supabase/inventory'
+import { branchesService, exitsService, inventoryService, partsService, type InventoryExitView } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
 
 export default function InventoryExitsPage() {
   const [products, setProducts] = useState<Part[]>([])
+  const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
   const [records, setRecords] = useState<InventoryExitView[]>([])
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
   const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
@@ -101,13 +102,22 @@ export default function InventoryExitsPage() {
       if (!branchId) {
         setProducts([])
         setProductId('')
+        setStockByPartId({})
         return
       }
 
       try {
-        const rows = await partsService.getAll(branchId)
+        const [rows, inventoryRows] = await Promise.all([
+          partsService.getAll(branchId),
+          inventoryService.getByBranch(branchId),
+        ])
+        const stockMap: Record<string, number> = {}
+        for (const row of inventoryRows) {
+          stockMap[row.part_id] = Number(row.quantity || 0)
+        }
         setProducts(rows)
         setProductId((prev) => prev || rows[0]?.id || '')
+        setStockByPartId(stockMap)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar productos')
       }
@@ -119,6 +129,11 @@ export default function InventoryExitsPage() {
   const categoryOptions = useMemo(
     () => ['all', ...new Set(records.map((record) => record.category || '-'))],
     [records],
+  )
+
+  const selectedStock = useMemo(
+    () => stockByPartId[productId] ?? 0,
+    [stockByPartId, productId]
   )
 
   const itemOptions = useMemo(
@@ -203,6 +218,9 @@ export default function InventoryExitsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200">
+                  Stock disponible en sucursal: <span className="font-semibold">{selectedStock}</span>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Sucursal</Label>

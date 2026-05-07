@@ -1152,20 +1152,23 @@ export default function POSSalesPage() {
                             }}
                           />
                           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 pb-2 pt-8">
-                            <p className="line-clamp-1 text-sm font-semibold text-white">{product.name}</p>
+                            <p className="text-sm font-semibold text-white leading-snug break-words">{product.name}</p>
                             <p className="text-[11px] text-white/80">{product.category}</p>
                           </div>
                           <div className="absolute left-2 top-2">
                             <Badge className="bg-background/90 text-foreground">{product.code}</Badge>
-                          </div>
-                          <div className="absolute right-2 top-2">
-                            <Badge variant="outline" className="border-white/40 bg-black/35 text-white">Stock {Number(product.stock || 0)}</Badge>
                           </div>
                         </div>
                         <div className="flex flex-1 flex-col gap-3 p-3">
                           <div>
                             <p className="text-sm text-muted-foreground">Precio</p>
                             <p className="text-lg font-bold text-primary">Bs {Number(product.price || 0).toFixed(2)}</p>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Stock disponible</span>
+                            <span className={Number(product.stock || 0) <= 0 ? 'font-semibold text-red-600' : 'font-semibold text-foreground'}>
+                              {Number(product.stock || 0)}
+                            </span>
                           </div>
                           <Button size="sm" className="mt-auto" onClick={() => addToCart(product)} disabled={Number(product.stock || 0) <= 0}>
                             <Plus className="h-4 w-4 mr-1" /> Agregar

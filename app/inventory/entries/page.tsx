@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
-import { branchesService, entriesService, partsService, type InventoryEntryView } from '@/lib/supabase/inventory'
+import { branchesService, entriesService, inventoryService, partsService, type InventoryEntryView } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
 
 function toIsoStart(date: string) {
@@ -29,6 +29,7 @@ export default function InventoryEntriesPage() {
 
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
   const [products, setProducts] = useState<Part[]>([])
+  const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
   const [entries, setEntries] = useState<InventoryEntryView[]>([])
 
   const [branchId, setBranchId] = useState('')
@@ -108,14 +109,23 @@ export default function InventoryEntriesPage() {
     if (!branchId) {
       setProducts([])
       setPartId('')
+      setStockByPartId({})
       return
     }
 
     const loadProducts = async () => {
       try {
-        const rows = await partsService.getAll(branchId)
+        const [rows, inventoryRows] = await Promise.all([
+          partsService.getAll(branchId),
+          inventoryService.getByBranch(branchId),
+        ])
+        const stockMap: Record<string, number> = {}
+        for (const row of inventoryRows) {
+          stockMap[row.part_id] = Number(row.quantity || 0)
+        }
         setProducts(rows)
         setPartId((prev) => prev || rows[0]?.id || '')
+        setStockByPartId(stockMap)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar productos')
       }
@@ -192,6 +202,10 @@ export default function InventoryEntriesPage() {
   const selectedPartName = useMemo(
     () => products.find((item) => item.id === partId)?.name || '',
     [products, partId]
+  )
+  const selectedStock = useMemo(
+    () => stockByPartId[partId] ?? 0,
+    [stockByPartId, partId]
   )
 
   return (
@@ -292,7 +306,10 @@ export default function InventoryEntriesPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-zinc-500">Producto seleccionado: {selectedPartName || 'N/A'}</p>
+              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+                Stock disponible en sucursal: <span className="font-semibold">{selectedStock}</span>
+                <span className="text-emerald-100/80"> · {selectedPartName || 'N/A'}</span>
+              </div>
               <Button onClick={() => void registerEntry()} disabled={isSaving || !canRegister}>Registrar Ingreso</Button>
             </div>
             {feedback ? <p className="text-xs text-emerald-300">{feedback}</p> : null}

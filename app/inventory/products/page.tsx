@@ -23,14 +23,26 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { categoriesService, partsService } from '@/lib/supabase/inventory'
+import { categoriesService, inventoryService, partsService } from '@/lib/supabase/inventory'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import {
   ACTIVE_ROLE_EVENT,
   getActiveUserContext,
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
-import { Boxes, FileSpreadsheet, Plus, Search, SlidersHorizontal, Tags, Trash2, Upload } from 'lucide-react'
+import {
+  Boxes,
+  ChevronDown,
+  FileSpreadsheet,
+  LayoutGrid,
+  List,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Tags,
+  Trash2,
+  Upload,
+} from 'lucide-react'
 import type { InventoryCategory, Part, ProductPriceTier } from '@/types/database'
 
 interface BranchOption {
@@ -298,6 +310,7 @@ function SerializationToggleCard({
 
 export default function InventoryProductsPage() {
   const [parts, setParts] = useState<Part[]>([])
+  const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
   const [categories, setCategories] = useState<InventoryCategory[]>([])
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
@@ -307,6 +320,8 @@ export default function InventoryProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
+  const [viewMode, setViewMode] = useState<'cards' | 'rows'>('cards')
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -336,12 +351,18 @@ export default function InventoryProductsPage() {
     setError(null)
 
     try {
-      const [productsData, categoriesData] = await Promise.all([
+      const [productsData, categoriesData, inventoryRows] = await Promise.all([
         partsService.getAll(branchId),
         categoriesService.getAll(branchId),
+        inventoryService.getByBranch(branchId),
       ])
+      const stockMap: Record<string, number> = {}
+      for (const row of inventoryRows) {
+        stockMap[row.part_id] = Number(row.quantity || 0)
+      }
       setParts(productsData)
       setCategories(categoriesData)
+      setStockByPartId(stockMap)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar inventario')
     } finally {
@@ -407,6 +428,11 @@ export default function InventoryProductsPage() {
       return byTerm && byCategory && byMin && byMax
     })
   }, [parts, searchTerm, selectedCategory, minPrice, maxPrice])
+
+  const selectedStock = useMemo(() => {
+    if (!selectedProduct) return 0
+    return stockByPartId[selectedProduct.id] ?? 0
+  }, [selectedProduct, stockByPartId])
 
   const addTier = () => {
     setProductForm((prev) => ({
@@ -1160,9 +1186,29 @@ export default function InventoryProductsPage() {
           </CardContent>
         </Card>
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Catálogo de productos</h2>
-          <Badge className="bg-primary/15 text-primary">{isLoading ? 'Cargando...' : `${filteredParts.length} productos`}</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={viewMode === 'cards' ? 'default' : 'outline'}
+                onClick={() => setViewMode('cards')}
+              >
+                <LayoutGrid className="mr-2 h-4 w-4" />
+                Tarjetas
+              </Button>
+              <Button
+                size="sm"
+                variant={viewMode === 'rows' ? 'default' : 'outline'}
+                onClick={() => setViewMode('rows')}
+              >
+                <List className="mr-2 h-4 w-4" />
+                Filas
+              </Button>
+            </div>
+            <Badge className="bg-primary/15 text-primary">{isLoading ? 'Cargando...' : `${filteredParts.length} productos`}</Badge>
+          </div>
         </div>
 
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
@@ -1178,6 +1224,7 @@ export default function InventoryProductsPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <p><span className="font-medium">Categoría:</span> {selectedProduct.category}</p>
+                  <p><span className="font-medium">Stock disponible:</span> {selectedStock}</p>
                   <p><span className="font-medium">Sucursal:</span> {branches.find((b) => b.id === selectedProduct.branch_id)?.name || selectedProduct.branch_id}</p>
                   <p><span className="font-medium">Costo:</span> Bs {selectedProduct.cost.toFixed(2)}</p>
                   <p><span className="font-medium">Precio base:</span> Bs {selectedProduct.price.toFixed(2)}</p>
@@ -1397,102 +1444,212 @@ export default function InventoryProductsPage() {
           </DialogContent>
         </Dialog>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-          {filteredParts.map((part) => {
-            const branchName = branches.find((branch) => branch.id === part.branch_id)?.name ?? part.branch_id
-            const tiers = [...(part.price_tiers || [])]
-              .filter((tier) => tier.min_quantity > 1)
-              .sort((a, b) => a.min_quantity - b.min_quantity)
+        {viewMode === 'cards' ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+            {filteredParts.map((part) => {
+              const branchName = branches.find((branch) => branch.id === part.branch_id)?.name ?? part.branch_id
+              const tiers = [...(part.price_tiers || [])]
+                .filter((tier) => tier.min_quantity > 1)
+                .sort((a, b) => a.min_quantity - b.min_quantity)
+              const stockValue = stockByPartId[part.id] ?? 0
 
-            return (
-              <article key={part.id} className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 transition-colors duration-150 hover:border-primary/60 hover:bg-card">
-                <div className="relative aspect-[3/4] overflow-hidden">
-                  <img src={part.image_url || '/placeholder.svg'} alt={part.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/placeholder.svg' }} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                  <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                    <Badge className="bg-primary/90 text-primary-foreground">{part.code}</Badge>
-                    {part.tracking_mode === 'serial' && (
-                      <Badge className="bg-sky-500/90 text-white border-sky-400/50 text-[10px] px-1.5">Serie</Badge>
-                    )}
-                    {part.tracking_mode === 'lot' && (
-                      <Badge className="bg-amber-500/90 text-black border-amber-400/50 text-[10px] px-1.5">Lote</Badge>
-                    )}
-                  </div>
-                  <div className="absolute bottom-3 left-3 right-3">
-                    <p className="text-white text-sm font-semibold line-clamp-2">{part.name}</p>
-                    <p className="text-white/80 text-xs mt-1">{part.category}</p>
-                  </div>
-                </div>
-                <div className="flex flex-1 flex-col gap-3 p-3">
-                  <div className="text-xs text-muted-foreground">{branchName}</div>
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Tags className="w-3 h-3" /> Costo Bs {part.cost.toFixed(2)}
+              return (
+                <article key={part.id} className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 transition-colors duration-150 hover:border-primary/60 hover:bg-card">
+                  <div className="relative aspect-[3/4] overflow-hidden">
+                    <img src={part.image_url || '/placeholder.svg'} alt={part.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/placeholder.svg' }} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                      <Badge className="bg-primary/90 text-primary-foreground">{part.code}</Badge>
+                      {part.tracking_mode === 'serial' && (
+                        <Badge className="bg-sky-500/90 text-white border-sky-400/50 text-[10px] px-1.5">Serie</Badge>
+                      )}
+                      {part.tracking_mode === 'lot' && (
+                        <Badge className="bg-amber-500/90 text-black border-amber-400/50 text-[10px] px-1.5">Lote</Badge>
+                      )}
                     </div>
-                    <p className="text-lg font-bold text-primary">Bs {getEffectiveProductPrice(part).toFixed(2)}</p>
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <p className="text-white text-sm font-semibold leading-snug break-words">{part.name}</p>
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Precio kit: <span className="font-semibold text-foreground">Bs {(part.kit_price || part.price).toFixed(2)}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Cotización: <span className="font-semibold text-foreground">Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {part.tracking_mode === 'serial' && (
-                      <span className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-400">
-                        Control por serie
+                  <div className="flex flex-1 flex-col gap-3 p-3">
+                    <div className="text-xs text-muted-foreground">{branchName}</div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Stock disponible</span>
+                      <span className={stockValue <= 0 ? 'font-semibold text-red-500' : 'font-semibold text-foreground'}>
+                        {stockValue}
                       </span>
-                    )}
-                    {part.tracking_mode === 'lot' && (
-                      <span className="inline-flex items-center rounded-full border border-amber-400/50 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
-                        Control por lote
-                      </span>
-                    )}
-                    {part.tracking_mode === 'none' && (
-                      <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        Sin seguimiento
-                      </span>
-                    )}
-                  </div>
-                  <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-[11px]">
-                    {tiers.length === 0 ? (
-                      <span className="text-muted-foreground">Sin escalas de mayoreo</span>
-                    ) : (
-                      <div className="space-y-1">
-                        {tiers.map((tier) => (
-                          <div key={tier.id} className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Desde {tier.min_quantity} und</span>
-                            <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
-                          </div>
-                        ))}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Tags className="w-3 h-3" /> Costo Bs {part.cost.toFixed(2)}
                       </div>
-                    )}
-                  </div>
-                  <div className="mt-auto flex gap-1.5">
-                    <Button className="flex-1" size="sm" variant="outline" onClick={() => openProductDetail(part)}>
-                      <Boxes className="w-4 h-4 mr-2" />
-                      Ver detalle
-                    </Button>
-                    {canModify ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 hover:border-red-500/30"
-                        title="Eliminar producto"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openDeleteProduct(part)
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
+                      <p className="text-lg font-bold text-primary">Bs {getEffectiveProductPrice(part).toFixed(2)}</p>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Precio kit: <span className="font-semibold text-foreground">Bs {(part.kit_price || part.price).toFixed(2)}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Cotización: <span className="font-semibold text-foreground">Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {part.tracking_mode === 'serial' && (
+                        <span className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-400">
+                          Control por serie
+                        </span>
+                      )}
+                      {part.tracking_mode === 'lot' && (
+                        <span className="inline-flex items-center rounded-full border border-amber-400/50 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                          Control por lote
+                        </span>
+                      )}
+                      {part.tracking_mode === 'none' && (
+                        <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          Sin seguimiento
+                        </span>
+                      )}
+                    </div>
+                    <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-[11px]">
+                      {tiers.length === 0 ? (
+                        <span className="text-muted-foreground">Sin escalas de mayoreo</span>
+                      ) : (
+                        <div className="space-y-1">
+                          {tiers.map((tier) => (
+                            <div key={tier.id} className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Desde {tier.min_quantity} und</span>
+                              <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-auto flex gap-1.5">
+                      <Button className="flex-1" size="sm" variant="outline" onClick={() => openProductDetail(part)}>
+                        <Boxes className="w-4 h-4 mr-2" />
+                        Ver detalle
                       </Button>
-                    ) : null}
+                      {canModify ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 hover:border-red-500/30"
+                          title="Eliminar producto"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openDeleteProduct(part)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
+                </article>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredParts.map((part) => {
+              const branchName = branches.find((branch) => branch.id === part.branch_id)?.name ?? part.branch_id
+              const tiers = [...(part.price_tiers || [])]
+                .filter((tier) => tier.min_quantity > 1)
+                .sort((a, b) => a.min_quantity - b.min_quantity)
+              const stockValue = stockByPartId[part.id] ?? 0
+              const isExpanded = expandedRowId === part.id
+
+              return (
+                <div key={part.id} className="rounded-2xl border border-border/70 bg-card/90">
+                  <button
+                    type="button"
+                    className="flex w-full flex-col gap-3 px-4 py-3 text-left md:flex-row md:items-center md:justify-between"
+                    onClick={() => setExpandedRowId((prev) => (prev === part.id ? null : part.id))}
+                    aria-expanded={isExpanded}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold break-words">{part.name}</p>
+                      <p className="text-xs text-muted-foreground">Codigo {part.code}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-6">
+                      <div className="text-left md:text-right">
+                        <p className="text-xs text-muted-foreground">Stock</p>
+                        <p className={stockValue <= 0 ? 'font-semibold text-red-500' : 'font-semibold text-foreground'}>{stockValue}</p>
+                      </div>
+                      <div className="text-left md:text-right">
+                        <p className="text-xs text-muted-foreground">Precio</p>
+                        <p className="text-sm font-semibold text-primary">Bs {getEffectiveProductPrice(part).toFixed(2)}</p>
+                      </div>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </div>
+                  </button>
+
+                  {isExpanded ? (
+                    <div className="border-t border-border/70 px-4 py-3 space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <p><span className="font-medium">Sucursal:</span> {branchName}</p>
+                        <p><span className="font-medium">Stock disponible:</span> {stockValue}</p>
+                        <p><span className="font-medium">Costo:</span> Bs {part.cost.toFixed(2)}</p>
+                        <p><span className="font-medium">Precio kit:</span> Bs {(part.kit_price || part.price).toFixed(2)}</p>
+                        <p><span className="font-medium">Cotización:</span> Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {part.tracking_mode === 'serial' && (
+                          <span className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-400">
+                            Control por serie
+                          </span>
+                        )}
+                        {part.tracking_mode === 'lot' && (
+                          <span className="inline-flex items-center rounded-full border border-amber-400/50 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                            Control por lote
+                          </span>
+                        )}
+                        {part.tracking_mode === 'none' && (
+                          <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            Sin seguimiento
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-[11px]">
+                        {tiers.length === 0 ? (
+                          <span className="text-muted-foreground">Sin escalas de mayoreo</span>
+                        ) : (
+                          <div className="space-y-1">
+                            {tiers.map((tier) => (
+                              <div key={tier.id} className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Desde {tier.min_quantity} und</span>
+                                <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => openProductDetail(part)}>
+                          <Boxes className="w-4 h-4 mr-2" />
+                          Ver detalle
+                        </Button>
+                        {canModify ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-500 hover:text-red-600 hover:bg-red-500/10 hover:border-red-500/30"
+                            title="Eliminar producto"
+                            onClick={() => openDeleteProduct(part)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Eliminar
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              </article>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Delete Product Confirmation */}
         <AlertDialog open={isDeleteProductOpen} onOpenChange={setIsDeleteProductOpen}>
