@@ -133,21 +133,42 @@ export function generateInventoryPdf(input: {
   const body: RowData[] = input.rows.map((r, i) => [
     i + 1,
     r.code,
+    r.stock,
     r.name,
     r.category || '-',
-    r.stock,
-    fmtMoney(r.cost),
-    fmtMoney(r.price),
+    `Bs ${fmtMoney(r.cost)}`,
+    `Bs ${fmtMoney(r.price)}`,
   ])
 
   autoTable(doc, {
     startY: 34,
-    head: [['#', 'Código', 'Producto', 'Categoría', 'Stock', 'Costo', 'Precio']],
+    head: [['#', 'Código', 'Stock', 'Producto', 'Categoría', 'Costo', 'Precio']],
     body,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245, 245, 245] },
   })
+
+  // Totals & profit margin
+  const totalCost = input.rows.reduce((s, r) => s + (r.cost ?? 0) * r.stock, 0)
+  const totalPrice = input.rows.reduce((s, r) => s + (r.price ?? 0) * r.stock, 0)
+  const profitMargin = totalCost > 0 ? ((totalPrice - totalCost) / totalCost * 100) : 0
+  const totalStock = input.rows.reduce((s, r) => s + r.stock, 0)
+
+  const finalY = (doc as unknown as Record<string, number>).lastAutoTable?.finalY ?? 200
+  let ty = finalY + 8
+  const pageWidth = doc.internal.pageSize.getWidth()
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Total productos: ${input.rows.length}`, 14, ty)
+  doc.text(`Total unidades en stock: ${totalStock.toLocaleString('es-BO')}`, 14, ty + 5)
+
+  doc.setFont('helvetica', 'bold')
+  ty += 12
+  doc.text(`Costo total (stock × costo): Bs ${fmtMoney(totalCost)}`, pageWidth - 14, ty, { align: 'right' }); ty += 5
+  doc.text(`Precio total (stock × precio): Bs ${fmtMoney(totalPrice)}`, pageWidth - 14, ty, { align: 'right' }); ty += 5
+  doc.text(`Margen de ganancia: ${fmtMoney(profitMargin)}%`, pageWidth - 14, ty, { align: 'right' })
 
   addFooter(doc, `Inventario — ${input.branchName} — Generado: ${fmtDateTime(now)}`)
   savePdf(doc, `inventario_${input.branchName.replace(/\s+/g, '_')}`)

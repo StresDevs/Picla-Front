@@ -33,6 +33,7 @@ import {
 import {
   Boxes,
   ChevronDown,
+  Download,
   FileSpreadsheet,
   LayoutGrid,
   List,
@@ -44,6 +45,7 @@ import {
   Upload,
 } from 'lucide-react'
 import type { InventoryCategory, Part, ProductPriceTier } from '@/types/database'
+import { generateInventoryPdf } from '@/lib/pdf/generators'
 
 interface BranchOption {
   id: string
@@ -550,7 +552,10 @@ export default function InventoryProductsPage() {
         price_tiers: priceTiers,
       })
 
-      await refreshData(activeBranchId)
+      await refreshData(editForm.branchId || activeBranchId)
+      if (editForm.branchId && editForm.branchId !== activeBranchId) {
+        await refreshData(activeBranchId)
+      }
       setIsEditOpen(false)
       setIsDetailOpen(false)
       setSelectedProduct(null)
@@ -607,6 +612,7 @@ export default function InventoryProductsPage() {
 
     try {
       await partsService.delete(deleteProductTarget.id)
+      setParts((prev) => prev.filter((p) => p.id !== deleteProductTarget.id))
       await refreshData(activeBranchId)
       setIsDeleteProductOpen(false)
       setDeleteProductTarget(null)
@@ -684,7 +690,10 @@ export default function InventoryProductsPage() {
         price_tiers: additionalTiers,
       })
 
-      await refreshData(activeBranchId)
+      await refreshData(productForm.branchId || activeBranchId)
+      if (productForm.branchId && productForm.branchId !== activeBranchId) {
+        await refreshData(activeBranchId)
+      }
 
       setProductForm(createEmptyProductForm(productForm.branchId))
       setIsCreateOpen(false)
@@ -1142,6 +1151,30 @@ export default function InventoryProductsPage() {
         ) : null}
 
         <InventorySubnav />
+
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={filteredParts.length === 0}
+            onClick={() => {
+              const branchName = branches.find((b) => b.id === activeBranchId)?.name || 'Sucursal'
+              generateInventoryPdf({
+                branchName,
+                rows: filteredParts.map((p) => ({
+                  code: p.code,
+                  stock: stockByPartId[p.id] ?? 0,
+                  name: p.name,
+                  category: p.category || '-',
+                  cost: p.cost,
+                  price: p.price
+                })),
+              })
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" /> Descargar PDF de inventario
+          </Button>
+        </div>
 
         <Card>
           <CardHeader>
