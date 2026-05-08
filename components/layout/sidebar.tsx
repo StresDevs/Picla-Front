@@ -427,18 +427,18 @@ export function Sidebar() {
                         />
                       </button>
                       {isExpanded && (
-                        <div className="space-y-1 pl-4 mt-1">
+                        <div className="space-y-0.5 pl-3 mt-1 border-l-2 border-sidebar-border/50 ml-2">
                           {item.subItems?.map((subItem) => {
-                            const isSubActive = pathname === subItem.href
+                            const isSubActive = pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)
                             return (
                               <Button
                                 key={subItem.href}
                                 asChild
                                 variant="ghost"
-                                className={`w-full justify-start text-xs rounded-lg ${
+                                className={`w-full justify-start text-xs rounded-lg transition-all duration-150 ${
                                   isSubActive
-                                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-                                    : 'text-sidebar-foreground hover:bg-sidebar-accent/90'
+                                    ? 'bg-white/10 text-white font-semibold border border-white/70 shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                                    : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
                                 }`}
                               >
                                 <Link

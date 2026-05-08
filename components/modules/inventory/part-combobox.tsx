@@ -53,19 +53,19 @@ export function PartCombobox({
           variant="outline"
           disabled={disabled || parts.length === 0}
           className={cn(
-            'h-9 w-full min-w-0 justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
+            'h-auto min-h-9 w-full min-w-0 justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
             !selected && 'text-slate-400 dark:text-muted-foreground',
             className,
           )}
         >
-          <span className="truncate text-left">
+          <span className="text-left break-words whitespace-normal leading-snug">
             {selected
               ? `${selected.name} (${selected.code})`
               : parts.length === 0
                 ? 'Sin productos'
                 : placeholder}
           </span>
-          <ChevronDownIcon className="size-4 shrink-0 opacity-50" />
+          <ChevronDownIcon className="size-4 shrink-0 opacity-50 ml-1" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
@@ -129,13 +129,13 @@ export function SearchableStringPick({
           variant="outline"
           disabled={disabled || options.length === 0}
           className={cn(
-            'h-9 w-full min-w-0 justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
+            'h-auto min-h-9 w-full min-w-0 justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
             !selected && 'text-slate-400 dark:text-muted-foreground',
             className,
           )}
         >
-          <span className="truncate text-left">{selected?.label ?? placeholder}</span>
-          <ChevronDownIcon className="size-4 shrink-0 opacity-50" />
+          <span className="text-left break-words whitespace-normal leading-snug">{selected?.label ?? placeholder}</span>
+          <ChevronDownIcon className="size-4 shrink-0 opacity-50 ml-1" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
