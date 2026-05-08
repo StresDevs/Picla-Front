@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
+import { PartCombobox } from '@/components/modules/inventory/part-combobox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -247,14 +248,7 @@ export default function InventoryEntriesPage() {
               </div>
               <div className="space-y-2">
                 <Label>Producto</Label>
-                <Select value={partId} onValueChange={setPartId}>
-                  <SelectTrigger><SelectValue placeholder="Producto" /></SelectTrigger>
-                  <SelectContent>
-                    {products.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>{product.name} ({product.code})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <PartCombobox parts={products} value={partId} onValueChange={setPartId} />
               </div>
               <div className="space-y-2">
                 <Label>Cantidad</Label>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
+import { PartCombobox } from '@/components/modules/inventory/part-combobox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -475,14 +476,7 @@ export default function InventoryTransfersPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-border/70 p-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Producto</label>
-                    <Select value={partId} onValueChange={setPartId}>
-                      <SelectTrigger><SelectValue placeholder="Seleccionar producto" /></SelectTrigger>
-                      <SelectContent>
-                        {products.map((product) => (
-                          <SelectItem key={product.id} value={product.id}>{product.name} ({product.code})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <PartCombobox parts={products} value={partId} onValueChange={setPartId} />
                     <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">
                       Stock disponible en origen: <span className="font-semibold">{selectedStock}</span>
                     </div>
@@ -510,15 +504,7 @@ export default function InventoryTransfersPage() {
                     {bulkRows.map((row, index) => (
                       <div key={row.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/60 p-2">
                         <div className="md:col-span-7">
-                          <Select value={row.partId || 'none'} onValueChange={(value) => updateBulkRow(row.id, { partId: value === 'none' ? '' : value })}>
-                            <SelectTrigger><SelectValue placeholder="Producto" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none" disabled>Selecciona producto</SelectItem>
-                              {products.map((product) => (
-                                <SelectItem key={product.id} value={product.id}>{product.name} ({product.code})</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <PartCombobox parts={products} value={row.partId} onValueChange={(id) => updateBulkRow(row.id, { partId: id })} />
                           <div className="mt-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">
                             Stock disponible: <span className="font-semibold">{stockByPartId[row.partId] ?? 0}</span>
                           </div>

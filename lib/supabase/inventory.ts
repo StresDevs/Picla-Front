@@ -189,7 +189,9 @@ interface InventoryExitRow {
   created_by: string | null
   created_at: string
   branches?: { name: string } | Array<{ name: string }>
-  parts?: { code: string; name: string; category: string | null } | Array<{ code: string; name: string; category: string | null }>
+  parts?:
+    | { code: string; name: string; category: string | null; cost: number | null }
+    | Array<{ code: string; name: string; category: string | null; cost: number | null }>
   users?: { full_name: string | null } | Array<{ full_name: string | null }>
 }
 
@@ -227,6 +229,7 @@ export interface InventoryExitView {
   part_name: string
   category: string | null
   quantity: number
+  cost: number
   reason: string
   source_reference: string | null
   created_by_name: string | null
@@ -956,7 +959,7 @@ export const exitsService = {
         created_by,
         created_at,
         branches(name),
-        parts(code, name, category),
+        parts(code, name, category, cost),
         users!inventory_exits_created_by_fkey(full_name)
       `)
 
@@ -982,6 +985,7 @@ export const exitsService = {
         part_name: part?.name || row.part_id,
         category: part?.category || null,
         quantity: Number(row.quantity || 0),
+        cost: Number(part?.cost ?? 0),
         reason: row.reason,
         source_reference: row.source_reference,
         created_by_name: user?.full_name || null,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
+import { PartCombobox, SearchableStringPick } from '@/components/modules/inventory/part-combobox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,7 +36,7 @@ export default function InventoryExitsPage() {
   const [productId, setProductId] = useState('')
   const [branchId, setBranchId] = useState('')
   const [quantity, setQuantity] = useState('')
-  const [sourceType, setSourceType] = useState<'adjustment_error' | 'damage' | 'internal_use' | 'other'>('adjustment_error')
+  const [exitTypeText, setExitTypeText] = useState('')
   const [sourceReference, setSourceReference] = useState('')
   const [reason, setReason] = useState('')
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -138,10 +139,13 @@ export default function InventoryExitsPage() {
     [stockByPartId, productId]
   )
 
-  const itemOptions = useMemo(
-    () => ['all', ...new Set(records.map((record) => record.part_name))],
-    [records],
-  )
+  const productFilterPickOptions = useMemo(() => {
+    const names = [...new Set(records.map((record) => record.part_name))]
+    return [
+      { value: 'all', label: 'Todos los productos' },
+      ...names.map((name) => ({ value: name, label: name })),
+    ]
+  }, [records])
 
   const filtered = useMemo(() => {
     const start = fromDate ? new Date(`${fromDate}T00:00:00`) : null
@@ -170,7 +174,10 @@ export default function InventoryExitsPage() {
     setIsSaving(true)
     setError(null)
     try {
-      const composedReason = `[${sourceType}] ${reason.trim()}`
+      const typePart = exitTypeText.trim()
+      const detail = reason.trim()
+      const composedReason =
+        typePart && detail ? `[${typePart}] ${detail}` : typePart || detail
       const createdId = await exitsService.create({
         branch_id: branchId,
         part_id: product.id,
@@ -181,6 +188,7 @@ export default function InventoryExitsPage() {
 
       await loadRecords(activeBranchId || null)
       setQuantity('')
+      setExitTypeText('')
       setReason('')
       setSourceReference('')
       setFeedback(`Salida ${createdId} registrada correctamente.`)
@@ -212,14 +220,7 @@ export default function InventoryExitsPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="space-y-2">
                 <Label>Producto</Label>
-                <Select value={productId} onValueChange={setProductId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {products.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>{product.name} ({product.code})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <PartCombobox parts={products} value={productId} onValueChange={setProductId} />
                 <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200">
                   Stock disponible en sucursal: <span className="font-semibold">{selectedStock}</span>
                 </div>
@@ -241,15 +242,11 @@ export default function InventoryExitsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Tipo de salida</Label>
-                <Select value={sourceType} onValueChange={(value: 'adjustment_error' | 'damage' | 'internal_use' | 'other') => setSourceType(value)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="adjustment_error">Ajuste por error en venta/edición</SelectItem>
-                    <SelectItem value="damage">Daño o merma</SelectItem>
-                    <SelectItem value="internal_use">Uso interno</SelectItem>
-                    <SelectItem value="other">Otro</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  value={exitTypeText}
+                  onChange={(event) => setExitTypeText(event.target.value)}
+                  placeholder="Escribe el motivo o clasificación (texto libre)"
+                />
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label>Referencia (venta/edición)</Label>
@@ -257,7 +254,7 @@ export default function InventoryExitsPage() {
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label>Motivo</Label>
-                <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Describe por qué se registra salida" />
+                <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Describe por qué se registra la salida" />
               </div>
             </div>
 
@@ -307,14 +304,7 @@ export default function InventoryExitsPage() {
             </div>
             <div className="space-y-2">
               <Label>Producto</Label>
-              <Select value={itemFilter} onValueChange={setItemFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {itemOptions.map((item) => (
-                    <SelectItem key={item} value={item}>{item === 'all' ? 'Todos los productos' : item}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableStringPick options={productFilterPickOptions} value={itemFilter} onValueChange={setItemFilter} />
             </div>
           </CardContent>
         </Card>
