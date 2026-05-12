@@ -23,7 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { categoriesService, inventoryService, partsService } from '@/lib/supabase/inventory'
+import { categoriesService, inventoryService, partsService, type InventoryAvailabilityRow } from '@/lib/supabase/inventory'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import {
   ACTIVE_ROLE_EVENT,
@@ -69,7 +69,7 @@ interface ProductFormData {
   price: string
   kitPrice: string
   quotationMinPrice: string
-  quotationMaxPrice: string
+  quotationMaxPercent: string
   trackingMode: 'none' | 'serial' | 'lot'
   requiresSerialization: boolean
   initialQuantity: string
@@ -89,7 +89,7 @@ interface BulkProductRow {
   price: string
   kitPrice: string
   quotationMinPrice: string
-  quotationMaxPrice: string
+  quotationMaxPercent: string
   trackingMode: 'none' | 'serial' | 'lot'
   requiresSerialization: boolean
   initialQuantity: string
@@ -110,6 +110,23 @@ const createTier = (minQty = '2', price = ''): TierFormData => ({
   price,
 })
 
+const DEFAULT_QUOTATION_MAX_PERCENT = 120
+
+function toPercentString(value: number) {
+  if (!Number.isFinite(value)) return String(DEFAULT_QUOTATION_MAX_PERCENT)
+  return String(Number(value.toFixed(2)))
+}
+
+function resolveQuotationMaxPercent(price: number, maxPrice?: number | null) {
+  if (!Number.isFinite(price) || price <= 0) return DEFAULT_QUOTATION_MAX_PERCENT
+  if (maxPrice === undefined || maxPrice === null || !Number.isFinite(maxPrice)) {
+    return DEFAULT_QUOTATION_MAX_PERCENT
+  }
+  const percent = (maxPrice / price) * 100
+  if (!Number.isFinite(percent)) return DEFAULT_QUOTATION_MAX_PERCENT
+  return Math.max(100, Number(percent.toFixed(2)))
+}
+
 const createBulkRow = (branchId: string): BulkProductRow => ({
   id: `bulk-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
   code: '',
@@ -121,7 +138,7 @@ const createBulkRow = (branchId: string): BulkProductRow => ({
   price: '',
   kitPrice: '',
   quotationMinPrice: '',
-  quotationMaxPrice: '',
+  quotationMaxPercent: String(DEFAULT_QUOTATION_MAX_PERCENT),
   trackingMode: 'none',
   requiresSerialization: false,
   initialQuantity: '0',
@@ -140,7 +157,7 @@ const createEmptyProductForm = (branchId: string): ProductFormData => ({
   price: '',
   kitPrice: '',
   quotationMinPrice: '',
-  quotationMaxPrice: '',
+  quotationMaxPercent: String(DEFAULT_QUOTATION_MAX_PERCENT),
   trackingMode: 'none',
   requiresSerialization: false,
   initialQuantity: '0',
@@ -169,7 +186,7 @@ const toProductForm = (part: Part): ProductFormData => {
     price: String(part.price),
     kitPrice: String(part.kit_price ?? part.price),
     quotationMinPrice: String(part.quotation_min_price ?? ''),
-    quotationMaxPrice: String(part.quotation_max_price ?? ''),
+    quotationMaxPercent: toPercentString(resolveQuotationMaxPercent(part.price, part.quotation_max_price ?? null)),
     trackingMode: part.tracking_mode || 'none',
     requiresSerialization: part.requires_serialization || part.tracking_mode === 'serial',
     initialQuantity: '',
@@ -224,6 +241,25 @@ function toBulkRow(record: Record<string, unknown>, branchId: string): BulkProdu
   const input = toExcelRecord(record)
   const trackingMode = normalizeTrackingMode(getCell(input, ['tracking_mode', 'trackingmode']))
   const requiresSerialization = parseBool(getCell(input, ['requires_serialization', 'serializacion', 'serializable'])) || trackingMode === 'serial'
+  const rawPrice = String(getCell(input, ['price', 'precio'])).trim()
+  const priceValue = Number(rawPrice.replace(',', '.'))
+  const rawMaxPercent = String(
+    getCell(input, [
+      'quotation_max_percent',
+      'quotation_max_percentage',
+      'quotationmaxpercent',
+      'cotizacion_maxima_percent',
+      'cotizacion_maxima_pct',
+      'cotizacion_maxima_porcentaje',
+    ]),
+  ).trim()
+  const maxPercentValue = Number(rawMaxPercent.replace(',', '.'))
+  const rawMaxPrice = String(getCell(input, ['quotation_max_price', 'quotationmaxprice'])).trim()
+  const maxPriceValue = Number(rawMaxPrice.replace(',', '.'))
+  const resolvedMaxPercent =
+    Number.isFinite(maxPercentValue) && maxPercentValue > 0
+      ? Math.max(100, maxPercentValue)
+      : resolveQuotationMaxPercent(priceValue, Number.isFinite(maxPriceValue) ? maxPriceValue : null)
 
   return {
     id: `bulk-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
@@ -233,10 +269,10 @@ function toBulkRow(record: Record<string, unknown>, branchId: string): BulkProdu
     categoryId: String(getCell(input, ['category_id', 'categoryid'])).trim(),
     branchId: String(getCell(input, ['branch_id', 'branchid'])).trim() || branchId,
     cost: String(getCell(input, ['cost', 'costo'])).trim(),
-    price: String(getCell(input, ['price', 'precio'])).trim(),
+    price: rawPrice,
     kitPrice: String(getCell(input, ['kit_price', 'kitprice', 'precio_kit'])).trim(),
     quotationMinPrice: String(getCell(input, ['quotation_min_price', 'quotationminprice'])).trim(),
-    quotationMaxPrice: String(getCell(input, ['quotation_max_price', 'quotationmaxprice'])).trim(),
+    quotationMaxPercent: toPercentString(resolvedMaxPercent),
     trackingMode,
     requiresSerialization,
     initialQuantity: String(getCell(input, ['initial_quantity', 'initialquantity', 'stock_inicial'])).trim() || '0',
@@ -249,6 +285,18 @@ function getEffectiveProductPrice(part: Part) {
   const tiers = [...(part.price_tiers || [])].sort((a, b) => a.min_quantity - b.min_quantity)
   const base = tiers.find((tier) => tier.min_quantity === 1)
   return base?.price ?? part.price
+}
+
+function getMaxQuotationPriceFromPercent(price: number, percent: number) {
+  if (!Number.isFinite(price) || !Number.isFinite(percent)) return 0
+  return Number((price * (percent / 100)).toFixed(2))
+}
+
+function getQuotationRange(part: Part) {
+  const referencePrice = Number(part.price || 0)
+  const min = part.quotation_min_price ?? Number((referencePrice * 0.9).toFixed(2))
+  const max = part.quotation_max_price ?? Number((referencePrice * 1.2).toFixed(2))
+  return { min, max }
 }
 
 function SerializationToggleCard({
@@ -313,6 +361,8 @@ function SerializationToggleCard({
 export default function InventoryProductsPage() {
   const [parts, setParts] = useState<Part[]>([])
   const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
+  const [availabilityByCode, setAvailabilityByCode] = useState<Record<string, InventoryAvailabilityRow[]>>({})
+  const [availabilityLoadingByCode, setAvailabilityLoadingByCode] = useState<Record<string, boolean>>({})
   const [categories, setCategories] = useState<InventoryCategory[]>([])
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
@@ -347,6 +397,26 @@ export default function InventoryProductsPage() {
   const [editForm, setEditForm] = useState<ProductFormData>(() => createEmptyProductForm(getActiveUserContext().branch_id))
 
   const canModify = activeRole === 'admin'
+
+  const normalizePartCode = (code: string) => code.trim().toLowerCase()
+
+  const ensureAvailabilityForCode = async (code: string) => {
+    const normalized = normalizePartCode(code)
+    if (!normalized || availabilityByCode[normalized] || availabilityLoadingByCode[normalized]) {
+      return
+    }
+
+    setAvailabilityLoadingByCode((prev) => ({ ...prev, [normalized]: true }))
+
+    try {
+      const rows = await inventoryService.getAvailabilityByCode(code)
+      setAvailabilityByCode((prev) => ({ ...prev, [normalized]: rows }))
+    } catch {
+      setAvailabilityByCode((prev) => ({ ...prev, [normalized]: [] }))
+    } finally {
+      setAvailabilityLoadingByCode((prev) => ({ ...prev, [normalized]: false }))
+    }
+  }
 
   const refreshData = async (branchId: string) => {
     setIsLoading(true)
@@ -504,7 +574,14 @@ export default function InventoryProductsPage() {
 
     const referencePrice = Number(editForm.price)
     const minQuotationPrice = Number(editForm.quotationMinPrice || Number((referencePrice * 0.9).toFixed(2)))
-    const maxQuotationPrice = Number(editForm.quotationMaxPrice || Number((referencePrice * 1.2).toFixed(2)))
+    const maxPercentValue = Number(editForm.quotationMaxPercent || DEFAULT_QUOTATION_MAX_PERCENT)
+
+    if (!Number.isFinite(maxPercentValue) || maxPercentValue < 100) {
+      setError('El porcentaje de cotización máxima debe ser igual o mayor a 100%.')
+      return
+    }
+
+    const maxQuotationPrice = Number((referencePrice * (maxPercentValue / 100)).toFixed(2))
 
     if (minQuotationPrice <= 0 || maxQuotationPrice < minQuotationPrice) {
       setError('El rango de cotización no es válido para la edición')
@@ -634,7 +711,14 @@ export default function InventoryProductsPage() {
 
     const referencePrice = Number(productForm.price)
     const minQuotationPrice = Number(productForm.quotationMinPrice || Number((referencePrice * 0.9).toFixed(2)))
-    const maxQuotationPrice = Number(productForm.quotationMaxPrice || Number((referencePrice * 1.2).toFixed(2)))
+    const maxPercentValue = Number(productForm.quotationMaxPercent || DEFAULT_QUOTATION_MAX_PERCENT)
+
+    if (!Number.isFinite(maxPercentValue) || maxPercentValue < 100) {
+      setError('El porcentaje de cotización máxima debe ser igual o mayor a 100%.')
+      return
+    }
+
+    const maxQuotationPrice = Number((referencePrice * (maxPercentValue / 100)).toFixed(2))
 
     if (minQuotationPrice <= 0 || maxQuotationPrice < minQuotationPrice) {
       setError('El rango de cotización no es válido')
@@ -763,6 +847,12 @@ export default function InventoryProductsPage() {
                 category_id: row.categoryId || null,
               })
 
+          const maxPercentValue = Number(row.quotationMaxPercent || DEFAULT_QUOTATION_MAX_PERCENT)
+          const safeMaxPercent = Number.isFinite(maxPercentValue) && maxPercentValue >= 100
+            ? maxPercentValue
+            : DEFAULT_QUOTATION_MAX_PERCENT
+          const maxQuotationPrice = Number((Number(row.price) * (safeMaxPercent / 100)).toFixed(2))
+
           return {
             branch_id: branchId,
             code,
@@ -775,7 +865,7 @@ export default function InventoryProductsPage() {
             price: Number(row.price),
             kit_price: Number(row.kitPrice !== '' ? row.kitPrice : row.price),
             quotation_min_price: row.quotationMinPrice ? Number(row.quotationMinPrice) : null,
-            quotation_max_price: row.quotationMaxPrice ? Number(row.quotationMaxPrice) : null,
+            quotation_max_price: Number.isFinite(maxQuotationPrice) ? maxQuotationPrice : null,
             tracking_mode: row.trackingMode,
             requires_serialization: row.requiresSerialization || row.trackingMode === 'serial',
             initial_quantity: Number(row.initialQuantity || 0),
@@ -1054,12 +1144,29 @@ export default function InventoryProductsPage() {
                         <Input type="number" step="0.01" value={productForm.kitPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, kitPrice: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Cotización mínima</label>
-                        <Input type="number" step="0.01" value={productForm.quotationMinPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, quotationMinPrice: event.target.value }))} />
+                        <label className="text-sm font-medium text-foreground">Cotización máxima (%)</label>
+                        <Input
+                          type="number"
+                          min={100}
+                          step={1}
+                          value={productForm.quotationMaxPercent}
+                          onChange={(event) => setProductForm((prev) => ({ ...prev, quotationMaxPercent: event.target.value }))}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Máximo sugerido: Bs {getMaxQuotationPriceFromPercent(
+                            Number(productForm.price || 0),
+                            Number(productForm.quotationMaxPercent || DEFAULT_QUOTATION_MAX_PERCENT),
+                          ).toFixed(2)}
+                        </p>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Cotización máxima</label>
-                        <Input type="number" step="0.01" value={productForm.quotationMaxPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, quotationMaxPrice: event.target.value }))} />
+                        <label className="text-sm font-medium text-foreground">Cotización mínima</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={productForm.quotationMinPrice}
+                          onChange={(event) => setProductForm((prev) => ({ ...prev, quotationMinPrice: event.target.value }))}
+                        />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">Stock inicial</label>
@@ -1260,11 +1367,11 @@ export default function InventoryProductsPage() {
                   <p><span className="font-medium">Stock disponible:</span> {selectedStock}</p>
                   <p><span className="font-medium">Sucursal:</span> {branches.find((b) => b.id === selectedProduct.branch_id)?.name || selectedProduct.branch_id}</p>
                   <p><span className="font-medium">Costo:</span> Bs {selectedProduct.cost.toFixed(2)}</p>
-                  <p><span className="font-medium">Precio base:</span> Bs {selectedProduct.price.toFixed(2)}</p>
+                  <p><span className="font-medium">Precio de venta:</span> Bs {selectedProduct.price.toFixed(2)}</p>
                   <p><span className="font-medium">Precio kit:</span> Bs {(selectedProduct.kit_price ?? selectedProduct.price).toFixed(2)}</p>
                   <p><span className="font-medium">Seguimiento:</span> {getTrackingModeLabel(selectedProduct.tracking_mode)}</p>
                   <p><span className="font-medium">Serialización:</span> {selectedProduct.requires_serialization ? 'sí' : 'no'}</p>
-                  <p><span className="font-medium">Cotización:</span> Bs {(selectedProduct.quotation_min_price ?? selectedProduct.price * 0.9).toFixed(2)} - Bs {(selectedProduct.quotation_max_price ?? selectedProduct.price * 1.2).toFixed(2)}</p>
+                  <p><span className="font-medium">Cotización:</span> Bs {getQuotationRange(selectedProduct).max.toFixed(2)} - Bs {getQuotationRange(selectedProduct).min.toFixed(2)}</p>
                 </div>
 
                 <div className="rounded-md border border-border/70 p-3">
@@ -1390,7 +1497,7 @@ export default function InventoryProductsPage() {
                 <Input type="number" step="0.01" value={editForm.cost} onChange={(event) => setEditForm((prev) => ({ ...prev, cost: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Precio base</label>
+                <label className="text-sm font-medium text-foreground">Precio de venta</label>
                 <Input type="number" step="0.01" value={editForm.price} onChange={(event) => setEditForm((prev) => ({ ...prev, price: event.target.value }))} />
               </div>
               <div className="space-y-2">
@@ -1398,12 +1505,29 @@ export default function InventoryProductsPage() {
                 <Input type="number" step="0.01" value={editForm.kitPrice} onChange={(event) => setEditForm((prev) => ({ ...prev, kitPrice: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Cotización mínima</label>
-                <Input type="number" step="0.01" value={editForm.quotationMinPrice} onChange={(event) => setEditForm((prev) => ({ ...prev, quotationMinPrice: event.target.value }))} />
+                <label className="text-sm font-medium text-foreground">Cotización máxima (%)</label>
+                <Input
+                  type="number"
+                  min={100}
+                  step={1}
+                  value={editForm.quotationMaxPercent}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, quotationMaxPercent: event.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Máximo sugerido: Bs {getMaxQuotationPriceFromPercent(
+                    Number(editForm.price || 0),
+                    Number(editForm.quotationMaxPercent || DEFAULT_QUOTATION_MAX_PERCENT),
+                  ).toFixed(2)}
+                </p>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Cotización máxima</label>
-                <Input type="number" step="0.01" value={editForm.quotationMaxPrice} onChange={(event) => setEditForm((prev) => ({ ...prev, quotationMaxPrice: event.target.value }))} />
+                <label className="text-sm font-medium text-foreground">Cotización mínima</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editForm.quotationMinPrice}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, quotationMinPrice: event.target.value }))}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Seguimiento</label>
@@ -1522,7 +1646,7 @@ export default function InventoryProductsPage() {
                       Precio kit: <span className="font-semibold text-foreground">Bs {(part.kit_price ?? part.price).toFixed(2)}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Cotización: <span className="font-semibold text-foreground">Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</span>
+                      Cotización: <span className="font-semibold text-foreground">Bs {getQuotationRange(part).max.toFixed(2)} - Bs {getQuotationRange(part).min.toFixed(2)}</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {part.tracking_mode === 'serial' && (
@@ -1589,13 +1713,24 @@ export default function InventoryProductsPage() {
                 .sort((a, b) => a.min_quantity - b.min_quantity)
               const stockValue = stockByPartId[part.id] ?? 0
               const isExpanded = expandedRowId === part.id
+              const availabilityKey = normalizePartCode(part.code)
+              const availabilityRows = availabilityByCode[availabilityKey] || []
+              const availabilityLoading = availabilityLoadingByCode[availabilityKey]
 
               return (
                 <div key={part.id} className="rounded-2xl border border-border/70 bg-card/90">
                   <button
                     type="button"
                     className="flex w-full flex-col gap-3 px-4 py-3 text-left md:flex-row md:items-center md:justify-between"
-                    onClick={() => setExpandedRowId((prev) => (prev === part.id ? null : part.id))}
+                    onClick={() => {
+                      setExpandedRowId((prev) => {
+                        const next = prev === part.id ? null : part.id
+                        if (next) {
+                          void ensureAvailabilityForCode(part.code)
+                        }
+                        return next
+                      })
+                    }}
                     aria-expanded={isExpanded}
                   >
                     <div className="min-w-0 flex-1">
@@ -1622,7 +1757,7 @@ export default function InventoryProductsPage() {
                         <p><span className="font-medium">Stock disponible:</span> {stockValue}</p>
                         <p><span className="font-medium">Costo:</span> Bs {part.cost.toFixed(2)}</p>
                         <p><span className="font-medium">Precio kit:</span> Bs {(part.kit_price ?? part.price).toFixed(2)}</p>
-                        <p><span className="font-medium">Cotización:</span> Bs {(part.quotation_min_price ?? part.price * 0.9).toFixed(2)} - Bs {(part.quotation_max_price ?? part.price * 1.2).toFixed(2)}</p>
+                        <p><span className="font-medium">Cotización:</span> Bs {getQuotationRange(part).max.toFixed(2)} - Bs {getQuotationRange(part).min.toFixed(2)}</p>
                       </div>
 
                       <div className="flex flex-wrap gap-1.5">
@@ -1652,6 +1787,29 @@ export default function InventoryProductsPage() {
                               <div key={tier.id} className="flex items-center justify-between">
                                 <span className="text-muted-foreground">Desde {tier.min_quantity} und</span>
                                 <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-md border border-border/70 bg-background/70 p-3">
+                        <p className="text-sm font-medium mb-2">Disponibilidad por sucursal</p>
+                        {availabilityLoading ? (
+                          <p className="text-xs text-muted-foreground">Cargando disponibilidad...</p>
+                        ) : availabilityRows.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Sin datos de disponibilidad para este producto.</p>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                            {availabilityRows.map((row) => (
+                              <div key={`${row.branch_id}-${row.part_id}`} className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1">
+                                <div className="min-w-0">
+                                  <p className="font-medium truncate">{row.branch_name}</p>
+                                  <p className="text-muted-foreground">Costo Bs {row.cost.toFixed(2)} · Venta Bs {row.price.toFixed(2)}</p>
+                                </div>
+                                <span className={row.quantity <= 0 ? 'font-semibold text-red-500' : 'font-semibold text-foreground'}>
+                                  {row.quantity}
+                                </span>
                               </div>
                             ))}
                           </div>

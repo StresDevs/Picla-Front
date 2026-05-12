@@ -9,7 +9,7 @@ import {
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
 
-const items = [
+const items: Array<{ label: string; href: string; adminOnly?: boolean }> = [
   { label: 'Productos', href: '/inventory/products' },
   { label: 'Categorías', href: '/inventory/categories' },
   { label: 'Kits', href: '/inventory/kits' },
@@ -21,6 +21,8 @@ const items = [
   { label: 'Historial de traspasos', href: '/inventory/history' },
   { label: 'Historial de inventario', href: '/inventory/stock-history' },
   { label: 'Control', href: '/inventory/control' },
+  { label: 'Recuperar productos', href: '/inventory/recovery', adminOnly: true },
+  { label: 'Matriz de precios', href: '/inventory/price-matrix', adminOnly: true },
 ]
 
 const basicInventoryItems = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
@@ -45,11 +47,15 @@ export function InventorySubnav() {
   }, [])
 
   const visibleItems = useMemo(() => {
-    if (activeRole === 'admin' || activeRole === 'manager') {
+    if (activeRole === 'admin') {
       return items
     }
 
-    return items.filter((item) => basicInventoryItems.has(item.href))
+    if (activeRole === 'manager') {
+      return items.filter((item) => !item.adminOnly)
+    }
+
+    return items.filter((item) => basicInventoryItems.has(item.href) && !item.adminOnly)
   }, [activeRole])
 
   return (

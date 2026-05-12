@@ -67,6 +67,8 @@ const menuItems: MenuItem[] = [
       { label: 'Historial de traspasos', href: '/inventory/history' },
       { label: 'Historial de inventario', href: '/inventory/stock-history' },
       { label: 'Control', href: '/inventory/control' },
+      { label: 'Recuperar productos', href: '/inventory/recovery' },
+      { label: 'Matriz de precios', href: '/inventory/price-matrix' },
     ],
   },
   {
@@ -144,6 +146,7 @@ const menuItems: MenuItem[] = [
 ]
 
 const inventoryBasicRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
+const inventoryAdminRoutes = new Set(['/inventory/recovery', '/inventory/price-matrix'])
 
 export function Sidebar() {
   const router = useRouter()
@@ -273,9 +276,17 @@ export function Sidebar() {
     return menuItems.map((item) => {
       if (item.label === 'Inventario') {
         const canSeeInventoryOps = activeRole === 'admin' || activeRole === 'manager'
-        const filteredSubItems = (item.subItems || []).filter((subItem) =>
-          canSeeInventoryOps ? true : inventoryBasicRoutes.has(subItem.href)
-        )
+        const filteredSubItems = (item.subItems || []).filter((subItem) => {
+          if (!canSeeInventoryOps) {
+            return inventoryBasicRoutes.has(subItem.href)
+          }
+
+          if (activeRole !== 'admin' && inventoryAdminRoutes.has(subItem.href)) {
+            return false
+          }
+
+          return true
+        })
 
         return {
           ...item,

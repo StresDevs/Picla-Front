@@ -179,6 +179,17 @@ export interface InventorySnapshotItemRow {
   quantity: number
 }
 
+export interface InventoryAvailabilityRow {
+  branch_id: string
+  branch_name: string
+  part_id: string
+  part_code: string
+  part_name: string
+  cost: number
+  price: number
+  quantity: number
+}
+
 interface InventoryExitRow {
   id: string
   branch_id: string
@@ -330,6 +341,8 @@ function buildTiersPayload(tiers: ProductPriceTier[] | undefined, basePrice: num
   return [...byQty.values()].sort((a, b) => a.min_quantity - b.min_quantity)
 }
 
+const CENTRAL_BRANCH_ID = 'c2d40d4a-213b-4a65-bfc5-95f8cf64fa61'
+
 // Parts Service
 export const partsService = {
   async generateAutoCode(input: { branch_id: string; category: string; category_id?: string | null }) {
@@ -357,6 +370,22 @@ export const partsService = {
       .eq('is_active', true)
       .order('name', { ascending: true })
     
+    if (error) throw error
+    return ((data as ProductRow[]) || []).map(toPartModel)
+  },
+
+  async getInactive(branchId?: string) {
+    let query = supabase
+      .from('parts')
+      .select('*, product_price_tiers(*)')
+      .eq('is_active', false)
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId)
+    }
+
+    const { data, error } = await query.order('updated_at', { ascending: false })
+
     if (error) throw error
     return ((data as ProductRow[]) || []).map(toPartModel)
   },
@@ -429,10 +458,12 @@ export const partsService = {
 
   async update(id: string, part: Partial<UpsertProductInput>) {
     const current = await this.getById(id)
-    return this.create({
+    const nextName = part.name ?? current.name
+
+    const updated = await this.create({
       branch_id: part.branch_id || current.branch_id,
       code: part.code || current.code,
-      name: part.name || current.name,
+      name: nextName,
       description: part.description ?? current.description,
       category: part.category ?? current.category,
       category_id: part.category_id ?? null,
@@ -449,11 +480,41 @@ export const partsService = {
       min_quantity: part.min_quantity,
       price_tiers: part.price_tiers ?? current.price_tiers ?? [],
     })
+
+    const currentName = current.name.trim().toLowerCase()
+    const updatedName = String(nextName || '').trim().toLowerCase()
+    if (current.branch_id === CENTRAL_BRANCH_ID && updatedName && updatedName !== currentName) {
+      await supabase.rpc('sync_inventory_product_name', {
+        p_part_id: id,
+        p_old_name: current.name,
+        p_new_name: nextName,
+        p_central_branch_id: CENTRAL_BRANCH_ID,
+      })
+    }
+
+    return updated
   },
 
   async delete(id: string) {
     const { error } = await supabase.rpc('soft_delete_inventory_product', {
       p_part_id: id,
+    })
+
+    if (error) throw error
+  },
+
+  async restore(id: string) {
+    const { error } = await supabase.rpc('restore_inventory_product', {
+      p_part_id: id,
+    })
+
+    if (error) throw error
+  },
+
+  async updatePrice(partId: string, newPrice: number) {
+    const { error } = await supabase.rpc('update_inventory_product_price', {
+      p_part_id: partId,
+      p_new_price: newPrice,
     })
 
     if (error) throw error
@@ -1213,6 +1274,20 @@ export const inventoryService = {
     
     if (error) throw error
     return (data as Inventory[]) || []
+  },
+
+  async getAvailabilityByCode(code: string) {
+    const { data, error } = await supabase.rpc('get_inventory_product_availability', {
+      p_code: code,
+    })
+
+    if (error) throw error
+    return ((data || []) as InventoryAvailabilityRow[]).map((row) => ({
+      ...row,
+      cost: Number(row.cost || 0),
+      price: Number(row.price || 0),
+      quantity: Number(row.quantity || 0),
+    }))
   },
 
   async getWithParts(branchId: string) {

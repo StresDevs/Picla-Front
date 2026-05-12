@@ -82,11 +82,20 @@ export function PartCombobox({
                     onValueChange(part.id)
                     setOpen(false)
                   }}
+                  className="items-start gap-2 border-b border-border/60 py-2 last:border-b-0"
                 >
-                  <CheckIcon className={cn('size-4 shrink-0', value === part.id ? 'opacity-100' : 'opacity-0')} />
-                  <span className="min-w-0 truncate">
-                    {part.name} ({part.code})
-                  </span>
+                  <CheckIcon
+                    className={cn(
+                      'size-4 shrink-0 mt-0.5',
+                      value === part.id ? 'opacity-100' : 'opacity-0',
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium leading-snug whitespace-normal break-words">
+                      {part.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{part.code}</p>
+                  </div>
                 </CommandItem>
               ))}
             </CommandGroup>

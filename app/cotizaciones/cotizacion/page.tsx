@@ -721,7 +721,7 @@ export default function QuotationPage() {
                           const maxQuotationPrice = part.quotation_max_price ?? Number((basePrice * 1.2).toFixed(2))
                           return (
                             <p className="text-[11px] text-muted-foreground">
-                              Rango cotizacion: Bs {minQuotationPrice.toFixed(2)} - Bs {maxQuotationPrice.toFixed(2)}
+                              Rango cotizacion: Bs {maxQuotationPrice.toFixed(2)} - Bs {minQuotationPrice.toFixed(2)}
                             </p>
                           )
                         })()}

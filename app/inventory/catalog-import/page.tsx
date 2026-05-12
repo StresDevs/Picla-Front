@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
@@ -29,8 +29,30 @@ interface ImportPriceRow {
   price: string
   kitPrice: string
   quotationMinPrice: string
-  quotationMaxPrice: string
+  quotationMaxPercent: string
   stock: string
+}
+
+const DEFAULT_QUOTATION_MAX_PERCENT = 120
+
+function toPercentString(value: number) {
+  if (!Number.isFinite(value)) return String(DEFAULT_QUOTATION_MAX_PERCENT)
+  return String(Number(value.toFixed(2)))
+}
+
+function resolveQuotationMaxPercent(price: number, maxPrice?: number | null) {
+  if (!Number.isFinite(price) || price <= 0) return DEFAULT_QUOTATION_MAX_PERCENT
+  if (maxPrice === undefined || maxPrice === null || !Number.isFinite(maxPrice)) {
+    return DEFAULT_QUOTATION_MAX_PERCENT
+  }
+  const percent = (maxPrice / price) * 100
+  if (!Number.isFinite(percent)) return DEFAULT_QUOTATION_MAX_PERCENT
+  return Math.max(100, Number(percent.toFixed(2)))
+}
+
+function getMaxQuotationPriceFromPercent(price: number, percent: number) {
+  if (!Number.isFinite(price) || !Number.isFinite(percent)) return 0
+  return Number((price * (percent / 100)).toFixed(2))
 }
 
 function normalizeCode(value: string) {
@@ -61,10 +83,9 @@ function buildImportRows(sourceProducts: Part[], targetProducts: Part[]) {
         source.quotation_min_price === undefined || source.quotation_min_price === null
           ? ''
           : formatAdjusted(Number(source.quotation_min_price)),
-      quotationMaxPrice:
-        source.quotation_max_price === undefined || source.quotation_max_price === null
-          ? ''
-          : formatAdjusted(Number(source.quotation_max_price)),
+      quotationMaxPercent: toPercentString(
+        resolveQuotationMaxPercent(Number(source.price || 0), source.quotation_max_price ?? null),
+      ),
       stock: '',
     } as ImportPriceRow
   })
@@ -79,6 +100,7 @@ export default function InventoryCatalogImportPage() {
   const [importToBranch, setImportToBranch] = useState('')
   const [importRows, setImportRows] = useState<ImportPriceRow[]>([])
   const [importPercent, setImportPercent] = useState(0)
+  const [importSearch, setImportSearch] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isImporting, setIsImporting] = useState(false)
   const [isImportLoading, setIsImportLoading] = useState(false)
@@ -166,7 +188,6 @@ export default function InventoryCatalogImportPage() {
         const basePrice = Number(row.sourcePart.price || 0)
         const baseKitPrice = Number(row.sourcePart.kit_price ?? row.sourcePart.price ?? 0)
         const baseMin = row.sourcePart.quotation_min_price
-        const baseMax = row.sourcePart.quotation_max_price
 
         return {
           ...row,
@@ -174,8 +195,7 @@ export default function InventoryCatalogImportPage() {
           kitPrice: formatAdjusted(baseKitPrice * factor),
           quotationMinPrice:
             baseMin === undefined || baseMin === null ? '' : formatAdjusted(Number(baseMin) * factor),
-          quotationMaxPrice:
-            baseMax === undefined || baseMax === null ? '' : formatAdjusted(Number(baseMax) * factor),
+          quotationMaxPercent: row.quotationMaxPercent || String(DEFAULT_QUOTATION_MAX_PERCENT),
         }
       }),
     )
@@ -208,6 +228,13 @@ export default function InventoryCatalogImportPage() {
         const safeSourcePrice = Number(source.price || 0)
         const factor = safeSourcePrice > 0 ? adjustedPrice / safeSourcePrice : 1
         const adjustedKitPrice = Number(row.kitPrice !== '' && row.kitPrice !== undefined ? row.kitPrice : (source.kit_price ?? source.price ?? 0))
+        const maxPercentValue = Number(row.quotationMaxPercent || DEFAULT_QUOTATION_MAX_PERCENT)
+
+        if (!Number.isFinite(maxPercentValue) || maxPercentValue < 100) {
+          throw new Error(`El porcentaje de cotización máxima debe ser >= 100% para ${source.name}`)
+        }
+
+        const maxQuotationPrice = getMaxQuotationPriceFromPercent(adjustedPrice, maxPercentValue)
 
         const adjustedTiers = (source.price_tiers || []).map((tier) => ({
           id: tier.id,
@@ -222,7 +249,7 @@ export default function InventoryCatalogImportPage() {
           price: adjustedPrice,
           kit_price: adjustedKitPrice,
           quotation_min_price: row.quotationMinPrice ? Number(row.quotationMinPrice) : null,
-          quotation_max_price: row.quotationMaxPrice ? Number(row.quotationMaxPrice) : null,
+          quotation_max_price: Number.isFinite(maxQuotationPrice) ? maxQuotationPrice : null,
           price_tiers: adjustedTiers,
           stock: importWithStock && row.stock ? Number(row.stock) : undefined,
         })
@@ -247,6 +274,18 @@ export default function InventoryCatalogImportPage() {
       setIsImporting(false)
     }
   }
+
+  const filteredImportRows = useMemo(() => {
+    const term = importSearch.trim().toLowerCase()
+    if (!term) return importRows
+
+    return importRows.filter((row) => {
+      const name = row.sourcePart.name.toLowerCase()
+      const code = row.sourcePart.code.toLowerCase()
+      const category = (row.sourcePart.category || '').toLowerCase()
+      return name.includes(term) || code.includes(term) || category.includes(term)
+    })
+  }, [importRows, importSearch])
 
   return (
     <MainLayout>
@@ -333,6 +372,15 @@ export default function InventoryCatalogImportPage() {
                 </div>
               </div>
 
+              <div className="space-y-2 md:col-span-2 xl:col-span-2">
+                <label className="text-sm font-medium">Buscar en catálogo</label>
+                <Input
+                  placeholder="Nombre, código o categoría"
+                  value={importSearch}
+                  onChange={(event) => setImportSearch(event.target.value)}
+                />
+              </div>
+
               <div className="flex items-center gap-3 rounded-lg border border-border/70 p-3">
                 <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
                   <input
@@ -357,7 +405,7 @@ export default function InventoryCatalogImportPage() {
             ) : null}
 
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{isImportLoading ? 'Cargando productos...' : `${importRows.length} productos disponibles para importar`}</span>
+              <span>{isImportLoading ? 'Cargando productos...' : `${filteredImportRows.length} productos disponibles para importar`}</span>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => setAllImportSelection(true)} disabled={importRows.length === 0}>Seleccionar todo</Button>
                 <Button size="sm" variant="outline" onClick={() => setAllImportSelection(false)} disabled={importRows.length === 0}>Quitar todo</Button>
@@ -365,7 +413,7 @@ export default function InventoryCatalogImportPage() {
             </div>
 
             <div className="space-y-2 max-h-[420px] overflow-y-auto rounded-lg border border-border/70 p-2">
-              {importRows.map((row) => (
+              {filteredImportRows.map((row) => (
                 <div key={row.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-md border border-border/60 p-2 text-sm">
                   <div className="md:col-span-4 space-y-1">
                     <label className="flex items-center gap-2">
@@ -392,13 +440,25 @@ export default function InventoryCatalogImportPage() {
                   </div>
 
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs">Cotización mínima</label>
-                    <Input type="number" step="0.01" value={row.quotationMinPrice} onChange={(event) => updateImportRow(row.id, { quotationMinPrice: event.target.value })} />
+                    <label className="text-xs">Cotización máxima (%)</label>
+                    <Input
+                      type="number"
+                      min={100}
+                      step={1}
+                      value={row.quotationMaxPercent}
+                      onChange={(event) => updateImportRow(row.id, { quotationMaxPercent: event.target.value })}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Máximo: Bs {getMaxQuotationPriceFromPercent(
+                        Number(row.price || 0),
+                        Number(row.quotationMaxPercent || DEFAULT_QUOTATION_MAX_PERCENT),
+                      ).toFixed(2)}
+                    </p>
                   </div>
 
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs">Cotización máxima</label>
-                    <Input type="number" step="0.01" value={row.quotationMaxPrice} onChange={(event) => updateImportRow(row.id, { quotationMaxPrice: event.target.value })} />
+                    <label className="text-xs">Cotización mínima</label>
+                    <Input type="number" step="0.01" value={row.quotationMinPrice} onChange={(event) => updateImportRow(row.id, { quotationMinPrice: event.target.value })} />
                   </div>
 
                   {importWithStock ? (
@@ -413,8 +473,8 @@ export default function InventoryCatalogImportPage() {
                 </div>
               ))}
 
-              {!isImportLoading && importRows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hay productos para importar con la combinación seleccionada.</p>
+              {!isImportLoading && filteredImportRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay productos que coincidan con el filtro.</p>
               ) : null}
             </div>
           </CardContent>
