@@ -894,7 +894,7 @@ export default function POSSalesPage() {
                                   onClick={() => setSelectedCustomerId(customer.id)}
                                   className={`w-full rounded-2xl border p-4 text-left transition-colors duration-150 ${
                                     isSelected
-                                      ? 'border-primary/60 bg-primary/10'
+                                      ? 'border-emerald-400/70 bg-emerald-500/10 ring-1 ring-emerald-500/20 shadow-sm shadow-emerald-500/10'
                                       : 'border-border/70 bg-background/70 hover:border-primary/40 hover:bg-muted/20'
                                   }`}
                                 >
@@ -906,7 +906,11 @@ export default function POSSalesPage() {
                                       </p>
                                       <p className="text-xs text-muted-foreground">{customer.email}</p>
                                     </div>
-                                    {isSelected ? <Badge className="shrink-0">Seleccionado</Badge> : null}
+                                    {isSelected ? (
+                                      <Badge className="shrink-0 border border-emerald-400/40 bg-emerald-500/15 text-emerald-600">
+                                        Seleccionado
+                                      </Badge>
+                                    ) : null}
                                   </div>
                                 </button>
                               )
@@ -1119,7 +1123,7 @@ export default function POSSalesPage() {
           </DialogContent>
         </Dialog>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px] items-start">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)] 2xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)] items-start">
           <section className="space-y-4">
             <Card>
               <CardHeader>
@@ -1182,12 +1186,12 @@ export default function POSSalesPage() {
             </Card>
           </section>
 
-          <aside className="xl:sticky xl:top-6 xl:self-start">
-            <Card className="flex max-h-[calc(100vh-3rem)] flex-col overflow-hidden border-border/70 bg-card/95 shadow-xl shadow-black/10">
+          <aside className="2xl:sticky 2xl:top-6 2xl:self-start">
+            <Card className="flex max-h-none flex-col overflow-visible border-border/70 bg-card/95 shadow-xl shadow-black/10 2xl:max-h-[calc(100svh-3rem)] 2xl:overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary" />Carrito</CardTitle>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col space-y-4">
+              <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 2xl:overflow-y-auto 2xl:pr-1">
                 <div className="rounded-2xl border border-border/70 bg-muted/20 p-3">
                   <p className="text-xs text-muted-foreground">Cliente de la venta</p>
                   <p className="font-semibold">{resolvedCustomerName}</p>
