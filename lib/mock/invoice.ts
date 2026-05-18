@@ -49,7 +49,7 @@ export function printMockInvoice(params: PrintInvoiceParams) {
     <html>
       <head>
         <meta charset="UTF-8" />
-        <title>Factura ${params.invoiceNumber}</title>
+        <title>Recibo de venta ${params.invoiceNumber}</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 20px; color: #1f2937; }
           h1 { margin: 0 0 8px; color: #9f1239; }
@@ -62,9 +62,9 @@ export function printMockInvoice(params: PrintInvoiceParams) {
         </style>
       </head>
       <body>
-        <h1>Picla - Factura</h1>
+        <h1>Picla - Recibo de venta</h1>
         <div class="meta">
-          <div><strong>Nro:</strong> ${params.invoiceNumber}</div>
+          <div><strong>Nro. Venta:</strong> ${params.invoiceNumber}</div>
           <div><strong>Fecha:</strong> ${issueDate}</div>
           <div><strong>Cliente:</strong> ${params.customerName}</div>
           <div><strong>Sucursal:</strong> ${params.branchName}</div>
@@ -87,7 +87,7 @@ export function printMockInvoice(params: PrintInvoiceParams) {
         </table>
 
         <div class="total">Total: ${formatCurrency(params.total, params.currency)}</div>
-        <div class="footer">Documento mock de demostración.</div>
+        <div class="footer">Recibo mock de demostración.</div>
 
         <script>
           window.onload = () => {

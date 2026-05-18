@@ -195,7 +195,7 @@ export default function CreditsAlertsPage() {
             ) : (
               alerts.map((alert) => (
                 <div key={alert.credit_id} className="rounded-lg border border-border bg-card/70 p-3 text-sm">
-                  <p className="font-semibold text-foreground">{alert.credit_id} - {alert.customer_name}</p>
+                  <p className="font-semibold text-foreground">Crédito - {alert.customer_name}</p>
                   <p className="text-muted-foreground">
                     {alert.branch_name} | Vence: {new Date(alert.due_date).toLocaleDateString('es-BO')} | Frecuencia: {formatAlertType(alert)}
                   </p>

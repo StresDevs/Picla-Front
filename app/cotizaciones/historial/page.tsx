@@ -18,6 +18,7 @@ import {
 } from '@/lib/mock/runtime-store'
 import { printMockInvoice } from '@/lib/mock/invoice'
 import { quotationsService, type QuotationRecord } from '@/lib/supabase/quotations'
+import { posService } from '@/lib/supabase/pos'
 
 const PAYMENT_METHODS = [
   { id: 'cash', label: 'Efectivo', icon: DollarSign },
@@ -135,15 +136,15 @@ export default function QuotationsHistoryPage() {
     }
   }, [quotations])
 
-  const handleCancel = async (quotationId: string) => {
+  const handleCancel = async (quotation: QuotationRecord) => {
     setFeedback(null)
     setError(null)
     setIsSubmitting(true)
 
     try {
-      await quotationsService.cancel({ quotation_id: quotationId, reason: 'Anulada desde historial' })
+      await quotationsService.cancel({ quotation_id: quotation.quotation_id, reason: 'Anulada desde historial' })
       await refresh(activeBranchId)
-      setFeedback(`Cotizacion ${quotationId} anulada correctamente.`)
+      setFeedback(`Cotizacion de ${quotation.customer_name} anulada correctamente.`)
     } catch (cancelError) {
       setError(extractErrorMessage(cancelError, 'No se pudo anular la cotizacion'))
     } finally {
@@ -193,9 +194,16 @@ export default function QuotationsHistoryPage() {
         throw new Error('No se obtuvo el identificador de la venta creada')
       }
 
+      let receiptNumber = 'N0'
+      try {
+        receiptNumber = await posService.getSaleReceiptNumber(result.sale_id, selectedQuotation.branch_id)
+      } catch {
+        receiptNumber = 'N0'
+      }
+
       if (printInvoice) {
         printMockInvoice({
-          invoiceNumber: result.sale_id,
+          invoiceNumber: receiptNumber,
           customerName: selectedQuotation.customer_name,
           branchName: selectedQuotation.branch_name,
           cashierName: activeUserName,
@@ -213,7 +221,7 @@ export default function QuotationsHistoryPage() {
       await refresh(activeBranchId)
       setIsDialogOpen(false)
       setSelectedQuotation(null)
-      setFeedback(`Cotizacion ${selectedQuotation.quotation_id} convertida a venta ${result.sale_id}.`)
+      setFeedback(`Cotizacion de ${selectedQuotation.customer_name} convertida a venta ${receiptNumber}.`)
     } catch (convertError) {
       setError(extractErrorMessage(convertError, 'No se pudo convertir la cotizacion a venta'))
     } finally {
@@ -269,7 +277,7 @@ export default function QuotationsHistoryPage() {
                 <article key={quotation.quotation_id} className="rounded-xl border border-border/70 bg-card/70 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold">{quotation.quotation_id} - {quotation.customer_name}</p>
+                      <p className="font-semibold">Cotizacion - {quotation.customer_name}</p>
                       <p className="text-sm text-muted-foreground">
                         Sucursal: {quotation.branch_name} | Usuario: {quotation.quoted_by_name || 'Sin usuario'}
                       </p>
@@ -306,7 +314,7 @@ export default function QuotationsHistoryPage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => handleCancel(quotation.quotation_id)}
+                      onClick={() => handleCancel(quotation)}
                       disabled={!isActiveAndValid || isSubmitting}
                     >
                       Anular cotización
@@ -369,7 +377,7 @@ export default function QuotationsHistoryPage() {
                       <p className="text-base font-semibold text-primary">{selectedQuotation.customer_name}</p>
                       <p className="text-sm text-muted-foreground">CI/NIT: {selectedQuotation.customer_nit_ci || 'Sin registro'}</p>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Cotizacion: {selectedQuotation.quotation_id} · Sucursal: {selectedQuotation.branch_name}
+                        Cotizacion de {selectedQuotation.customer_name} · Sucursal: {selectedQuotation.branch_name}
                       </p>
                     </div>
                   </div>

@@ -22,7 +22,7 @@ export function ReportsSubnav() {
 
   return (
     <div className="space-y-2 mb-6">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible">
         {items.map((item) => {
           const isActive = item.href === '/reports/capital'
             ? isCapitalSection
@@ -34,7 +34,7 @@ export function ReportsSubnav() {
                   isActive
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted'
-                }`}
+                } whitespace-nowrap`}
               >
                 {item.label}
               </button>
@@ -43,7 +43,7 @@ export function ReportsSubnav() {
         })}
       </div>
       {isCapitalSection && (
-        <div className="flex flex-wrap gap-1.5 pl-1">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible">
           {capitalSubItems.map((sub) => {
             const isActive = pathname === sub.href
             return (
@@ -53,7 +53,7 @@ export function ReportsSubnav() {
                     isActive
                       ? 'bg-primary/20 text-primary border border-primary/30'
                       : 'bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent'
-                  }`}
+                  } whitespace-nowrap`}
                 >
                   {sub.label}
                 </button>

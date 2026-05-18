@@ -172,8 +172,8 @@ export default function ReportsCapitalPage() {
         <ReportsSubnav />
 
         {/* Filtro + consultar */}
-        <div className="flex items-end gap-3">
-          <div className="space-y-1.5 w-64">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="space-y-1.5 w-full sm:w-64">
             <label className="text-xs font-medium text-muted-foreground">Sucursal</label>
             <Select value={branchFilter} onValueChange={setBranchFilter}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -185,7 +185,7 @@ export default function ReportsCapitalPage() {
               </SelectContent>
             </Select>
           </div>
-          <Button size="sm" onClick={() => void loadData()} disabled={isLoading}>
+          <Button size="sm" onClick={() => void loadData()} disabled={isLoading} className="w-full sm:w-auto">
             <RotateCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Consultar
           </Button>
@@ -198,7 +198,7 @@ export default function ReportsCapitalPage() {
         )}
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-3">
           {[
             { label: 'Capital Invertido', value: formatBs(globalTotals.totalCost), icon: Landmark, color: 'text-primary' },
             { label: 'Valor de Venta', value: formatBs(globalTotals.totalRetail), icon: TrendingUp, color: 'text-emerald-400' },
@@ -322,7 +322,7 @@ export default function ReportsCapitalPage() {
                         <p className="font-bold text-sky-400 mt-0.5">{margin.toFixed(1)}%</p>
                       </div>
                     </div>
-                    <div className="flex gap-3 text-[11px]">
+                    <div className="flex flex-wrap gap-3 text-[11px]">
                       <span className="text-amber-400">
                         <AlertTriangle className="w-3 h-3 inline mr-0.5" />
                         {Number(branch.low_stock_count)} bajo
@@ -331,7 +331,7 @@ export default function ReportsCapitalPage() {
                         <PackageX className="w-3 h-3 inline mr-0.5" />
                         {Number(branch.zero_stock_count)} sin stock
                       </span>
-                      <span className="text-muted-foreground ml-auto">
+                      <span className="text-muted-foreground sm:ml-auto">
                         {formatNum(Number(branch.total_stock))} uds
                       </span>
                     </div>

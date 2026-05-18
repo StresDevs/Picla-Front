@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
-  Download,
   ShieldCheck,
   Activity,
   AlertTriangle,
@@ -22,6 +21,8 @@ import {
   XCircle,
 } from 'lucide-react'
 import { auditService, type AuditLogRow } from '@/lib/supabase/audit'
+import { getSupabaseClient } from '@/lib/supabase/client'
+import { generateAuditPdf, type AuditReportRow } from '@/lib/pdf/generators'
 import { ACTIVE_ROLE_EVENT } from '@/lib/mock/runtime-store'
 
 type AuditAction = 'CREACION' | 'ACTUALIZACION' | 'ELIMINACION'
@@ -51,6 +52,55 @@ function formatTime(ts: string) {
   }
 }
 
+function sanitizeDescription(raw: string, entityId?: string | null, resolvedName?: string) {
+  const fallback = resolvedName && resolvedName !== '-' ? resolvedName : 'registro'
+  let output = raw
+
+  if (entityId) {
+    output = output.split(entityId).join(fallback)
+  }
+
+  const uuidRegex = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g
+  output = output.replace(uuidRegex, fallback)
+
+  return output
+}
+
+function resolveStockImpact(metadata: Record<string, unknown> | null) {
+  if (!metadata) return ''
+
+  const toNumber = (value: unknown) => {
+    if (typeof value === 'number') return value
+    if (typeof value === 'string' && value.trim() !== '') return Number(value)
+    return NaN
+  }
+
+  const before = toNumber(
+    metadata.quantity_before ??
+      metadata.stock_before ??
+      metadata.previous_stock ??
+      metadata.prev_stock,
+  )
+  const after = toNumber(
+    metadata.quantity_after ??
+      metadata.stock_after ??
+      metadata.new_stock ??
+      metadata.quantity ??
+      metadata.stock ??
+      metadata.current_stock,
+  )
+
+  if (Number.isFinite(before) && Number.isFinite(after)) {
+    return `Stock: ${before} -> ${after}`
+  }
+
+  if (Number.isFinite(after)) {
+    return `Stock: ${after}`
+  }
+
+  return ''
+}
+
 const ENTITY_OPTIONS = [
   { label: 'Ventas', value: 'pos_sales' },
   { label: 'Ítems de venta', value: 'pos_sale_items' },
@@ -73,6 +123,7 @@ export default function AuditPage() {
   const [entityFilter, setEntityFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [nameMap, setNameMap] = useState<Record<string, string>>({})
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -102,17 +153,66 @@ export default function AuditPage() {
 
   const filteredLogs = useMemo(() => {
     return rows.filter((log) => {
+      const resolvedName = log.entity_id ? nameMap[log.entity_id] : undefined
+      const safeDescription = sanitizeDescription(log.description, log.entity_id, resolvedName)
       const actionMatch = actionFilter
         ? log.action.toLowerCase().includes(actionFilter.toLowerCase())
         : true
       const textMatch = search
-        ? `${log.description} ${log.entity_type} ${log.actor_name} ${log.branch_name}`
+        ? `${safeDescription} ${log.entity_type} ${log.actor_name} ${log.branch_name}`
             .toLowerCase()
             .includes(search.toLowerCase())
         : true
       return actionMatch && textMatch
     })
-  }, [rows, search, actionFilter])
+  }, [rows, search, actionFilter, nameMap])
+
+  useEffect(() => {
+    const resolveNames = async () => {
+      if (rows.length === 0) {
+        setNameMap({})
+        return
+      }
+
+      const supabase = getSupabaseClient()
+      const ids = rows
+        .map((row) => row.entity_id)
+        .filter((value) => Boolean(value) && value !== '-')
+
+      const unique = Array.from(new Set(ids))
+      if (unique.length === 0) {
+        setNameMap({})
+        return
+      }
+
+      const map: Record<string, string> = {}
+
+      const fetchTableNames = async (table: string, nameField: string) => {
+        const { data, error } = await supabase
+          .from(table)
+          .select(`id, ${nameField}`)
+          .in('id', unique)
+
+        if (error) return
+        for (const row of (data || []) as Array<{ id: string; [key: string]: string | null }>) {
+          if (row.id && row[nameField]) {
+            map[row.id] = String(row[nameField])
+          }
+        }
+      }
+
+      await Promise.all([
+        fetchTableNames('parts', 'name'),
+        fetchTableNames('customers', 'full_name'),
+        fetchTableNames('branches', 'name'),
+        fetchTableNames('users', 'full_name'),
+      ])
+
+      setNameMap(map)
+    }
+
+    void resolveNames()
+  }, [rows])
 
   const stats = useMemo(() => ({
     total: filteredLogs.length,
@@ -122,19 +222,38 @@ export default function AuditPage() {
   }), [filteredLogs])
 
   const handleExport = () => {
-    const lines = [
-      'Fecha,Entidad,Acción,Descripción,Actor,Sucursal',
-      ...filteredLogs.map((l) =>
-        [formatTime(l.event_time), l.entity_type, l.action, `"${l.description}"`, l.actor_name, l.branch_name].join(',')
-      ),
-    ].join('\n')
-    const blob = new Blob([lines], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `auditoria_${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const rowsForPdf: AuditReportRow[] = filteredLogs.map((log) => {
+      const entityId = log.entity_id || ''
+      const resolvedName = (entityId && nameMap[entityId]) || '-'
+      const stockInfo = resolveStockImpact(log.metadata)
+      const stockImpact =
+        log.entity_type === 'Inventario'
+          ? `${resolvedName}${stockInfo ? ` · ${stockInfo}` : ''}`
+          : ''
+      return {
+        date: log.event_time,
+        entity: log.entity_type,
+        action: log.action,
+        description: sanitizeDescription(log.description, entityId, resolvedName),
+        actor: log.actor_name,
+        branch: log.branch_name,
+        stockImpact,
+      }
+    })
+
+    const branchNames = Array.from(
+      new Set(filteredLogs.map((log) => log.branch_name).filter((name) => Boolean(name))),
+    ) as string[]
+    const branchLabel = branchNames.length === 1 ? branchNames[0] : 'Todas las sucursales'
+    const entityLabel = ENTITY_OPTIONS.find((option) => option.value === entityFilter)?.label
+    const subtitleLabel = entityLabel ? `${branchLabel} · ${entityLabel}` : branchLabel
+
+    generateAuditPdf({
+      branchName: subtitleLabel,
+      from: dateFrom || undefined,
+      to: dateTo || undefined,
+      rows: rowsForPdf,
+    })
   }
 
   return (
@@ -155,8 +274,7 @@ export default function AuditPage() {
                 onClick={handleExport}
                 disabled={filteredLogs.length === 0}
               >
-                <Download className="w-4 h-4 mr-2" />
-                Exportar CSV
+                Descargar PDF
               </Button>
             </div>
           }
@@ -332,42 +450,52 @@ export default function AuditPage() {
               </CardContent>
             </Card>
           ) : (
-            filteredLogs.map((log) => (
-              <Card key={log.event_id} className={`border ${logTone(log.action)} transition-colors`}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-semibold text-slate-900 dark:text-zinc-100">
-                            {log.description}
-                          </h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Entidad: <span className="font-medium">{log.entity_type}</span>
-                            {log.entity_id && ` · ID: ${log.entity_id.slice(0, 8)}…`}
-                          </p>
-                        </div>
-                        <Badge className={actionStyles[log.action]}>{log.action}</Badge>
-                      </div>
+            filteredLogs.map((log) => {
+              const resolvedName = log.entity_id ? nameMap[log.entity_id] : undefined
+              const safeDescription = sanitizeDescription(log.description, log.entity_id, resolvedName)
 
-                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                        <div className="rounded-md bg-white border border-slate-300 px-3 py-2 text-slate-700 dark:bg-zinc-900/75 dark:border-zinc-800 dark:text-zinc-300">
-                          <UserCircle2 className="inline w-3.5 h-3.5 mr-1" />
-                          Actor: <span className="text-slate-900 font-medium dark:text-zinc-100">{log.actor_name}</span>
+              return (
+                <Card key={log.event_id} className={`border ${logTone(log.action)} transition-colors`}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-semibold text-slate-900 dark:text-zinc-100">
+                              {safeDescription}
+                            </h3>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Entidad: <span className="font-medium">{log.entity_type}</span>
+                            </p>
+                          </div>
+                          <Badge className={actionStyles[log.action]}>{log.action}</Badge>
                         </div>
-                        <div className="rounded-md bg-white border border-slate-300 px-3 py-2 text-slate-700 dark:bg-zinc-900/75 dark:border-zinc-800 dark:text-zinc-300">
-                          Sucursal: <span className="text-slate-900 font-medium dark:text-zinc-100">{log.branch_name}</span>
-                        </div>
-                        <div className="rounded-md bg-white border border-slate-300 px-3 py-2 text-slate-700 flex items-center gap-2 dark:bg-zinc-900/75 dark:border-zinc-800 dark:text-zinc-300">
-                          <Activity className="w-3.5 h-3.5" />
-                          {formatTime(log.event_time)}
+
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                          <div className="rounded-md bg-white border border-slate-300 px-3 py-2 text-slate-700 dark:bg-zinc-900/75 dark:border-zinc-800 dark:text-zinc-300">
+                            <UserCircle2 className="inline w-3.5 h-3.5 mr-1" />
+                            Actor:{' '}
+                            <span className="text-slate-900 font-medium dark:text-zinc-100">
+                              {log.actor_name}
+                            </span>
+                          </div>
+                          <div className="rounded-md bg-white border border-slate-300 px-3 py-2 text-slate-700 dark:bg-zinc-900/75 dark:border-zinc-800 dark:text-zinc-300">
+                            Sucursal:{' '}
+                            <span className="text-slate-900 font-medium dark:text-zinc-100">
+                              {log.branch_name}
+                            </span>
+                          </div>
+                          <div className="rounded-md bg-white border border-slate-300 px-3 py-2 text-slate-700 flex items-center gap-2 dark:bg-zinc-900/75 dark:border-zinc-800 dark:text-zinc-300">
+                            <Activity className="w-3.5 h-3.5" />
+                            {formatTime(log.event_time)}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              )
+            })
           )}
         </div>
       </div>

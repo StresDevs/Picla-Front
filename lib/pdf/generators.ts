@@ -199,7 +199,7 @@ export function generateSnapshotPdf(input: {
   doc.setFontSize(9)
   doc.text(`Fecha: ${fmtDateTime(input.takenAt)}`, 14, 34)
   doc.text(`Registrado por: ${input.takenByName || 'N/A'}`, 14, 39)
-  doc.text(`Sesión de caja: ${input.cashSessionId}`, 14, 44)
+  doc.text(`Sesión de caja: ${label}`, 14, 44)
 
   const body: RowData[] = input.items.map((item, i) => [
     i + 1,
@@ -478,6 +478,7 @@ export interface InvoiceItem {
 
 export function generateSaleInvoicePdf(input: {
   saleId: string
+  saleNumber?: string
   date: string
   customer: string
   paymentMethod: string
@@ -488,11 +489,14 @@ export function generateSaleInvoicePdf(input: {
   exchangeRate?: number
 }) {
   const doc = new jsPDF()
-  buildTitle(doc, 'FACTURA DE VENTA')
+  buildTitle(doc, 'RECIBO DE VENTA')
+
+  const displaySaleNumber = input.saleNumber ?? input.saleId
+  const fileSuffix = (input.saleNumber ?? '').replace(/[^0-9]/g, '') || input.saleId.slice(0, 8)
 
   let y = 32
   doc.setFontSize(9)
-  doc.text(`Nro. Venta: ${input.saleId}`, 14, y); y += 5
+  doc.text(`Nro. Venta: ${displaySaleNumber}`, 14, y); y += 5
   doc.text(`Fecha: ${fmtDateTime(input.date)}`, 14, y); y += 5
   doc.text(`Cliente: ${input.customer}`, 14, y); y += 5
   doc.text(`Método de pago: ${input.paymentMethod}`, 14, y); y += 5
@@ -534,8 +538,8 @@ export function generateSaleInvoicePdf(input: {
     doc.text(`Total ($): $${fmtMoney(input.total / input.exchangeRate)} — T.C: ${fmtMoney(input.exchangeRate, 4)}`, 14, ty)
   }
 
-  addFooter(doc, `Factura ${input.saleId} — ${input.branchName}`)
-  savePdf(doc, `factura_${input.saleId.slice(0, 8)}`)
+  addFooter(doc, `Recibo ${displaySaleNumber} — ${input.branchName}`)
+  savePdf(doc, `recibo_${fileSuffix}`)
 }
 
 // -------------------------------------------------------------------
@@ -666,4 +670,56 @@ export function generateGenericHistoryPdf(input: {
   const now = new Date()
   addFooter(doc, `${input.title} — Generado: ${fmtDateTime(now)}`)
   savePdf(doc, input.title.replace(/\s+/g, '_').toLowerCase())
+}
+
+// -------------------------------------------------------------------
+// 10. Audit report
+// -------------------------------------------------------------------
+
+export interface AuditReportRow {
+  date: string
+  entity: string
+  action: string
+  description: string
+  actor: string
+  branch: string
+  stockImpact?: string
+}
+
+export function generateAuditPdf(input: {
+  branchName: string
+  from?: string
+  to?: string
+  rows: AuditReportRow[]
+}) {
+  const doc = new jsPDF('landscape')
+  const now = new Date()
+  const range = input.from || input.to
+    ? `Desde: ${input.from || '—'} Hasta: ${input.to || '—'}`
+    : 'Todos los registros'
+
+  buildTitle(doc, 'Reporte de Auditoria', `${input.branchName} — ${range}`)
+
+  const body: RowData[] = input.rows.map((r, i) => [
+    i + 1,
+    fmtDateTime(r.date),
+    r.entity,
+    r.action,
+    r.description,
+    r.actor,
+    r.branch,
+    r.stockImpact || '-',
+  ])
+
+  autoTable(doc, {
+    startY: 34,
+    head: [['#', 'Fecha', 'Entidad', 'Accion', 'Descripcion', 'Actor', 'Sucursal', 'Stock']],
+    body,
+    styles: { fontSize: 7, cellPadding: 2 },
+    headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+  })
+
+  addFooter(doc, `Auditoria — ${input.branchName} — Generado: ${fmtDateTime(now)}`)
+  savePdf(doc, `auditoria_${input.branchName.replace(/\s+/g, '_')}`)
 }

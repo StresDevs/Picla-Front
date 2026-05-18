@@ -46,6 +46,14 @@ const queueStatusConfig: Record<string, { label: string; className: string }> = 
   cancelled: { label: 'Cancelada', className: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30' },
 }
 
+function toLocalDateKey(value: string) {
+  const dt = new Date(value)
+  const year = dt.getFullYear()
+  const month = String(dt.getMonth() + 1).padStart(2, '0')
+  const day = String(dt.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 interface BranchOption { id: string; name: string }
 
 export default function POSSalesHistoryPage() {
@@ -115,13 +123,56 @@ export default function POSSalesHistoryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchFilter])
 
+  const saleNumberMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const grouped = new Map<string, POSSaleRecord[]>()
+
+    sales.forEach((sale) => {
+      const key = toLocalDateKey(sale.created_at)
+      const list = grouped.get(key) ?? []
+      list.push(sale)
+      grouped.set(key, list)
+    })
+
+    grouped.forEach((list) => {
+      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      list.forEach((sale, index) => {
+        map.set(sale.sale_id, `N${index + 1}`)
+      })
+    })
+
+    return map
+  }, [sales])
+
+  const queueNumberMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const grouped = new Map<string, POSQueuedSale[]>()
+
+    queuedSales.forEach((queue) => {
+      const key = toLocalDateKey(queue.created_at)
+      const list = grouped.get(key) ?? []
+      list.push(queue)
+      grouped.set(key, list)
+    })
+
+    grouped.forEach((list) => {
+      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      list.forEach((queue, index) => {
+        map.set(queue.queue_id, `Cola ${index + 1}`)
+      })
+    })
+
+    return map
+  }, [queuedSales])
+
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
       if (paymentFilter !== 'all' && sale.payment_method !== paymentFilter) return false
       if (statusFilter !== 'all' && sale.status !== statusFilter) return false
       if (searchTerm) {
         const term = searchTerm.toLowerCase()
-        const matchId = sale.sale_id.toLowerCase().includes(term)
+        const saleNumber = (saleNumberMap.get(sale.sale_id) ?? '').toLowerCase()
+        const matchId = saleNumber.includes(term)
         const matchCustomer = (sale.customer_name ?? '').toLowerCase().includes(term)
         if (!matchId && !matchCustomer) return false
       }
@@ -135,23 +186,27 @@ export default function POSSalesHistoryPage() {
       }
       return true
     })
-  }, [sales, paymentFilter, statusFilter, searchTerm, dateFrom, dateTo])
+  }, [sales, paymentFilter, statusFilter, searchTerm, dateFrom, dateTo, saleNumberMap])
 
   const filteredQueue = useMemo(() => {
     return queuedSales.filter((q) => {
       if (paymentFilter !== 'all' && q.payment_method !== paymentFilter) return false
       if (searchTerm) {
         const term = searchTerm.toLowerCase()
-        const matchId = q.queue_id.toLowerCase().includes(term)
+        const queueNumber = (queueNumberMap.get(q.queue_id) ?? '').toLowerCase()
+        const matchId = queueNumber.includes(term)
         const matchCustomer = (q.customer_name ?? '').toLowerCase().includes(term)
         if (!matchId && !matchCustomer) return false
       }
       return true
     })
-  }, [queuedSales, paymentFilter, searchTerm])
+  }, [queuedSales, paymentFilter, searchTerm, queueNumberMap])
 
   const totalSales = filteredSales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0)
   const activeBranchName = branches.find((b) => b.id === activeBranchId)?.name ?? activeBranchId
+
+  const resolveSaleNumber = (saleId: string) => saleNumberMap.get(saleId) ?? null
+  const resolveQueueNumber = (queueId: string) => queueNumberMap.get(queueId) ?? null
 
   return (
     <MainLayout>
@@ -179,7 +234,7 @@ export default function POSSalesHistoryPage() {
               <Input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ID de venta o cliente..."
+                placeholder="Nro. de venta o cliente..."
                 className="h-9"
               />
             </div>
@@ -335,7 +390,7 @@ export default function POSSalesHistoryPage() {
                   <TableHeader>
                     <TableRow className="border-border/50 bg-muted/20">
                       <TableHead className="text-xs font-medium">Fecha</TableHead>
-                      <TableHead className="text-xs font-medium">ID Venta</TableHead>
+                      <TableHead className="text-xs font-medium">Nro. Venta</TableHead>
                       <TableHead className="text-xs font-medium">Cliente</TableHead>
                       <TableHead className="text-xs font-medium">Método</TableHead>
                       <TableHead className="text-xs font-medium">Modo</TableHead>
@@ -358,7 +413,7 @@ export default function POSSalesHistoryPage() {
                             {new Date(sale.created_at).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
                           </TableCell>
                           <TableCell className="text-xs font-mono text-muted-foreground">
-                            {sale.sale_id.slice(0, 12)}…
+                            {resolveSaleNumber(sale.sale_id) ?? 'N0'}
                           </TableCell>
                           <TableCell className="text-sm">{sale.customer_name ?? 'Mostrador'}</TableCell>
                           <TableCell className="text-sm">{paymentLabels[sale.payment_method] ?? sale.payment_method}</TableCell>
@@ -407,7 +462,7 @@ export default function POSSalesHistoryPage() {
                   <TableHeader>
                     <TableRow className="border-border/50 bg-muted/20">
                       <TableHead className="text-xs font-medium">Fecha</TableHead>
-                      <TableHead className="text-xs font-medium">ID Cola</TableHead>
+                      <TableHead className="text-xs font-medium">Nro. Cola</TableHead>
                       <TableHead className="text-xs font-medium">Cliente</TableHead>
                       <TableHead className="text-xs font-medium">Rol creador</TableHead>
                       <TableHead className="text-xs font-medium">Método</TableHead>
@@ -424,7 +479,7 @@ export default function POSSalesHistoryPage() {
                             {new Date(q.created_at).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
                           </TableCell>
                           <TableCell className="text-xs font-mono text-muted-foreground">
-                            {q.queue_id.slice(0, 12)}…
+                            {resolveQueueNumber(q.queue_id) ?? 'Cola'}
                           </TableCell>
                           <TableCell className="text-sm">{q.customer_name ?? 'Mostrador'}</TableCell>
                           <TableCell className="text-xs capitalize">{q.created_by_role}</TableCell>
@@ -462,7 +517,7 @@ export default function POSSalesHistoryPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {[
-                  { label: 'ID', value: selectedSale.sale_id },
+                  { label: 'Nro. Venta', value: resolveSaleNumber(selectedSale.sale_id) ?? 'N0' },
                   { label: 'Fecha', value: new Date(selectedSale.created_at).toLocaleString('es-BO') },
                   { label: 'Cliente', value: selectedSale.customer_name ?? 'Mostrador' },
                   { label: 'Método', value: paymentLabels[selectedSale.payment_method] ?? selectedSale.payment_method },
@@ -528,8 +583,10 @@ export default function POSSalesHistoryPage() {
                   onClick={() => {
                     if (!selectedSale) return
                     const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
+                    const saleNumber = resolveSaleNumber(selectedSale.sale_id) ?? undefined
                     generateSaleInvoicePdf({
                       saleId: selectedSale.sale_id,
+                      saleNumber,
                       date: selectedSale.created_at,
                       customer: selectedSale.customer_name ?? 'Mostrador',
                       paymentMethod: paymentLabels[selectedSale.payment_method] ?? selectedSale.payment_method,
@@ -546,7 +603,7 @@ export default function POSSalesHistoryPage() {
                     })
                   }}
                 >
-                  <Download className="mr-2 h-4 w-4" /> Factura PDF
+                  <Download className="mr-2 h-4 w-4" /> Recibo PDF
                 </Button>
                 <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Cerrar</Button>
               </div>

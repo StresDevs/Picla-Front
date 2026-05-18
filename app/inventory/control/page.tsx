@@ -47,16 +47,20 @@ export default function InventoryControlPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
-  const loadDashboard = async (branchScope: string | null) => {
-    const [branchRows, summaryRows, recordRows] = await Promise.all([
-      branchesService.getAll(),
+  const loadReportData = async (branchScope: string | null) => {
+    const [summaryRows, recordRows] = await Promise.all([
       inventoryService.getBranchSummary(branchScope),
       inventoryControlService.getRecords(branchScope),
     ])
 
-    setBranches(branchRows)
     setBranchSummaries(summaryRows)
     setRecords(recordRows)
+  }
+
+  const loadDashboard = async (branchScope: string | null) => {
+    const branchRows = await branchesService.getAll()
+    setBranches(branchRows)
+    await loadReportData(branchScope)
     const contextBranch = getActiveUserContext().branch_id || branchRows[0]?.id || ''
     setBranchId(contextBranch)
     setBranchFilter(contextBranch)
@@ -110,6 +114,28 @@ export default function InventoryControlPage() {
 
     void reloadByBranch()
   }, [activeBranchId])
+
+  useEffect(() => {
+    const reloadByFilter = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const branchScope = branchFilter === 'all' ? null : branchFilter
+        await loadReportData(branchScope)
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar control de inventario')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (!branchFilter && activeBranchId) {
+      setBranchFilter(activeBranchId)
+      return
+    }
+
+    void reloadByFilter()
+  }, [branchFilter, activeBranchId])
 
   useEffect(() => {
     const loadProducts = async () => {

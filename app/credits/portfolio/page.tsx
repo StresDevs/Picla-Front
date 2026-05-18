@@ -176,7 +176,7 @@ export default function CreditsPortfolioPage() {
             ) : (
               credits.map((credit) => (
                 <article key={credit.credit_id} className="rounded-lg border border-border bg-card/70 p-3 text-sm">
-                  <p className="font-semibold text-foreground">{credit.credit_id} - {credit.customer_name}</p>
+                  <p className="font-semibold text-foreground">Crédito - {credit.customer_name}</p>
                   <p className="text-muted-foreground">
                     Sucursal: {credit.branch_name} | Producto: {credit.product_name} | Vencimiento: {new Date(credit.due_date).toLocaleDateString('es-BO')}
                   </p>

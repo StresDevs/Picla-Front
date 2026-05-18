@@ -50,34 +50,36 @@ export function DataTable<T extends { id: string | number }>({
   }
 
   return (
-    <Card className="bg-card/95 border-border/70 overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow className="border-border bg-primary/5">
-            {columns.map((column) => (
-              <TableHead key={String(column.key)} className="text-foreground">
-                {column.label}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((row) => (
-            <TableRow key={row.id} className="border-border hover:bg-primary/6 transition-colors">
+    <Card className="bg-card/95 border-border/70">
+      <div className="overflow-x-auto">
+        <Table className="min-w-[640px]">
+          <TableHeader>
+            <TableRow className="border-border bg-primary/5">
               {columns.map((column) => (
-                <TableCell
-                  key={`${row.id}-${String(column.key)}`}
-                  className="text-foreground"
-                >
-                  {column.render
-                    ? column.render(row[column.key], row)
-                    : String(row[column.key])}
-                </TableCell>
+                <TableHead key={String(column.key)} className="text-foreground">
+                  {column.label}
+                </TableHead>
               ))}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {data.map((row) => (
+              <TableRow key={row.id} className="border-border hover:bg-primary/6 transition-colors">
+                {columns.map((column) => (
+                  <TableCell
+                    key={`${row.id}-${String(column.key)}`}
+                    className="text-foreground"
+                  >
+                    {column.render
+                      ? column.render(row[column.key], row)
+                      : String(row[column.key])}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </Card>
   )
 }

@@ -83,13 +83,12 @@ export default function InventoryExitsPage() {
   }, [])
 
   useEffect(() => {
-    if (!activeBranchId) return
-
     const reloadByBranch = async () => {
       setIsLoading(true)
       setError(null)
       try {
-        await loadRecords(activeBranchId)
+        const branchScope = branchFilter === 'all' ? null : branchFilter || activeBranchId
+        await loadRecords(branchScope || null)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar salidas')
       } finally {
@@ -97,8 +96,9 @@ export default function InventoryExitsPage() {
       }
     }
 
+    if (!branchFilter && !activeBranchId) return
     void reloadByBranch()
-  }, [activeBranchId])
+  }, [branchFilter, activeBranchId])
 
   useEffect(() => {
     const loadProducts = async () => {

@@ -309,7 +309,7 @@ export default function InventoryStockHistoryPage() {
                             Caja abierta por: <span className="font-medium text-foreground">{snapshot.opened_by_name || '-'}</span>
                           </div>
                           <div className="rounded-md border border-border/50 bg-muted/20 px-3 py-2">
-                            Sesion: <span className="font-medium text-foreground">{snapshot.cash_session_id}</span>
+                            Sesion: <span className="font-medium text-foreground">{snapshot.snapshot_type === 'open' ? 'Apertura' : 'Cierre'} de caja</span>
                           </div>
                         </div>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { CreditsSubnav } from '@/components/modules/credits/credits-subnav'
@@ -8,15 +8,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { creditPaymentsService } from '@/lib/supabase/credits'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { creditPaymentsService, creditsService, type CreditPortfolioRow } from '@/lib/supabase/credits'
 import { toast } from '@/hooks/use-toast'
 import type { CreditPayment } from '@/types/database'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 
 export default function CreditsPaymentsPage() {
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
+  const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
 
   const [creditId, setCreditId] = useState('')
+  const [credits, setCredits] = useState<CreditPortfolioRow[]>([])
   const [amount, setAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
   const [paymentDate, setPaymentDate] = useState('')
@@ -27,11 +30,18 @@ export default function CreditsPaymentsPage() {
   const [isSaving, setIsSaving] = useState(false)
 
   const canRegister = activeRole !== 'read_only'
+  const branchScope = activeRole === 'admin' ? null : activeBranchId
+
+  const selectedCredit = useMemo(
+    () => credits.find((credit) => credit.credit_id === creditId) ?? null,
+    [credits, creditId],
+  )
 
   useEffect(() => {
     const syncContext = () => {
       const context = getActiveUserContext()
       setActiveRole(context.role)
+      setActiveBranchId(context.branch_id)
     }
 
     syncContext()
@@ -41,6 +51,25 @@ export default function CreditsPaymentsPage() {
       window.removeEventListener(ACTIVE_ROLE_EVENT, syncContext)
     }
   }, [])
+
+  useEffect(() => {
+    const loadCredits = async () => {
+      try {
+        const rows = await creditsService.getPortfolio({ branch_id: branchScope })
+        setCredits(rows)
+        setCreditId((prev) => (prev && rows.some((row) => row.credit_id === prev) ? prev : rows[0]?.credit_id ?? ''))
+      } catch (loadError) {
+        toast({
+          title: 'Error al cargar créditos',
+          description:
+            loadError instanceof Error ? loadError.message : 'No se pudieron cargar créditos',
+          variant: 'destructive',
+        })
+      }
+    }
+
+    void loadCredits()
+  }, [branchScope])
 
   useEffect(() => {
     let isActive = true
@@ -86,7 +115,7 @@ export default function CreditsPaymentsPage() {
     if (!trimmedCreditId) {
       toast({
         title: 'Falta el crédito',
-        description: 'Debes ingresar el ID del crédito.',
+        description: 'Debes seleccionar un crédito.',
         variant: 'destructive',
       })
       return
@@ -155,8 +184,23 @@ export default function CreditsPaymentsPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="space-y-2">
-              <Label>ID crédito</Label>
-              <Input value={creditId} onChange={(event) => setCreditId(event.target.value)} placeholder="UUID del crédito" />
+              <Label>Crédito</Label>
+              <Select value={creditId} onValueChange={setCreditId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un crédito" />
+                </SelectTrigger>
+                <SelectContent>
+                  {credits.length === 0 ? (
+                    <SelectItem value="" disabled>Sin créditos disponibles</SelectItem>
+                  ) : (
+                    credits.map((credit) => (
+                      <SelectItem key={credit.credit_id} value={credit.credit_id}>
+                        {credit.customer_name} · {credit.product_name} · Bs {credit.balance.toFixed(2)}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Monto pago</Label>
@@ -193,8 +237,13 @@ export default function CreditsPaymentsPage() {
             ) : (
               payments.map((payment) => (
                 <div key={payment.id} className="rounded-lg border border-border bg-card/70 p-3 text-sm">
-                  <p className="text-foreground font-semibold">{payment.id}</p>
-                  <p className="text-muted-foreground">Crédito: {payment.credit_id} | Fecha: {payment.payment_date}</p>
+                  <p className="text-foreground font-semibold">Pago registrado</p>
+                  <p className="text-muted-foreground">
+                    {selectedCredit
+                      ? `Crédito: ${selectedCredit.customer_name} · ${selectedCredit.product_name}`
+                      : 'Crédito seleccionado'}
+                  </p>
+                  <p className="text-muted-foreground">Fecha: {payment.payment_date || '-'} | Método: {payment.payment_method}</p>
                   <p className="text-emerald-500">Monto: Bs {Number(payment.amount).toFixed(2)}</p>
                 </div>
               ))

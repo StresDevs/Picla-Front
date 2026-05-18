@@ -105,6 +105,14 @@ function parseDateInput(value: string) {
   return new Date(year, month - 1, day)
 }
 
+function toLocalDateKey(value: string) {
+  const dt = new Date(value)
+  const year = dt.getFullYear()
+  const month = String(dt.getMonth() + 1).padStart(2, '0')
+  const day = String(dt.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function POSSalesPage() {
   const [catalog, setCatalog] = useState<POSCatalogItem[]>([])
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
@@ -176,6 +184,28 @@ export default function POSSalesPage() {
   }, [anonymousSale, branchCustomers, selectedCustomerId])
 
   const resolvedCustomerName = anonymousSale ? 'Cliente anónimo' : selectedCustomer?.full_name || 'Cliente mostrador'
+  const activeBranchName = mockBranches.find((branch) => branch.id === activeBranchId)?.name ?? 'Sucursal sin nombre'
+
+  const queueNumberMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const grouped = new Map<string, POSQueuedSale[]>()
+
+    queuedSales.forEach((queue) => {
+      const key = toLocalDateKey(queue.created_at)
+      const list = grouped.get(key) ?? []
+      list.push(queue)
+      grouped.set(key, list)
+    })
+
+    grouped.forEach((list) => {
+      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      list.forEach((queue, index) => {
+        map.set(queue.queue_id, `Cola ${index + 1}`)
+      })
+    })
+
+    return map
+  }, [queuedSales])
 
   const reloadPOSData = async (branchId?: string | null) => {
     const targetBranch = normalizeBranchId(branchId) ?? normalizeBranchId(getActiveUserContext().branch_id)
@@ -521,7 +551,7 @@ export default function POSSalesPage() {
       const saleMode = 'immediate' as const
 
       if (canQueueSale) {
-        const queueId = await posService.enqueueSale({
+        await posService.enqueueSale({
           branch_id: branchId,
           customer_name: resolvedCustomerName,
           payment_method: (selectedPayment === 'credit' ? 'cash' : selectedPayment) as 'cash' | 'card' | 'qr',
@@ -536,7 +566,7 @@ export default function POSSalesPage() {
         await reloadPOSData(branchId)
         toast({
           title: 'Venta en cola',
-          description: `Venta encolada correctamente: ${queueId}`,
+          description: 'Venta encolada correctamente.',
         })
         return true
       }
@@ -602,11 +632,18 @@ export default function POSSalesPage() {
         }
       }
 
+      let receiptNumber = 'N0'
+      try {
+        receiptNumber = await posService.getSaleReceiptNumber(result.sale_id, branchId)
+      } catch {
+        receiptNumber = 'N0'
+      }
+
       if (printInvoiceOnSale) {
         printMockInvoice({
-          invoiceNumber: result.sale_id,
+          invoiceNumber: receiptNumber,
           customerName: resolvedCustomerName,
-          branchName: mockBranches.find((branch) => branch.id === activeBranchId)?.name || activeBranchId,
+          branchName: activeBranchName,
           cashierName: activeUserName,
           paymentMethod: PAYMENT_METHODS.find((method) => method.id === selectedPayment)?.label || selectedPayment,
           currency: paymentCurrency,
@@ -623,7 +660,7 @@ export default function POSSalesPage() {
       await reloadPOSData(branchId)
       toast({
         title: 'Venta registrada',
-        description: `Venta registrada correctamente: ${result.sale_id}`,
+        description: `Venta registrada correctamente: ${receiptNumber}`,
       })
 
       if (isCreditSale) {
@@ -655,9 +692,17 @@ export default function POSSalesPage() {
     try {
       const result = await posService.approveQueuedSale({ queue_id: queueId })
       await reloadPOSData(activeBranchId)
+      let saleNumber = 'N0'
+      if (result?.sale_id) {
+        try {
+          saleNumber = await posService.getSaleReceiptNumber(result.sale_id, activeBranchId)
+        } catch {
+          saleNumber = 'N0'
+        }
+      }
       toast({
         title: 'Venta aprobada',
-        description: `Venta en cola aprobada. Venta creada: ${result?.sale_id || 'N/A'}`,
+        description: `Venta en cola aprobada. Venta creada: ${saleNumber}`,
       })
     } catch (approveError) {
       const errDetails = parseErrorDetails(approveError, 'No se pudo aprobar la venta en cola')
@@ -720,7 +765,7 @@ export default function POSSalesPage() {
               </div>
             </div>
             <div className="text-xs text-muted-foreground rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-              Usuario: {activeUserName} | Sucursal: {activeBranchId}
+              Usuario: {activeUserName} | Sucursal: {activeBranchName}
             </div>
           </CardContent>
         </Card>
@@ -1339,7 +1384,7 @@ export default function POSSalesPage() {
                   <div key={queue.queue_id} className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold">{queue.queue_id}</p>
+                        <p className="font-semibold">{queueNumberMap.get(queue.queue_id) ?? 'Cola de venta'}</p>
                         <p className="text-xs text-muted-foreground">Creada por rol {queue.created_by_role}</p>
                         <p className="text-xs text-muted-foreground">Cliente: {queue.customer_name || 'Mostrador'}</p>
                       </div>

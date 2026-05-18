@@ -57,6 +57,14 @@ function createBulkRow(partId = ''): BulkRow {
   }
 }
 
+function toLocalDateKey(value: string) {
+  const dt = new Date(value)
+  const year = dt.getFullYear()
+  const month = String(dt.getMonth() + 1).padStart(2, '0')
+  const day = String(dt.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function InventoryTransfersPage() {
   const [products, setProducts] = useState<Part[]>([])
   const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
@@ -240,6 +248,27 @@ export default function InventoryTransfersPage() {
       }
     })
   }, [transfers])
+
+  const pendingNumberMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const grouped = new Map<string, PendingTransferSummary[]>()
+
+    pendingTransfers.forEach((transfer) => {
+      const key = toLocalDateKey(transfer.requested_at)
+      const list = grouped.get(key) ?? []
+      list.push(transfer)
+      grouped.set(key, list)
+    })
+
+    grouped.forEach((list) => {
+      list.sort((a, b) => new Date(a.requested_at).getTime() - new Date(b.requested_at).getTime())
+      list.forEach((transfer, index) => {
+        map.set(transfer.transfer_id, `Traspaso ${index + 1}`)
+      })
+    })
+
+    return map
+  }, [pendingTransfers])
 
   const canCreateSingle = Boolean(selectedPart && Number(quantity) > 0 && fromBranch !== toBranch)
 
@@ -574,16 +603,17 @@ export default function InventoryTransfersPage() {
                   return (
                     <div key={transfer.transfer_id} className="rounded-lg border border-border/70 p-3 space-y-2 text-sm">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium">Traspaso pendiente</p>
+                      <p className="font-medium">
+                        {pendingNumberMap.get(transfer.transfer_id) ?? 'Traspaso pendiente'}
+                      </p>
                       <Badge className="bg-amber-500 text-black">pendiente</Badge>
                     </div>
-                    <p className="text-muted-foreground">{transfer.transfer_id}</p>
                     <p className="text-muted-foreground">Productos: {transfer.total_items}</p>
                     <p className="text-muted-foreground">Cantidad: {transfer.total_quantity}</p>
                     <p className="text-muted-foreground">
-                      {branches.find((b) => b.id === transfer.from_branch_id)?.name ?? transfer.from_branch_id}
+                      {branches.find((b) => b.id === transfer.from_branch_id)?.name ?? 'Sucursal sin nombre'}
                       {' -> '}
-                      {branches.find((b) => b.id === transfer.to_branch_id)?.name ?? transfer.to_branch_id}
+                      {branches.find((b) => b.id === transfer.to_branch_id)?.name ?? 'Sucursal sin nombre'}
                     </p>
                     <p className="text-muted-foreground">{new Date(transfer.requested_at).toLocaleString()}</p>
                     <Button

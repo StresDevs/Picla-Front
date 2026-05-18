@@ -95,6 +95,14 @@ function openButtonLabel(role: CashRole) {
   return 'Abrir Caja'
 }
 
+function toLocalDateKey(value: string) {
+  const dt = new Date(value)
+  const year = dt.getFullYear()
+  const month = String(dt.getMonth() + 1).padStart(2, '0')
+  const day = String(dt.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function CashPage() {
   const [profile, setProfile] = useState<CurrentProfile | null>(null)
   const [activeBranchId, setActiveBranchId] = useState<string>(() => getActiveUserContext().branch_id)
@@ -269,9 +277,35 @@ export default function CashPage() {
     }
   }, [session])
 
+  const saleNumberMap = useMemo(() => {
+    const saleMovements = movements.filter(
+      (movement) => movement.reference_table === 'pos_sales' && Boolean(movement.reference_id),
+    )
+    const grouped = new Map<string, CashMovement[]>()
+    const map = new Map<string, string>()
+
+    saleMovements.forEach((movement) => {
+      const key = toLocalDateKey(movement.created_at)
+      const list = grouped.get(key) ?? []
+      list.push(movement)
+      grouped.set(key, list)
+    })
+
+    grouped.forEach((list) => {
+      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      list.forEach((movement, index) => {
+        if (movement.reference_id) {
+          map.set(movement.reference_id, `N${index + 1}`)
+        }
+      })
+    })
+
+    return map
+  }, [movements])
+
   const displayedBranchLabel = useMemo(() => {
     if (session?.branch_name) return session.branch_name
-    if (isAdmin) return activeBranchId
+    if (isAdmin) return 'Sucursal sin nombre'
     return profile?.branch_name || 'Sin sucursal'
   }, [activeBranchId, isAdmin, profile?.branch_name, session?.branch_name])
 
@@ -857,6 +891,11 @@ export default function CashPage() {
                       </p>
                       <p className="text-xs text-zinc-400 mt-1">{new Date(movement.created_at).toLocaleString('es-BO')}</p>
                       <p className="text-sm text-zinc-300 mt-2">{movement.description}</p>
+                      {movement.reference_table === 'pos_sales' && movement.reference_id ? (
+                        <p className="text-xs text-emerald-300 mt-1">
+                          Venta: {saleNumberMap.get(movement.reference_id) ?? 'N0'}
+                        </p>
+                      ) : null}
                       {movement.created_by_name ? (
                         <p className="text-xs text-zinc-500 mt-2">Registrado por: {movement.created_by_name}</p>
                       ) : null}

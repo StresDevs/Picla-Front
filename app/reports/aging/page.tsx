@@ -269,8 +269,7 @@ export default function ReportsAgingPage() {
                     </div>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {Number(branch.overdue_count)} vencidos · {Number(branch.active_count)} vigentes ·
-                    Promedio {Number(branch.avg_days_overdue).toFixed(0)} días
+                    {Number(branch.overdue_count)} vencidos · {Number(branch.active_count)} vigentes
                   </p>
                 </CardContent>
               </Card>

@@ -258,6 +258,27 @@ export const posService = {
     return (data || []) as POSSaleRecord[]
   },
 
+  async getSaleReceiptNumber(saleId: string, branchId?: string | null) {
+    const sales = await posService.getSales(branchId ?? null, true)
+    const sale = sales.find((row) => row.sale_id === saleId)
+    if (!sale) return 'N0'
+
+    const dateKey = (value: string) => {
+      const dt = new Date(value)
+      const year = dt.getFullYear()
+      const month = String(dt.getMonth() + 1).padStart(2, '0')
+      const day = String(dt.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+
+    const targetKey = dateKey(sale.created_at)
+    const daySales = sales.filter((row) => dateKey(row.created_at) === targetKey)
+    daySales.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    const index = daySales.findIndex((row) => row.sale_id === saleId)
+    const sequence = index >= 0 ? index + 1 : daySales.length + 1
+    return `N${sequence}`
+  },
+
   async createReturn(input: {
     sale_id: string
     reason: string

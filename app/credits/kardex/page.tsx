@@ -178,7 +178,7 @@ export default function CreditsKardexPage() {
             ) : (
               records.map((record) => (
                 <div key={record.movement_id} className="rounded-lg border border-border bg-card/70 p-3 text-sm">
-                  <p className="font-semibold text-foreground">{record.credit_id} - {formatMovement(record.movement_type)}</p>
+                  <p className="font-semibold text-foreground">{record.customer_name} - {formatMovement(record.movement_type)}</p>
                   <p className="text-muted-foreground">Cliente: {record.customer_name} | Sucursal: {record.branch_name}</p>
                   <p className="text-foreground/90">Monto: Bs {Number(record.amount).toFixed(2)} | Fecha: {record.movement_date}</p>
                 </div>

@@ -59,13 +59,12 @@ export default function InventoryHistoryPage() {
   }, [])
 
   useEffect(() => {
-    if (!activeBranchId) return
-
     const loadHistory = async () => {
       setIsLoading(true)
       setError(null)
       try {
-        const historyRows = await transferService.getHistory({ branch_id: activeBranchId })
+        const branchScope = branchFilter === 'all' ? null : branchFilter
+        const historyRows = await transferService.getHistory({ branch_id: branchScope })
         setEvents(historyRows)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar historial')
@@ -74,8 +73,13 @@ export default function InventoryHistoryPage() {
       }
     }
 
+    if (!branchFilter && activeBranchId) {
+      setBranchFilter(activeBranchId)
+      return
+    }
+
     void loadHistory()
-  }, [activeBranchId])
+  }, [branchFilter, activeBranchId])
 
   const productNames = useMemo(
     () => [...new Set(events.map((item) => item.part_name).filter(Boolean))],

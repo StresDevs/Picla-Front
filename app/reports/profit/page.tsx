@@ -73,7 +73,6 @@ export default function ReportsProfitPage() {
   // Aggregations
   const totalSales = useMemo(() => rows.reduce((s, r) => s + Number(r.total_amount ?? 0), 0), [rows])
   const totalCount = useMemo(() => rows.reduce((s, r) => s + Number(r.sale_count ?? 0), 0), [rows])
-  const avgSale = totalCount > 0 ? totalSales / totalCount : 0
 
   const byBranch = useMemo(() => {
     const map = new Map<string, { name: string; total: number; count: number }>()
@@ -190,12 +189,12 @@ export default function ReportsProfitPage() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 mb-2">
                 <BarChart3 className="h-4 w-4 text-emerald-400" />
-                <p className="text-sm text-muted-foreground">Promedio por venta</p>
+                <p className="text-sm text-muted-foreground">Ventas registradas</p>
               </div>
               {isLoading ? (
                 <div className="h-8 w-28 animate-pulse rounded bg-muted/50" />
               ) : (
-                <p className="text-3xl font-bold text-emerald-400">{formatBs(avgSale)}</p>
+                <p className="text-3xl font-bold text-emerald-400">{totalCount}</p>
               )}
             </CardContent>
           </Card>
@@ -285,7 +284,6 @@ export default function ReportsProfitPage() {
                       <th className="text-left py-2 px-3 text-muted-foreground font-medium">Método</th>
                       <th className="text-right py-2 px-3 text-muted-foreground font-medium">Total</th>
                       <th className="text-right py-2 px-3 text-muted-foreground font-medium">Ventas</th>
-                      <th className="text-right py-2 px-3 text-muted-foreground font-medium">Promedio</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -300,7 +298,6 @@ export default function ReportsProfitPage() {
                         </td>
                         <td className="py-2 px-3 text-right font-semibold text-primary">{formatBs(Number(row.total_amount))}</td>
                         <td className="py-2 px-3 text-right">{row.sale_count}</td>
-                        <td className="py-2 px-3 text-right text-muted-foreground">{formatBs(Number(row.avg_sale))}</td>
                       </tr>
                     ))}
                   </tbody>
