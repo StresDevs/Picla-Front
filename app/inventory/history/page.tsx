@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { branchesService, transferService, type TransferHistoryRow } from '@/lib/supabase/inventory'
 import { generateTransferHistoryPdf } from '@/lib/pdf/generators'
-import { Download } from 'lucide-react'
+import { exportToExcel } from '@/lib/excel/export'
+import { Download, FileSpreadsheet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function InventoryHistoryPage() {
@@ -181,31 +182,60 @@ export default function InventoryHistoryPage() {
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle>Historial de traspasos y movimientos</CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={filteredEvents.length === 0}
-                onClick={() => {
-                  const branchName = branchFilter === 'all'
-                    ? 'Todas'
-                    : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
-                  generateTransferHistoryPdf({
-                    branchName,
-                    rows: filteredEvents.map((e) => ({
-                      date: e.action_date,
-                      type: e.action_type,
-                      product: e.part_name,
-                      code: e.part_code,
-                      quantity: e.quantity,
-                      fromBranch: branches.find((b) => b.id === e.from_branch_id)?.name || e.from_branch_id,
-                      toBranch: branches.find((b) => b.id === e.to_branch_id)?.name || e.to_branch_id,
-                      reason: e.action_reason || '',
-                    })),
-                  })
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" /> Descargar PDF
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={filteredEvents.length === 0}
+                  onClick={() => {
+                    const branchName = branchFilter === 'all'
+                      ? 'Todas'
+                      : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
+                    generateTransferHistoryPdf({
+                      branchName,
+                      rows: filteredEvents.map((e) => ({
+                        date: e.action_date,
+                        type: e.action_type,
+                        product: e.part_name,
+                        code: e.part_code,
+                        quantity: e.quantity,
+                        fromBranch: branches.find((b) => b.id === e.from_branch_id)?.name || e.from_branch_id,
+                        toBranch: branches.find((b) => b.id === e.to_branch_id)?.name || e.to_branch_id,
+                        reason: e.action_reason || '',
+                      })),
+                    })
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" /> Descargar PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={filteredEvents.length === 0}
+                  onClick={() => {
+                    const branchName = branchFilter === 'all'
+                      ? 'Todas'
+                      : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
+                    exportToExcel({
+                      fileName: `historial_traspasos_${branchName.replace(/\s+/g, '_')}`,
+                      headers: ['#', 'Fecha', 'Operacion', 'Codigo', 'Producto', 'Cant.', 'Origen', 'Destino', 'Motivo'],
+                      rows: filteredEvents.map((e, index) => [
+                        index + 1,
+                        new Date(e.action_date).toLocaleString('es-BO'),
+                        e.action_type,
+                        e.part_code,
+                        e.part_name,
+                        e.quantity,
+                        branches.find((b) => b.id === e.from_branch_id)?.name || e.from_branch_id,
+                        branches.find((b) => b.id === e.to_branch_id)?.name || e.to_branch_id,
+                        e.action_reason || '-',
+                      ]),
+                    })
+                  }}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" /> Descargar Excel
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>

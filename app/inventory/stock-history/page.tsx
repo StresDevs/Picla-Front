@@ -18,7 +18,8 @@ import {
   type InventorySnapshotItemRow,
 } from '@/lib/supabase/inventory'
 import { generateSnapshotPdf } from '@/lib/pdf/generators'
-import { Download } from 'lucide-react'
+import { exportToExcel } from '@/lib/excel/export'
+import { Download, FileSpreadsheet } from 'lucide-react'
 
 function snapshotTypeLabel(snapshotType: string) {
   return snapshotType === 'open' ? 'Apertura' : 'Cierre'
@@ -346,7 +347,7 @@ export default function InventoryStockHistoryPage() {
                           </div>
                         )}
 
-                        <div className="flex justify-end mt-3">
+                        <div className="flex justify-end mt-3 gap-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -367,6 +368,25 @@ export default function InventoryStockHistoryPage() {
                             }}
                           >
                             <Download className="mr-2 h-4 w-4" /> Descargar PDF
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isLoadingItems || items.length === 0}
+                            onClick={() => {
+                              exportToExcel({
+                                fileName: `snapshot_${snapshot.snapshot_type}_${snapshot.branch_name.replace(/\s+/g, '_')}`,
+                                headers: ['#', 'Codigo', 'Producto', 'Cantidad'],
+                                rows: items.map((item, index) => [
+                                  index + 1,
+                                  item.part_code || '-',
+                                  item.part_name || '-',
+                                  Number(item.quantity || 0),
+                                ]),
+                              })
+                            }}
+                          >
+                            <FileSpreadsheet className="mr-2 h-4 w-4" /> Descargar Excel
                           </Button>
                         </div>
                       </AccordionContent>

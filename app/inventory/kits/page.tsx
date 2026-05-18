@@ -42,6 +42,26 @@ const createKitItemForm = (partId = '', kitPrice = ''): KitItemForm => ({
   kit_price: kitPrice,
 })
 
+function normalizeKitCategory(category: string) {
+  return category.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+function extractTrailingNumber(value: string) {
+  const match = value.match(/(\d+)(?!.*\d)/)
+  return match ? Number(match[1]) : 0
+}
+
+function buildNextKitCode(category: string, kits: ProductKit[]) {
+  const normalizedCategory = category.trim() || 'General'
+  const categoryKey = normalizedCategory.toLowerCase()
+  const prefix = normalizeKitCategory(normalizedCategory) || 'KIT'
+  const maxValue = kits
+    .filter((kit) => (kit.category || 'General').toLowerCase() === categoryKey)
+    .reduce((max, kit) => Math.max(max, extractTrailingNumber(kit.code || '')), 0)
+  const next = maxValue + 1
+  return `${prefix}-${String(next).padStart(3, '0')}`
+}
+
 function emptyKitForm(branchId: string, products: Part[]): KitForm {
   const first = products[0]
   return {
@@ -63,6 +83,15 @@ export default function InventoryKitsPage() {
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
   const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
   const [form, setForm] = useState<KitForm>(() => emptyKitForm(getActiveUserContext().branch_id, []))
+  const resolvedCode = useMemo(() => buildNextKitCode(form.category || 'General', kits), [form.category, kits])
+  const kitTotal = useMemo(() => {
+    return form.items.reduce((sum, item) => {
+      const qty = Number(item.quantity || 0)
+      const price = Number(item.kit_price || 0)
+      if (!Number.isFinite(qty) || !Number.isFinite(price)) return sum
+      return sum + qty * price
+    }, 0)
+  }, [form.items])
 
   const canModify = activeRole === 'admin'
 
@@ -113,6 +142,10 @@ export default function InventoryKitsPage() {
   useEffect(() => {
     void refresh(activeBranchId)
   }, [activeBranchId])
+
+  useEffect(() => {
+    setForm((prev) => ({ ...prev, code: resolvedCode }))
+  }, [resolvedCode])
 
   const addItem = () => {
     const fallback = products[0]
@@ -184,6 +217,19 @@ export default function InventoryKitsPage() {
     }
   }
 
+  const deleteKit = async (kit: ProductKit) => {
+    if (!canModify) return
+    const confirmation = window.confirm(`Eliminar kit "${kit.name}"? Esta accion es reversible desde base de datos.`)
+    if (!confirmation) return
+    setError(null)
+    try {
+      await kitsService.softDelete(kit.id)
+      await refresh(activeBranchId)
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'No se pudo eliminar el kit')
+    }
+  }
+
   const resolvedKits = useMemo(() => {
     return kits.map((kit) => {
       const detail = kit.items.map((kitItem) => {
@@ -228,7 +274,7 @@ export default function InventoryKitsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">Codigo</label>
-                      <Input value={form.code} onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value }))} placeholder="KIT-001" />
+                      <Input value={form.code} disabled placeholder="KIT-001" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">Nombre</label>
@@ -258,9 +304,27 @@ export default function InventoryKitsPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      {form.items.map((item) => (
+                      <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-xs text-muted-foreground">
+                        <div className="md:col-span-1">#</div>
+                        <div className="md:col-span-5">Producto</div>
+                        <div className="md:col-span-2">Cantidad</div>
+                        <div className="md:col-span-3">Precio</div>
+                        <div className="md:col-span-1 text-right">Accion</div>
+                      </div>
+                      {form.items.map((item, index) => {
+                        const selected = products.find((product) => product.id === item.part_id)
+                        const salePrice = Number(selected?.price || 0)
+                        const costPrice = Number(selected?.cost || 0)
+                        const kitPrice = Number(item.kit_price || 0)
+                        const diff = salePrice - kitPrice
+                        const discountPct = salePrice > 0 ? (diff / salePrice) * 100 : 0
+
+                        return (
                         <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/70 p-2">
-                          <div className="md:col-span-6">
+                          <div className="md:col-span-1 flex items-center text-sm font-semibold text-muted-foreground">
+                            {index + 1}
+                          </div>
+                          <div className="md:col-span-5">
                             <Select
                               value={item.part_id || 'none'}
                               onValueChange={(value) => {
@@ -285,6 +349,11 @@ export default function InventoryKitsPage() {
                           </div>
                           <div className="md:col-span-3">
                             <Input type="number" step="0.01" value={item.kit_price} onChange={(event) => updateItem(item.id, { kit_price: event.target.value })} placeholder="Precio kit" />
+                            {selected ? (
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                Compra: Bs {costPrice.toFixed(2)} · Venta: Bs {salePrice.toFixed(2)} · Desc: {discountPct.toFixed(2)}% (Bs {diff.toFixed(2)})
+                              </p>
+                            ) : null}
                           </div>
                           <div className="md:col-span-1 flex justify-end">
                             <Button variant="destructive" size="sm" onClick={() => removeItem(item.id)}>
@@ -292,9 +361,14 @@ export default function InventoryKitsPage() {
                             </Button>
                           </div>
                         </div>
-                      ))}
+                      )})}
                     </CardContent>
                   </Card>
+
+                  <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-2 text-sm flex items-center justify-between">
+                    <span className="text-muted-foreground">Total del kit</span>
+                    <span className="font-semibold">Bs {kitTotal.toFixed(2)}</span>
+                  </div>
 
                   <div className="flex justify-end gap-2">
                     <Button variant="destructive" onClick={() => setIsOpen(false)}>Cancelar</Button>
@@ -335,14 +409,21 @@ export default function InventoryKitsPage() {
                     <p className="font-semibold">{kit.name}</p>
                     <p className="text-xs text-muted-foreground">{kit.code}</p>
                   </div>
-                  <Badge className="bg-primary/15 text-primary">Bs {kit.total.toFixed(2)}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-primary/15 text-primary">Bs {kit.total.toFixed(2)}</Badge>
+                    {canModify ? (
+                      <Button variant="ghost" size="icon" onClick={() => void deleteKit(kit)}>
+                        <Trash2 className="h-4 w-4 text-rose-500" />
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground">{kit.description || 'Sin descripción'}</p>
                 <p className="text-xs text-emerald-600">Categoría: {kit.category || 'General'}</p>
                 <div className="space-y-1 text-xs">
-                  {kit.detail.map((item) => (
+                  {kit.detail.map((item, index) => (
                     <div key={item.id} className="flex justify-between gap-2">
-                      <span>{item.part_name} x {item.quantity}</span>
+                      <span>{index + 1}. {item.part_name} x {item.quantity}</span>
                       <span>Bs {item.line_total.toFixed(2)}</span>
                     </div>
                   ))}

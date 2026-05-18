@@ -19,10 +19,12 @@ import {
   Search,
   RotateCw,
   XCircle,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { auditService, type AuditLogRow } from '@/lib/supabase/audit'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { generateAuditPdf, type AuditReportRow } from '@/lib/pdf/generators'
+import { exportToExcel } from '@/lib/excel/export'
 import { ACTIVE_ROLE_EVENT } from '@/lib/mock/runtime-store'
 
 type AuditAction = 'CREACION' | 'ACTUALIZACION' | 'ELIMINACION'
@@ -256,6 +258,49 @@ export default function AuditPage() {
     })
   }
 
+  const handleExportExcel = () => {
+    const rowsForExcel = filteredLogs.map((log) => {
+      const entityId = log.entity_id || ''
+      const resolvedName = (entityId && nameMap[entityId]) || '-'
+      const stockInfo = resolveStockImpact(log.metadata)
+      const stockImpact =
+        log.entity_type === 'Inventario'
+          ? `${resolvedName}${stockInfo ? ` · ${stockInfo}` : ''}`
+          : ''
+      return {
+        date: log.event_time,
+        entity: log.entity_type,
+        action: log.action,
+        description: sanitizeDescription(log.description, entityId, resolvedName),
+        actor: log.actor_name,
+        branch: log.branch_name,
+        stockImpact,
+      }
+    })
+
+    const branchNames = Array.from(
+      new Set(filteredLogs.map((log) => log.branch_name).filter((name) => Boolean(name))),
+    ) as string[]
+    const branchLabel = branchNames.length === 1 ? branchNames[0] : 'Todas las sucursales'
+    const entityLabel = ENTITY_OPTIONS.find((option) => option.value === entityFilter)?.label
+    const subtitleLabel = entityLabel ? `${branchLabel} · ${entityLabel}` : branchLabel
+
+    exportToExcel({
+      fileName: `auditoria_${subtitleLabel.replace(/\s+/g, '_')}`,
+      headers: ['#', 'Fecha', 'Entidad', 'Accion', 'Descripcion', 'Actor', 'Sucursal', 'Stock'],
+      rows: rowsForExcel.map((row, index) => [
+        index + 1,
+        new Date(row.date).toLocaleString('es-BO'),
+        row.entity,
+        row.action,
+        row.description,
+        row.actor,
+        row.branch,
+        row.stockImpact || '-',
+      ]),
+    })
+  }
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -275,6 +320,14 @@ export default function AuditPage() {
                 disabled={filteredLogs.length === 0}
               >
                 Descargar PDF
+              </Button>
+              <Button
+                variant="outline"
+                className="border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
+                onClick={handleExportExcel}
+                disabled={filteredLogs.length === 0}
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" /> Descargar Excel
               </Button>
             </div>
           }

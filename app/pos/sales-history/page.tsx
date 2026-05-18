@@ -16,8 +16,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { posService, type POSQueuedSale, type POSSaleRecord } from '@/lib/supabase/pos'
-import { ShoppingCart, ChevronRight, FileSearch, Download } from 'lucide-react'
+import { ShoppingCart, ChevronRight, FileSearch, Download, FileSpreadsheet } from 'lucide-react'
 import { generateSaleInvoicePdf, generateCashSessionPdf } from '@/lib/pdf/generators'
+import { exportToExcel } from '@/lib/excel/export'
 import { getAppSettings } from '@/lib/mock/runtime-store'
 
 const paymentLabels: Record<string, string> = {
@@ -292,50 +293,88 @@ export default function POSSalesHistoryPage() {
         </Card>
 
         <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={filteredSales.length === 0}
-            onClick={() => {
-              const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
-              const settings = getAppSettings()
-              generateCashSessionPdf({
-                branchName,
-                sessionDate: new Date().toLocaleDateString('es-BO'),
-                cashier: 'N/A',
-                exchangeRate: settings.usd_to_bob_rate,
-                sales: filteredSales.map((sale) => {
-                  const items = (sale.items || []).map((item) => {
-                    const bob = Number(item.line_total || 0)
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={filteredSales.length === 0}
+              onClick={() => {
+                const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
+                const settings = getAppSettings()
+                generateCashSessionPdf({
+                  branchName,
+                  sessionDate: new Date().toLocaleDateString('es-BO'),
+                  cashier: 'N/A',
+                  exchangeRate: settings.usd_to_bob_rate,
+                  sales: filteredSales.map((sale) => {
+                    const items = (sale.items || []).map((item) => {
+                      const bob = Number(item.line_total || 0)
+                      return {
+                        code: '',
+                        name: item.part_name,
+                        quantity: Number(item.quantity || 0),
+                        unit: 'PZA',
+                        unitPrice: Number(item.unit_price || 0),
+                        totalBob: bob,
+                        totalUsd: settings.usd_to_bob_rate > 0 ? bob / settings.usd_to_bob_rate : 0,
+                      }
+                    })
+                    const subtotal = items.reduce((s, i) => s + i.totalBob, 0)
+                    const total = Number(sale.total_amount || 0)
                     return {
-                      code: '',
-                      name: item.part_name,
-                      quantity: Number(item.quantity || 0),
-                      unit: 'PZA',
-                      unitPrice: Number(item.unit_price || 0),
-                      totalBob: bob,
-                      totalUsd: settings.usd_to_bob_rate > 0 ? bob / settings.usd_to_bob_rate : 0,
+                      saleId: sale.sale_id,
+                      date: sale.created_at,
+                      customer: sale.customer_name ?? 'Mostrador',
+                      paymentMethod: paymentLabels[sale.payment_method] ?? sale.payment_method,
+                      items,
+                      subtotalBob: subtotal,
+                      discount: subtotal - total > 0.01 ? subtotal - total : 0,
+                      totalBob: total,
+                      totalUsd: settings.usd_to_bob_rate > 0 ? total / settings.usd_to_bob_rate : 0,
                     }
-                  })
-                  const subtotal = items.reduce((s, i) => s + i.totalBob, 0)
-                  const total = Number(sale.total_amount || 0)
-                  return {
-                    saleId: sale.sale_id,
-                    date: sale.created_at,
-                    customer: sale.customer_name ?? 'Mostrador',
-                    paymentMethod: paymentLabels[sale.payment_method] ?? sale.payment_method,
-                    items,
-                    subtotalBob: subtotal,
-                    discount: subtotal - total > 0.01 ? subtotal - total : 0,
-                    totalBob: total,
-                    totalUsd: settings.usd_to_bob_rate > 0 ? total / settings.usd_to_bob_rate : 0,
+                  }),
+                })
+              }}
+            >
+              <Download className="mr-2 h-4 w-4" /> Descargar informe PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={filteredSales.length === 0}
+              onClick={() => {
+                const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
+                const settings = getAppSettings()
+                let counter = 0
+                const rows: Array<Array<string | number>> = []
+
+                for (const sale of filteredSales) {
+                  for (const item of (sale.items || [])) {
+                    counter += 1
+                    const bob = Number(item.line_total || 0)
+                    rows.push([
+                      counter,
+                      '',
+                      item.part_name,
+                      Number(item.quantity || 0),
+                      'PZA',
+                      Number(item.unit_price || 0),
+                      settings.usd_to_bob_rate > 0 ? bob / settings.usd_to_bob_rate : 0,
+                      bob,
+                    ])
                   }
-                }),
-              })
-            }}
-          >
-            <Download className="mr-2 h-4 w-4" /> Descargar informe PDF
-          </Button>
+                }
+
+                exportToExcel({
+                  fileName: `cierre_caja_${branchName.replace(/\s+/g, '_')}`,
+                  headers: ['#', 'Codigo', 'Producto', 'Cant.', 'U.M.', 'P. Unit.', 'Total ($)', 'Total (Bs)'],
+                  rows,
+                })
+              }}
+            >
+              <FileSpreadsheet className="mr-2 h-4 w-4" /> Descargar Excel
+            </Button>
+          </div>
         </div>
 
         {/* Summary KPIs */}
@@ -604,6 +643,28 @@ export default function POSSalesHistoryPage() {
                   }}
                 >
                   <Download className="mr-2 h-4 w-4" /> Recibo PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!selectedSale) return
+                    const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
+                    const saleNumber = resolveSaleNumber(selectedSale.sale_id) ?? selectedSale.sale_id
+                    exportToExcel({
+                      fileName: `recibo_${saleNumber}_${branchName.replace(/\s+/g, '_')}`,
+                      headers: ['#', 'Codigo', 'Producto', 'Cant.', 'P. Unit.', 'Total'],
+                      rows: (selectedSale.items || []).map((item, index) => [
+                        index + 1,
+                        '',
+                        item.part_name,
+                        Number(item.quantity),
+                        Number(item.unit_price || 0),
+                        Number(item.line_total || 0),
+                      ]),
+                    })
+                  }}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" /> Recibo Excel
                 </Button>
                 <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Cerrar</Button>
               </div>

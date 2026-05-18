@@ -20,7 +20,8 @@ import {
 } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
 import { generateInventoryPdf, type InventoryReportRow } from '@/lib/pdf/generators'
-import { Download } from 'lucide-react'
+import { exportToExcel } from '@/lib/excel/export'
+import { Download, FileSpreadsheet } from 'lucide-react'
 
 export default function InventoryControlPage() {
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
@@ -46,6 +47,7 @@ export default function InventoryControlPage() {
   const [productFilter, setProductFilter] = useState('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [reportVariant, setReportVariant] = useState<'detailed' | 'stock-check'>('detailed')
 
   const loadReportData = async (branchScope: string | null) => {
     const [summaryRows, recordRows] = await Promise.all([
@@ -295,7 +297,14 @@ export default function InventoryControlPage() {
           ))}
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Select value={reportVariant} onValueChange={(value: 'detailed' | 'stock-check') => setReportVariant(value)}>
+            <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="detailed">Reporte con precios</SelectItem>
+              <SelectItem value="stock-check">Reporte control (sin precios)</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             size="sm"
@@ -305,19 +314,63 @@ export default function InventoryControlPage() {
                 code: r.part_code,
                 name: r.part_name,
                 stock: Number(r.system_quantity),
+                branch: r.branch_name || branchName,
                 category: '',
                 cost: 0,
                 price: 0,
               }))
-              // Deduplicate by product name
               const uniqueMap = new Map<string, InventoryReportRow>()
               for (const row of reportRows) {
                 if (!uniqueMap.has(row.code)) uniqueMap.set(row.code, row)
               }
-              generateInventoryPdf({ branchName, rows: Array.from(uniqueMap.values()) })
+              generateInventoryPdf({ branchName, rows: Array.from(uniqueMap.values()), variant: reportVariant })
             }}
           >
             <Download className="mr-2 h-4 w-4" /> Descargar PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const branchName = branches.find((b) => b.id === branchFilter)?.name || 'Todas'
+              const reportRows: InventoryReportRow[] = filteredLogs.map((r) => ({
+                code: r.part_code,
+                name: r.part_name,
+                stock: Number(r.system_quantity),
+                branch: r.branch_name || branchName,
+                category: '',
+                cost: 0,
+                price: 0,
+              }))
+              const uniqueMap = new Map<string, InventoryReportRow>()
+              for (const row of reportRows) {
+                if (!uniqueMap.has(row.code)) uniqueMap.set(row.code, row)
+              }
+              const rows = Array.from(uniqueMap.values())
+              if (reportVariant === 'stock-check') {
+                exportToExcel({
+                  fileName: `inventario_control_${branchName.replace(/\s+/g, '_')}`,
+                  headers: ['Sucursal', 'Codigo producto', 'Nombre producto', 'Stock'],
+                  rows: rows.map((r) => [r.branch || branchName, r.code, r.name, r.stock]),
+                })
+                return
+              }
+              exportToExcel({
+                fileName: `inventario_${branchName.replace(/\s+/g, '_')}`,
+                headers: ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta'],
+                rows: rows.map((r, index) => [
+                  index + 1,
+                  r.code,
+                  r.stock,
+                  r.name,
+                  r.category || '-',
+                  r.cost ?? 0,
+                  r.price ?? 0,
+                ]),
+              })
+            }}
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Descargar Excel
           </Button>
         </div>
 

@@ -945,6 +945,8 @@ export const entriesService = {
       p_currency: input.currency || 'BOB',
       p_exchange_rate: input.exchange_rate ?? null,
       p_restock_mode: 'instant',
+      p_quotation_min_price: input.quotation_min_price ?? null,
+      p_quotation_max_price: input.quotation_max_price ?? null,
     })
 
     if (error) throw error
@@ -1261,6 +1263,15 @@ export const kitsService = {
       created_at: createdKit.created_at,
       updated_at: createdKit.updated_at,
     } as ProductKit
+  },
+
+  async softDelete(id: string) {
+    const { error } = await supabase
+      .from('product_kits')
+      .update({ is_active: false })
+      .eq('id', id)
+
+    if (error) throw error
   },
 }
 

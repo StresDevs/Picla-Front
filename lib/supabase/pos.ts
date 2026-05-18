@@ -212,10 +212,11 @@ export const posService = {
     items: POSQueueLineInput[]
     metadata?: Record<string, unknown>
   }) {
+    const normalizedPaymentMethod = input.payment_method === 'credit' ? 'cash' : input.payment_method
     const { data, error } = await supabase.rpc('pos_create_sale', {
       p_branch_id: input.branch_id ?? null,
       p_customer_name: input.customer_name ?? null,
-      p_payment_method: input.payment_method,
+      p_payment_method: normalizedPaymentMethod,
       p_payment_currency: input.payment_currency,
       p_exchange_rate: input.exchange_rate,
       p_sale_mode: input.sale_mode,

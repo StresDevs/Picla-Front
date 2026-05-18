@@ -15,7 +15,8 @@ import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-stor
 import { branchesService, exitsService, inventoryService, partsService, type InventoryExitView } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
 import { generateExitsPdf } from '@/lib/pdf/generators'
-import { Download } from 'lucide-react'
+import { exportToExcel } from '@/lib/excel/export'
+import { Download, FileSpreadsheet } from 'lucide-react'
 
 export default function InventoryExitsPage() {
   const [products, setProducts] = useState<Part[]>([])
@@ -313,33 +314,60 @@ export default function InventoryExitsPage() {
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-zinc-100">Lista de salidas registradas</CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={filtered.length === 0}
-                onClick={() => {
-                  const branchName = branchFilter === 'all'
-                    ? 'Todas las sucursales'
-                    : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
-                  generateExitsPdf({
-                    branchName,
-                    from: fromDate || undefined,
-                    to: toDate || undefined,
-                    rows: filtered.map((r) => ({
-                      code: r.part_code || '-',
-                      name: r.part_name,
-                      quantity: Number(r.quantity),
-                      cost: Number(r.cost ?? 0),
-                      reason: r.reason || '',
-                      branchName: r.branch_name || branchName,
-                      date: r.created_at,
-                      category: r.category || '-',
-                    })),
-                  })
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" /> Descargar PDF
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={filtered.length === 0}
+                  onClick={() => {
+                    const branchName = branchFilter === 'all'
+                      ? 'Todas las sucursales'
+                      : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
+                    generateExitsPdf({
+                      branchName,
+                      from: fromDate || undefined,
+                      to: toDate || undefined,
+                      rows: filtered.map((r) => ({
+                        code: r.part_code || '-',
+                        name: r.part_name,
+                        quantity: Number(r.quantity),
+                        cost: Number(r.cost ?? 0),
+                        reason: r.reason || '',
+                        branchName: r.branch_name || branchName,
+                        date: r.created_at,
+                        category: r.category || '-',
+                      })),
+                    })
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" /> Descargar PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={filtered.length === 0}
+                  onClick={() => {
+                    const branchName = branchFilter === 'all'
+                      ? 'Todas las sucursales'
+                      : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
+                    exportToExcel({
+                      fileName: `salidas_${branchName.replace(/\s+/g, '_')}`,
+                      headers: ['#', 'Codigo', 'Producto', 'Cantidad', 'Costo', 'Motivo', 'Sucursal'],
+                      rows: filtered.map((r, index) => [
+                        index + 1,
+                        r.part_code || '-',
+                        r.part_name,
+                        Number(r.quantity),
+                        Number(r.cost ?? 0),
+                        r.reason || '-',
+                        r.branch_name || branchName,
+                      ]),
+                    })
+                  }}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" /> Descargar Excel
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">

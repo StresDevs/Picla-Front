@@ -14,7 +14,8 @@ import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib
 import { branchesService, entriesService, inventoryService, partsService, type InventoryEntryView } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
 import { generateEntriesPdf } from '@/lib/pdf/generators'
-import { Download } from 'lucide-react'
+import { exportToExcel } from '@/lib/excel/export'
+import { Download, FileSpreadsheet } from 'lucide-react'
 
 function toIsoStart(date: string) {
   if (!date) return null
@@ -40,6 +41,8 @@ export default function InventoryEntriesPage() {
   const [quantity, setQuantity] = useState('')
   const [unitCost, setUnitCost] = useState('')
   const [unitPrice, setUnitPrice] = useState('')
+  const [quotationMinPrice, setQuotationMinPrice] = useState('')
+  const [quotationMaxPrice, setQuotationMaxPrice] = useState('')
   const [currency, setCurrency] = useState<'BOB' | 'USD'>('BOB')
   const [exchangeRate, setExchangeRate] = useState('')
   const [sourceReference, setSourceReference] = useState('')
@@ -138,6 +141,16 @@ export default function InventoryEntriesPage() {
   }, [branchId])
 
   useEffect(() => {
+    const selected = products.find((item) => item.id === partId)
+    setQuotationMinPrice(selected?.quotation_min_price !== undefined && selected?.quotation_min_price !== null
+      ? String(selected.quotation_min_price)
+      : '')
+    setQuotationMaxPrice(selected?.quotation_max_price !== undefined && selected?.quotation_max_price !== null
+      ? String(selected.quotation_max_price)
+      : '')
+  }, [partId, products])
+
+  useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true)
       setError(null)
@@ -168,6 +181,17 @@ export default function InventoryEntriesPage() {
       return
     }
 
+    const minQuote = quotationMinPrice.trim() ? Number(quotationMinPrice) : null
+    const maxQuote = quotationMaxPrice.trim() ? Number(quotationMaxPrice) : null
+    if ((minQuote !== null && !Number.isFinite(minQuote)) || (maxQuote !== null && !Number.isFinite(maxQuote))) {
+      setFeedback('Los precios de cotizacion deben ser validos.')
+      return
+    }
+    if (minQuote !== null && maxQuote !== null && minQuote > maxQuote) {
+      setFeedback('El precio minimo no puede ser mayor al maximo.')
+      return
+    }
+
     setIsSaving(true)
     try {
       const createdId = await entriesService.create({
@@ -180,6 +204,8 @@ export default function InventoryEntriesPage() {
         notes: notes.trim() || null,
         unit_cost: unitCost.trim() ? Number(unitCost) : null,
         unit_price: unitPrice.trim() ? Number(unitPrice) : null,
+        quotation_min_price: minQuote,
+        quotation_max_price: maxQuote,
         currency,
         exchange_rate: currency === 'USD' && exchangeRate.trim() ? Number(exchangeRate) : null,
       })
@@ -187,6 +213,8 @@ export default function InventoryEntriesPage() {
       setQuantity('')
       setUnitCost('')
       setUnitPrice('')
+      setQuotationMinPrice('')
+      setQuotationMaxPrice('')
       setExchangeRate('')
       setSourceReference('')
       setSupplierName('')
@@ -273,6 +301,14 @@ export default function InventoryEntriesPage() {
                 <Input type="number" min="0" step="0.01" placeholder="0.00" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} />
               </div>
               <div className="space-y-2">
+                <Label>Precio minimo cotizacion</Label>
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={quotationMinPrice} onChange={(event) => setQuotationMinPrice(event.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Precio maximo cotizacion</Label>
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={quotationMaxPrice} onChange={(event) => setQuotationMaxPrice(event.target.value)} />
+              </div>
+              <div className="space-y-2">
                 <Label>Tipo de cambio</Label>
                 <Input
                   type="number"
@@ -316,35 +352,64 @@ export default function InventoryEntriesPage() {
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-zinc-100">Listado de Ingresos (Día / Mes / Año)</CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={entries.length === 0}
-                onClick={() => {
-                  const branchName = branchFilter === 'all'
-                    ? 'Todas las sucursales'
-                    : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
-                  generateEntriesPdf({
-                    branchName,
-                    from: fromDate || undefined,
-                    to: toDate || undefined,
-                    rows: entries.map((e) => ({
-                      date: e.created_at,
-                      code: e.part_code || '-',
-                      name: e.part_name,
-                      quantity: Number(e.quantity),
-                      unitCost: e.unit_cost ?? null,
-                      unitPrice: e.unit_price ?? null,
-                      supplier: e.supplier_name || '',
-                      reference: e.source_reference || '',
-                      reason: e.reason || '',
-                      branchName: e.branch_name || branchName,
-                    })),
-                  })
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" /> Descargar PDF
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={entries.length === 0}
+                  onClick={() => {
+                    const branchName = branchFilter === 'all'
+                      ? 'Todas las sucursales'
+                      : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
+                    generateEntriesPdf({
+                      branchName,
+                      from: fromDate || undefined,
+                      to: toDate || undefined,
+                      rows: entries.map((e) => ({
+                        date: e.created_at,
+                        code: e.part_code || '-',
+                        name: e.part_name,
+                        quantity: Number(e.quantity),
+                        unitCost: e.unit_cost ?? null,
+                        unitPrice: e.unit_price ?? null,
+                        supplier: e.supplier_name || '',
+                        reference: e.source_reference || '',
+                        reason: e.reason || '',
+                        branchName: e.branch_name || branchName,
+                      })),
+                    })
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" /> Descargar PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={entries.length === 0}
+                  onClick={() => {
+                    const branchName = branchFilter === 'all'
+                      ? 'Todas las sucursales'
+                      : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
+                    exportToExcel({
+                      fileName: `ingresos_${branchName.replace(/\s+/g, '_')}`,
+                      headers: ['#', 'Fecha', 'Codigo', 'Producto', 'Cant.', 'Costo', 'Precio', 'Proveedor', 'Motivo'],
+                      rows: entries.map((e, index) => [
+                        index + 1,
+                        new Date(e.created_at).toLocaleString('es-BO'),
+                        e.part_code || '-',
+                        e.part_name,
+                        Number(e.quantity),
+                        e.unit_cost ?? 0,
+                        e.unit_price ?? 0,
+                        e.supplier_name || '-',
+                        e.reason || '-',
+                      ]),
+                    })
+                  }}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" /> Descargar Excel
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">

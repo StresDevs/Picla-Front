@@ -117,6 +117,7 @@ export interface InventoryReportRow {
   code: string
   name: string
   stock: number
+  branch?: string
   category?: string
   cost?: number
   price?: number
@@ -125,10 +126,41 @@ export interface InventoryReportRow {
 export function generateInventoryPdf(input: {
   branchName: string
   rows: InventoryReportRow[]
+  variant?: 'detailed' | 'stock-check'
 }) {
   const doc = new jsPDF()
   const now = new Date()
+  const variant = input.variant ?? 'detailed'
   buildTitle(doc, 'Reporte de Inventario', `Sucursal: ${input.branchName} — ${fmtDateTime(now)}`)
+
+  if (variant === 'stock-check') {
+    const body: RowData[] = input.rows.map((r) => [
+      r.branch || input.branchName,
+      r.code,
+      r.name,
+      `${r.stock} [ ]`,
+    ])
+
+    autoTable(doc, {
+      startY: 34,
+      head: [['Sucursal', 'Codigo producto', 'Nombre producto', 'Stock']],
+      body,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    })
+
+    const totalStock = input.rows.reduce((s, r) => s + r.stock, 0)
+    const finalY = (doc as unknown as Record<string, number>).lastAutoTable?.finalY ?? 200
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total productos: ${input.rows.length}`, 14, finalY + 8)
+    doc.text(`Total unidades en stock: ${totalStock.toLocaleString('es-BO')}`, 14, finalY + 13)
+
+    addFooter(doc, `Inventario — ${input.branchName} — Generado: ${fmtDateTime(now)}`)
+    savePdf(doc, `inventario_control_${input.branchName.replace(/\s+/g, '_')}`)
+    return
+  }
 
   const body: RowData[] = input.rows.map((r, i) => [
     i + 1,
@@ -142,7 +174,7 @@ export function generateInventoryPdf(input: {
 
   autoTable(doc, {
     startY: 34,
-    head: [['#', 'Código', 'Stock', 'Producto', 'Categoría', 'Costo', 'Precio']],
+    head: [['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta']],
     body,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
@@ -166,8 +198,8 @@ export function generateInventoryPdf(input: {
 
   doc.setFont('helvetica', 'bold')
   ty += 12
-  doc.text(`Costo total (stock × costo): Bs ${fmtMoney(totalCost)}`, pageWidth - 14, ty, { align: 'right' }); ty += 5
-  doc.text(`Precio total (stock × precio): Bs ${fmtMoney(totalPrice)}`, pageWidth - 14, ty, { align: 'right' }); ty += 5
+  doc.text(`Total precio compra (stock x compra): Bs ${fmtMoney(totalCost)}`, pageWidth - 14, ty, { align: 'right' }); ty += 5
+  doc.text(`Total precio venta (stock x venta): Bs ${fmtMoney(totalPrice)}`, pageWidth - 14, ty, { align: 'right' }); ty += 5
   doc.text(`Margen de ganancia: ${fmtMoney(profitMargin)}%`, pageWidth - 14, ty, { align: 'right' })
 
   addFooter(doc, `Inventario — ${input.branchName} — Generado: ${fmtDateTime(now)}`)

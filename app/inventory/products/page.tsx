@@ -46,6 +46,7 @@ import {
 } from 'lucide-react'
 import type { InventoryCategory, Part, ProductPriceTier } from '@/types/database'
 import { generateInventoryPdf } from '@/lib/pdf/generators'
+import { exportToExcel } from '@/lib/excel/export'
 
 interface BranchOption {
   id: string
@@ -372,6 +373,7 @@ export default function InventoryProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
+  const [inventoryReportVariant, setInventoryReportVariant] = useState<'detailed' | 'stock-check'>('detailed')
   const [viewMode, setViewMode] = useState<'cards' | 'rows'>('cards')
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -1259,7 +1261,14 @@ export default function InventoryProductsPage() {
 
         <InventorySubnav />
 
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Select value={inventoryReportVariant} onValueChange={(value: 'detailed' | 'stock-check') => setInventoryReportVariant(value)}>
+            <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="detailed">Reporte con precios</SelectItem>
+              <SelectItem value="stock-check">Reporte control (sin precios)</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             size="sm"
@@ -1268,18 +1277,60 @@ export default function InventoryProductsPage() {
               const branchName = branches.find((b) => b.id === activeBranchId)?.name || 'Sucursal'
               generateInventoryPdf({
                 branchName,
+                variant: inventoryReportVariant,
                 rows: filteredParts.map((p) => ({
                   code: p.code,
                   stock: stockByPartId[p.id] ?? 0,
                   name: p.name,
+                  branch: branchName,
                   category: p.category || '-',
                   cost: p.cost,
-                  price: p.price
+                  price: p.price,
                 })),
               })
             }}
           >
             <Download className="mr-2 h-4 w-4" /> Descargar PDF de inventario
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={filteredParts.length === 0}
+            onClick={() => {
+              const branchName = branches.find((b) => b.id === activeBranchId)?.name || 'Sucursal'
+              const rows = filteredParts.map((p) => ({
+                code: p.code,
+                stock: stockByPartId[p.id] ?? 0,
+                name: p.name,
+                branch: branchName,
+                category: p.category || '-',
+                cost: p.cost,
+                price: p.price,
+              }))
+              if (inventoryReportVariant === 'stock-check') {
+                exportToExcel({
+                  fileName: `inventario_control_${branchName.replace(/\s+/g, '_')}`,
+                  headers: ['Sucursal', 'Codigo producto', 'Nombre producto', 'Stock'],
+                  rows: rows.map((r) => [r.branch || branchName, r.code, r.name, r.stock]),
+                })
+                return
+              }
+              exportToExcel({
+                fileName: `inventario_${branchName.replace(/\s+/g, '_')}`,
+                headers: ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta'],
+                rows: rows.map((r, index) => [
+                  index + 1,
+                  r.code,
+                  r.stock,
+                  r.name,
+                  r.category || '-',
+                  r.cost ?? 0,
+                  r.price ?? 0,
+                ]),
+              })
+            }}
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Descargar Excel
           </Button>
         </div>
 
