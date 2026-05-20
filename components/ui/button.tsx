@@ -9,15 +9,23 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-emerald-600 text-white hover:bg-emerald-500 focus-visible:ring-emerald-300',
+        // Primary brand action — racing red
+        default:
+          'bg-primary text-primary-foreground shadow-sm shadow-primary/25 hover:bg-primary/90 focus-visible:ring-primary/40',
+        // Positive / confirm action — reserved for save, confirm, approve
+        success:
+          'bg-emerald-600 text-white shadow-sm shadow-emerald-900/20 hover:bg-emerald-500 focus-visible:ring-emerald-300',
+        // Warning / caution action — mechanical amber
+        warning:
+          'bg-amber-500 text-zinc-950 shadow-sm shadow-amber-900/25 hover:bg-amber-400 focus-visible:ring-amber-300',
         destructive:
-          'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
+          'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/70',
         outline:
-          'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
+          'border border-border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground hover:border-primary/40 dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+          'bg-secondary text-secondary-foreground hover:bg-secondary/85',
         ghost:
-          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
+          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/60',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

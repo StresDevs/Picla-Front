@@ -904,7 +904,7 @@ export default function POSSalesPage() {
                             />
                           </div>
                           <div className="flex justify-end">
-                            <Button onClick={() => void createQuickCustomer()} disabled={isCreatingCustomer}>
+                            <Button variant="success" onClick={() => void createQuickCustomer()} disabled={isCreatingCustomer}>
                               {isCreatingCustomer ? 'Guardando...' : 'Guardar cliente'}
                             </Button>
                           </div>
@@ -1153,6 +1153,7 @@ export default function POSSalesPage() {
                       Volver
                     </Button>
                     <Button
+                      variant="success"
                       onClick={async () => {
                         const success = await completeOrQueueSale()
                         if (success) setIsCheckoutOpen(false)
@@ -1203,14 +1204,8 @@ export default function POSSalesPage() {
           </div>
         ) : null}
 
-        <div
-          className={`grid grid-cols-1 gap-6 items-start ${
-            isCartOpen
-              ? 'lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)] 2xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]'
-              : 'lg:grid-cols-1'
-          }`}
-        >
-          <section className="space-y-4 min-w-0">
+        <div className="flex flex-col gap-6 items-start lg:flex-row">
+          <section className="w-full flex-1 space-y-4 min-w-0">
             <Card>
               <CardHeader>
                 <CardTitle>Productos de la sucursal</CardTitle>
@@ -1322,9 +1317,15 @@ export default function POSSalesPage() {
             </Card>
           </section>
 
-          {isCartOpen ? (
-          <aside className="min-w-0 2xl:sticky 2xl:top-6 2xl:self-start">
-            <Card className="flex max-h-none flex-col overflow-visible border-border/70 bg-card/95 shadow-xl shadow-black/10 2xl:max-h-[calc(100svh-3rem)] 2xl:overflow-hidden">
+          <aside
+            className={`collapsible-x w-full lg:shrink-0 ${
+              isCartOpen
+                ? 'block lg:w-[400px] xl:w-[440px] 2xl:w-[500px] opacity-100'
+                : 'hidden lg:block lg:w-0 lg:opacity-0'
+            }`}
+          >
+            <div className="w-full lg:w-[400px] xl:w-[440px] 2xl:w-[500px] 2xl:sticky 2xl:top-6">
+            <Card className="flex max-h-none flex-col overflow-visible border-border/70 bg-card shadow-lg shadow-black/10 2xl:max-h-[calc(100svh-3rem)] 2xl:overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
                 <CardTitle className="flex items-center gap-2">
                   <ShoppingCart className="h-5 w-5 text-primary" />
@@ -1479,8 +1480,8 @@ export default function POSSalesPage() {
                 </Button>
               </CardContent>
             </Card>
+            </div>
           </aside>
-          ) : null}
         </div>
 
         {canApproveQueue ? (
@@ -1516,7 +1517,7 @@ export default function POSSalesPage() {
                     </div>
 
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => approveQueuedSale(queue.queue_id)} disabled={isSubmitting}>
+                      <Button variant="success" size="sm" onClick={() => approveQueuedSale(queue.queue_id)} disabled={isSubmitting}>
                         <CheckCircle2 className="h-4 w-4 mr-2" /> Aprobar
                       </Button>
                       <Button size="sm" variant="destructive" onClick={() => rejectQueuedSale(queue.queue_id)} disabled={isSubmitting}>

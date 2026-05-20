@@ -17,8 +17,9 @@ import {
   Users,
   ChevronDown,
   ChevronLeft,
+  ChevronRight,
   LogOut,
-  Cpu,
+  Wrench,
   Building2,
   UserRound,
   KeyRound,
@@ -167,6 +168,9 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
   const [notificationCount, setNotificationCount] = useState(0)
   const pathname = usePathname()
 
+  // Desktop rail mode: when the sidebar is collapsed it becomes an icon-only rail.
+  const collapsed = !desktopOpen
+
   useEffect(() => {
     const syncRole = () => {
       const context = getActiveUserContext()
@@ -191,7 +195,7 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
         const { data } = await supabase
           .rpc('get_current_user_profile')
           .single()
-          
+
         const profile = data as any
 
         if (!profile) return
@@ -361,6 +365,16 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
     )
   }
 
+  // In rail mode, clicking a section icon expands the rail and opens that section.
+  const handleSectionClick = (label: string) => {
+    if (collapsed) {
+      onDesktopToggle?.()
+      setExpandedItems(prev => (prev.includes(label) ? prev : [...prev, label]))
+      return
+    }
+    toggleExpanded(label)
+  }
+
   const handleLogout = async () => {
     await signOutEmployee()
     setIsOpen(false)
@@ -374,93 +388,124 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
     setActiveUserContext({ branch_id: branchId })
   }
 
+  // Compact brand mark (used in rail mode)
+  const BrandMark = () => (
+    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gradient-to-br from-red-600 to-orange-500 shadow-[0_4px_12px_-4px_hsl(0_85%_45%/0.7)]">
+      <Wrench className="h-5 w-5 text-white" strokeWidth={2.4} />
+    </div>
+  )
+
   return (
     <>
       {/* Mobile Menu Button */}
-      <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-14 px-4 bg-sidebar/90 backdrop-blur-md border-b border-sidebar-border lg:hidden">
-        <div className="font-bold text-lg text-sidebar-foreground tracking-tight">Picla</div>
+      <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-14 px-4 bg-sidebar/95 backdrop-blur-md border-b border-sidebar-border lg:hidden">
+        <div className="flex items-center gap-2.5">
+          <BrandMark />
+          <span className="font-extrabold text-lg text-sidebar-foreground tracking-tight">Picla</span>
+        </div>
         <Button
           variant="ghost"
-          size="sm"
+          size="icon"
           onClick={() => setIsOpen(!isOpen)}
-          className="text-sidebar-foreground hover:bg-sidebar-accent/70"
+          className="text-sidebar-foreground hover:bg-sidebar-accent/70 rounded-md"
         >
           {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </Button>
       </div>
 
-      {/* Sidebar - Persistente en desktop, colapsable */}
+      {/* Sidebar - Persistente en desktop (riel/colapsable) */}
       <aside
-        className={`fixed inset-y-14 left-0 z-50 w-[88vw] max-w-[22rem] shrink-0 bg-sidebar/95 border-r border-sidebar-border transform transition-[transform,width,opacity] duration-200 ease-out overflow-y-auto h-[calc(100svh-56px)] backdrop-blur-xl lg:relative lg:inset-y-0 lg:left-auto lg:h-svh ${
+        className={`fixed inset-y-14 left-0 z-50 w-[88vw] max-w-[22rem] shrink-0 bg-sidebar border-r border-sidebar-border transform transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-y-auto overflow-x-hidden h-[calc(100svh-56px)] backdrop-blur-xl lg:relative lg:inset-y-0 lg:left-auto lg:h-svh ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${
-          desktopOpen
-            ? 'lg:w-72 lg:max-w-none lg:opacity-100 lg:pointer-events-auto'
-            : 'lg:w-0 lg:max-w-0 lg:opacity-0 lg:pointer-events-none lg:overflow-hidden lg:border-r-0'
+          collapsed
+            ? 'lg:w-[4.5rem]'
+            : 'lg:w-72'
         }`}
       >
-        <div className="flex flex-col min-h-full pt-6 px-4 pb-4 lg:min-w-72">
-          {/* Hidden on Mobile, shown on Desktop */}
-          <div className="hidden lg:block mb-8">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0 rounded-2xl border border-sidebar-border/70 bg-gradient-to-br from-red-950/35 via-rose-950/25 to-zinc-900/30 p-4 shadow-[0_12px_28px_-16px_hsl(0_70%_5%/0.8)]">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/70">
-                  <Cpu className="h-3.5 w-3.5 text-cyan-300" />
-                  Repuestos Mecanicos
-                </div>
-                <h1 className="mt-2 text-[1.6rem] font-extrabold leading-tight tracking-[0.03em] text-transparent bg-clip-text bg-gradient-to-r from-zinc-100 via-cyan-200 to-sky-300 drop-shadow-[0_1px_0_hsl(0_0%_100%_/_0.15)]">
-                  Picla
-                </h1>
+        <div className={`flex flex-col min-h-full pb-4 ${collapsed ? 'lg:px-2 lg:pt-3 px-4 pt-6' : 'px-4 pt-6'}`}>
+          {/* Header — Desktop only */}
+          <div className={`hidden lg:block ${collapsed ? 'lg:mb-4' : 'lg:mb-6'}`}>
+            {collapsed ? (
+              <div className="flex flex-col items-center gap-3">
+                <BrandMark />
+                {onDesktopToggle ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-sidebar-foreground hover:bg-sidebar-accent/70 rounded-md"
+                    onClick={onDesktopToggle}
+                    aria-label="Expandir menú"
+                    title="Expandir menú"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                ) : null}
               </div>
-              {onDesktopToggle ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 h-9 w-9 text-sidebar-foreground hover:bg-sidebar-accent/70"
-                  onClick={onDesktopToggle}
-                  aria-label="Ocultar menú"
-                  title="Ocultar menú"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-              ) : null}
-            </div>
-
-            <div className="mt-3 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/35 p-3 space-y-2">
-              <p className="text-xs font-medium text-sidebar-foreground/80 flex items-center gap-2">
-                <UserRound className="h-3.5 w-3.5" />
-                {activeUserName}
-              </p>
-              <p className="text-xs uppercase tracking-wide text-sidebar-foreground/65">
-                Rol: {activeRole}
-              </p>
-              {activeRole === 'admin' ? (
-                <div className="space-y-1">
-                  <p className="text-[11px] text-sidebar-foreground/70 flex items-center gap-1">
-                    <Building2 className="h-3 w-3" /> Sucursal operativa
-                  </p>
-                  <Select value={activeBranchId} onValueChange={handleBranchSelection}>
-                    <SelectTrigger className="h-8 border-sidebar-border/70 bg-sidebar/40 text-xs text-sidebar-foreground">
-                      <SelectValue placeholder="Seleccionar sucursal" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableBranches.map((branch) => (
-                        <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 rounded-md border border-sidebar-border/70 bg-gradient-to-br from-red-950/45 via-orange-950/25 to-zinc-900/40 p-4 shadow-[0_12px_28px_-16px_hsl(0_70%_5%/0.8)]">
+                    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/70">
+                      <Wrench className="h-3.5 w-3.5 text-orange-400" />
+                      Repuestos Mecánicos
+                    </div>
+                    <h1 className="mt-2 text-[1.6rem] font-extrabold leading-tight tracking-[0.04em] text-transparent bg-clip-text bg-gradient-to-r from-white via-orange-100 to-orange-400">
+                      Picla
+                    </h1>
+                  </div>
+                  {onDesktopToggle ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 h-9 w-9 text-sidebar-foreground hover:bg-sidebar-accent/70 rounded-md"
+                      onClick={onDesktopToggle}
+                      aria-label="Colapsar menú"
+                      title="Colapsar menú"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                  ) : null}
                 </div>
-              ) : (
-                <p className="text-xs text-sidebar-foreground/75 flex items-center gap-1">
-                  <Building2 className="h-3 w-3" /> {activeBranchName}
-                </p>
-              )}
-            </div>
+
+                <div className="mt-3 rounded-md border border-sidebar-border/70 bg-sidebar-accent/35 p-3 space-y-2">
+                  <p className="text-xs font-medium text-sidebar-foreground/85 flex items-center gap-2">
+                    <UserRound className="h-3.5 w-3.5" />
+                    {activeUserName}
+                  </p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-orange-300/90">
+                    Rol: {activeRole}
+                  </p>
+                  {activeRole === 'admin' ? (
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-sidebar-foreground/70 flex items-center gap-1">
+                        <Building2 className="h-3 w-3" /> Sucursal operativa
+                      </p>
+                      <Select value={activeBranchId} onValueChange={handleBranchSelection}>
+                        <SelectTrigger className="h-8 border-sidebar-border/70 bg-sidebar/40 text-xs text-sidebar-foreground rounded-md">
+                          <SelectValue placeholder="Seleccionar sucursal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableBranches.map((branch) => (
+                            <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-sidebar-foreground/75 flex items-center gap-1">
+                      <Building2 className="h-3 w-3" /> {activeBranchName}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Navigation Items */}
-          <nav className="flex-1 space-y-1">
+          <nav className={`flex-1 ${collapsed ? 'lg:space-y-1.5 space-y-1' : 'space-y-1'}`}>
             {visibleMenuItems.map((item) => {
               const Icon = item.icon
               const isActive = item.href ? pathname.startsWith(item.href.split('/').slice(0, 2).join('/')) : false
@@ -472,25 +517,29 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
                   {hasSubItems ? (
                     <>
                       <button
-                        onClick={() => toggleExpanded(item.label)}
-                        className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 ${
+                        data-sidebar-item
+                        onClick={() => handleSectionClick(item.label)}
+                        title={collapsed ? item.label : undefined}
+                        className={`relative w-full flex items-center gap-3 rounded-md text-sm font-medium ${
+                          collapsed ? 'lg:justify-center lg:px-0 lg:h-11 px-3 py-2.5 justify-between' : 'justify-between px-3 py-2.5'
+                        } ${
                           isActive
-                            ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent/75'
+                            ? 'bg-sidebar-accent/70 text-white nav-active-bar'
+                            : 'text-sidebar-foreground/90 hover:bg-sidebar-accent/60 hover:text-white'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <Icon className="w-5 h-5" />
-                          <span>{item.label}</span>
+                          <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-orange-300' : ''}`} />
+                          <span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span>
                         </div>
                         <ChevronDown
-                          className={`w-4 h-4 transition-transform ${
+                          className={`w-4 h-4 transition-transform shrink-0 ${collapsed ? 'lg:hidden' : ''} ${
                             isExpanded ? 'rotate-180' : ''
                           }`}
                         />
                       </button>
                       {isExpanded && (
-                        <div className="space-y-0.5 pl-3 mt-1 border-l-2 border-sidebar-border/50 ml-2">
+                        <div className={`space-y-0.5 pl-3 mt-1 border-l-2 border-sidebar-border/60 ml-3.5 animate-expand-down ${collapsed ? 'lg:hidden' : ''}`}>
                           {item.subItems?.map((subItem) => {
                             const isSubActive = pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)
                             return (
@@ -498,10 +547,11 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
                                 key={subItem.href}
                                 asChild
                                 variant="ghost"
-                                className={`w-full justify-start text-xs rounded-lg transition-all duration-150 ${
+                                data-sidebar-item
+                                className={`w-full justify-start text-xs rounded-md ${
                                   isSubActive
-                                    ? 'bg-white/10 text-white font-semibold border border-white/70 shadow-[0_0_8px_rgba(255,255,255,0.25)]'
-                                    : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
+                                    ? 'bg-sidebar-primary/20 text-white font-semibold border-l-2 border-sidebar-primary'
+                                    : 'text-sidebar-foreground/75 hover:bg-sidebar-accent/55 hover:text-white'
                                 }`}
                               >
                                 <Link
@@ -519,19 +569,23 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
                   ) : (
                     <Button
                       asChild
-                      variant={isActive ? 'default' : 'ghost'}
-                      className={`w-full justify-start gap-3 rounded-xl py-2.5 ${
+                      variant="ghost"
+                      data-sidebar-item
+                      title={collapsed ? item.label : undefined}
+                      className={`relative w-full gap-3 rounded-md py-2.5 ${
+                        collapsed ? 'lg:justify-center lg:px-0 lg:h-11 justify-start' : 'justify-start'
+                      } ${
                         isActive
-                          ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-red-950/35'
-                          : 'bg-transparent text-sidebar-foreground shadow-none hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
+                          ? 'bg-sidebar-primary text-sidebar-primary-foreground font-semibold shadow-sm shadow-red-950/40 hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground'
+                          : 'bg-transparent text-sidebar-foreground/90 shadow-none hover:bg-sidebar-accent/60 hover:text-white'
                       }`}
                     >
                       <Link
                         href={item.href || '#'}
                         onClick={() => setIsOpen(false)}
                       >
-                        <Icon className="w-5 h-5" />
-                        <span>{item.label}</span>
+                        <Icon className="w-5 h-5 shrink-0" />
+                        <span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span>
                       </Link>
                     </Button>
                   )}
@@ -541,40 +595,49 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
           </nav>
 
           {/* Bottom Section */}
-          <div className="space-y-2 border-t border-sidebar-border/80 pt-4 mt-4">
+          <div className={`space-y-1.5 border-t border-sidebar-border/80 pt-4 mt-4 ${collapsed ? 'lg:flex lg:flex-col lg:items-center' : ''}`}>
             {activeRole === 'admin' && notificationCount > 0 && (
               <Button
                 asChild
                 variant="ghost"
-                className="w-full justify-start gap-3 rounded-xl py-2.5 text-amber-400 hover:bg-amber-500/10 relative"
+                title={collapsed ? 'Solicitudes pendientes' : undefined}
+                className={`relative w-full gap-3 rounded-md py-2.5 text-amber-400 hover:bg-amber-500/10 ${
+                  collapsed ? 'lg:justify-center lg:px-0 lg:h-11 justify-start' : 'justify-start'
+                }`}
               >
                 <Link href="/credits/payments" onClick={() => setIsOpen(false)}>
-                  <Bell className="w-5 h-5" />
-                  <span>Solicitudes pendientes</span>
-                  <span className="ml-auto inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-amber-500 text-[10px] font-bold text-black">
+                  <Bell className="w-5 h-5 shrink-0" />
+                  <span className={collapsed ? 'lg:hidden' : ''}>Solicitudes pendientes</span>
+                  <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-amber-500 text-[10px] font-bold text-black ${collapsed ? 'lg:absolute lg:top-1 lg:right-1 ml-auto' : 'ml-auto'}`}>
                     {notificationCount}
                   </span>
                 </Link>
               </Button>
             )}
-            <ThemeSwitcher />
+            <ThemeSwitcher collapsed={collapsed} />
             <Button
               asChild
               variant="ghost"
-              className="w-full justify-start gap-3 rounded-xl py-2.5 text-sidebar-foreground hover:bg-sidebar-accent/60"
+              title={collapsed ? 'Cambiar contraseña' : undefined}
+              className={`w-full gap-3 rounded-md py-2.5 text-sidebar-foreground/90 hover:bg-sidebar-accent/60 hover:text-white ${
+                collapsed ? 'lg:justify-center lg:px-0 lg:h-11 justify-start' : 'justify-start'
+              }`}
             >
               <Link href="/management/change-password" onClick={() => setIsOpen(false)}>
-                <KeyRound className="w-5 h-5" />
-                <span>Cambiar contraseña</span>
+                <KeyRound className="w-5 h-5 shrink-0" />
+                <span className={collapsed ? 'lg:hidden' : ''}>Cambiar contraseña</span>
               </Link>
             </Button>
             <Button
               variant="ghost"
+              title={collapsed ? 'Cerrar sesión' : undefined}
               onClick={handleLogout}
-              className="w-full justify-start gap-3 rounded-xl py-2.5 text-sidebar-foreground hover:bg-sidebar-accent/60"
+              className={`w-full gap-3 rounded-md py-2.5 text-sidebar-foreground/90 hover:bg-destructive/15 hover:text-red-300 ${
+                collapsed ? 'lg:justify-center lg:px-0 lg:h-11 justify-start' : 'justify-start'
+              }`}
             >
-              <LogOut className="w-5 h-5" />
-              <span>Cerrar sesión</span>
+              <LogOut className="w-5 h-5 shrink-0" />
+              <span className={collapsed ? 'lg:hidden' : ''}>Cerrar sesión</span>
             </Button>
           </div>
         </div>

@@ -73,22 +73,28 @@ interface StatCardProps {
 function StatCard({ label, value, subtext, icon: Icon, color = 'default', loading }: StatCardProps) {
   const colorMap = {
     default: 'text-primary',
-    green: 'text-emerald-400',
-    red: 'text-rose-400',
-    amber: 'text-amber-400',
+    green: 'text-emerald-500',
+    red: 'text-rose-500',
+    amber: 'text-amber-500',
+  }
+  const accentMap = {
+    default: 'border-l-primary',
+    green: 'border-l-emerald-500',
+    red: 'border-l-rose-500',
+    amber: 'border-l-amber-500',
   }
 
   return (
-    <Card className="bg-card/95">
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between gap-2 mb-3">
-          <p className="text-sm text-muted-foreground font-medium">{label}</p>
+    <Card className={`bg-card border-l-[3px] ${accentMap[color]}`}>
+      <CardContent className="pt-5">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</p>
           <Icon className={`h-5 w-5 shrink-0 ${colorMap[color]}`} />
         </div>
         {loading ? (
-          <div className="h-9 w-32 animate-pulse rounded-lg bg-muted/60 mt-1" />
+          <div className="h-8 w-32 animate-pulse rounded-sm bg-muted/60 mt-1" />
         ) : (
-          <p className={`text-3xl font-bold ${colorMap[color]}`}>{value}</p>
+          <p className={`text-3xl font-bold tabular-nums ${colorMap[color]}`}>{value}</p>
         )}
         {subtext && <p className="text-xs text-muted-foreground mt-2">{subtext}</p>}
       </CardContent>
@@ -171,40 +177,42 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        {/* KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            label="Ventas hoy"
-            value={summary ? currency(summary.sales_today) : '—'}
-            subtext={summary ? `${summary.sales_today_count} transacciones` : undefined}
-            icon={ShoppingCart}
-            color="default"
-            loading={isLoading}
-          />
-          <StatCard
-            label="Ventas esta semana"
-            value={summary ? currency(summary.sales_week) : '—'}
-            subtext="Últimos 7 días"
-            icon={TrendingUp}
-            color="green"
-            loading={isLoading}
-          />
-          <StatCard
-            label="Créditos activos"
-            value={summary ? `${summary.credits_active_count}` : '—'}
-            subtext={summary ? `Saldo: ${currency(summary.credits_active_balance)}` : undefined}
-            icon={CreditCard}
-            color={summary && summary.credits_overdue_count > 0 ? 'red' : 'amber'}
-            loading={isLoading}
-          />
-          <StatCard
-            label="Productos sin stock"
-            value={summary ? `${summary.zero_stock_count}` : '—'}
-            subtext={summary ? `${summary.low_stock_count} en stock crítico` : undefined}
-            icon={Package}
-            color={summary && summary.zero_stock_count > 0 ? 'red' : 'default'}
-            loading={isLoading}
-          />
+        {/* KPIs — sticky strip with the main figures pinned while scrolling */}
+        <div className="kpi-sticky top-14 lg:top-0 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-3 border-b border-border/60 bg-background/85">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="Ventas hoy"
+              value={summary ? currency(summary.sales_today) : '—'}
+              subtext={summary ? `${summary.sales_today_count} transacciones` : undefined}
+              icon={ShoppingCart}
+              color="default"
+              loading={isLoading}
+            />
+            <StatCard
+              label="Ventas esta semana"
+              value={summary ? currency(summary.sales_week) : '—'}
+              subtext="Últimos 7 días"
+              icon={TrendingUp}
+              color="green"
+              loading={isLoading}
+            />
+            <StatCard
+              label="Créditos activos"
+              value={summary ? `${summary.credits_active_count}` : '—'}
+              subtext={summary ? `Saldo: ${currency(summary.credits_active_balance)}` : undefined}
+              icon={CreditCard}
+              color={summary && summary.credits_overdue_count > 0 ? 'red' : 'amber'}
+              loading={isLoading}
+            />
+            <StatCard
+              label="Productos sin stock"
+              value={summary ? `${summary.zero_stock_count}` : '—'}
+              subtext={summary ? `${summary.low_stock_count} en stock crítico` : undefined}
+              icon={Package}
+              color={summary && summary.zero_stock_count > 0 ? 'red' : 'default'}
+              loading={isLoading}
+            />
+          </div>
         </div>
 
         {/* Alertas */}

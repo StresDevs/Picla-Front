@@ -5,7 +5,11 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Moon, Sun } from 'lucide-react'
 
-export function ThemeSwitcher() {
+interface ThemeSwitcherProps {
+  collapsed?: boolean
+}
+
+export function ThemeSwitcher({ collapsed = false }: ThemeSwitcherProps) {
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -14,6 +18,23 @@ export function ThemeSwitcher() {
   }, [])
 
   const isDark = resolvedTheme === 'dark'
+  const label = !mounted ? 'Cambiar tema' : isDark ? 'Modo claro' : 'Modo oscuro'
+  const Icon = !mounted ? Moon : isDark ? Sun : Moon
+
+  if (collapsed) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        title={label}
+        aria-label={label}
+        className="h-10 w-10 mx-auto text-sidebar-foreground hover:bg-sidebar-accent"
+        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+      >
+        <Icon className="w-5 h-5" />
+      </Button>
+    )
+  }
 
   return (
     <Button
@@ -21,22 +42,8 @@ export function ThemeSwitcher() {
       className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
     >
-      {!mounted ? (
-        <>
-          <Moon className="w-5 h-5" />
-          <span>Cambiar tema</span>
-        </>
-      ) : isDark ? (
-        <>
-          <Sun className="w-5 h-5" />
-          <span>Modo claro</span>
-        </>
-      ) : (
-        <>
-          <Moon className="w-5 h-5" />
-          <span>Modo oscuro</span>
-        </>
-      )}
+      <Icon className="w-5 h-5" />
+      <span>{label}</span>
     </Button>
   )
 }
