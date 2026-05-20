@@ -263,48 +263,48 @@ export default function InventoryKitsPage() {
                     <Plus className="mr-2 h-4 w-4" /> Nuevo kit
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto text-base">
                   <DialogHeader>
-                    <DialogTitle>Registrar kit</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle className="text-2xl">Registrar kit</DialogTitle>
+                    <DialogDescription className="text-base">
                       Define productos, cantidades y precio kit por producto.
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">Codigo</label>
-                      <Input value={form.code} disabled placeholder="KIT-001" />
+                      <label className="text-base font-medium text-foreground">Codigo</label>
+                      <Input className="h-11 text-base" value={form.code} disabled placeholder="KIT-001" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">Nombre</label>
-                      <Input value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Kit de bujias" />
+                      <label className="text-base font-medium text-foreground">Nombre</label>
+                      <Input className="h-11 text-base" value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Kit de bujias" />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <label className="text-sm font-medium text-foreground">Descripción</label>
-                      <Input value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Incluye bujias y cables" />
+                      <label className="text-base font-medium text-foreground">Descripción</label>
+                      <Input className="h-11 text-base" value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Incluye bujias y cables" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">Categoría</label>
-                      <Input value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))} placeholder="General" />
+                      <label className="text-base font-medium text-foreground">Categoría</label>
+                      <Input className="h-11 text-base" value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))} placeholder="General" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">Sucursal</label>
-                      <Input value={form.branch_id} disabled />
+                      <label className="text-base font-medium text-foreground">Sucursal</label>
+                      <Input className="h-11 text-base" value={form.branch_id} disabled />
                     </div>
                   </div>
 
                   <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between gap-2">
-                        <CardTitle className="text-base">Productos del kit</CardTitle>
+                        <CardTitle className="text-lg">Productos del kit</CardTitle>
                         <Button variant="outline" size="sm" onClick={addItem}>
                           <Plus className="mr-1 h-4 w-4" /> Producto
                         </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-xs text-muted-foreground">
+                      <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-sm text-muted-foreground">
                         <div className="md:col-span-1">#</div>
                         <div className="md:col-span-5">Producto</div>
                         <div className="md:col-span-2">Cantidad</div>
@@ -320,8 +320,8 @@ export default function InventoryKitsPage() {
                         const discountPct = salePrice > 0 ? (diff / salePrice) * 100 : 0
 
                         return (
-                        <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/70 p-2">
-                          <div className="md:col-span-1 flex items-center text-sm font-semibold text-muted-foreground">
+                        <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/70 p-3">
+                          <div className="md:col-span-1 flex items-center text-base font-semibold text-muted-foreground">
                             {index + 1}
                           </div>
                           <div className="md:col-span-5">
@@ -335,7 +335,7 @@ export default function InventoryKitsPage() {
                                 })
                               }}
                             >
-                              <SelectTrigger><SelectValue placeholder="Producto" /></SelectTrigger>
+                              <SelectTrigger className="h-11 text-base"><SelectValue placeholder="Producto" /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none" disabled>Selecciona producto</SelectItem>
                                 {products.map((product) => (
@@ -345,14 +345,22 @@ export default function InventoryKitsPage() {
                             </Select>
                           </div>
                           <div className="md:col-span-2">
-                            <Input type="number" min={1} value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Cant" />
+                            <Input className="h-11 text-base" type="number" min={1} value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Cant" />
                           </div>
                           <div className="md:col-span-3">
-                            <Input type="number" step="0.01" value={item.kit_price} onChange={(event) => updateItem(item.id, { kit_price: event.target.value })} placeholder="Precio kit" />
+                            <Input className="h-11 text-base" type="number" step="0.01" value={item.kit_price} onChange={(event) => updateItem(item.id, { kit_price: event.target.value })} placeholder="Precio kit" />
                             {selected ? (
-                              <p className="mt-1 text-[10px] text-muted-foreground">
-                                Compra: Bs {costPrice.toFixed(2)} · Venta: Bs {salePrice.toFixed(2)} · Desc: {discountPct.toFixed(2)}% (Bs {diff.toFixed(2)})
-                              </p>
+                              <div className="mt-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                                <div className="flex flex-wrap items-center gap-4 text-base">
+                                  <span className="text-muted-foreground">Compra</span>
+                                  <span className="text-lg font-semibold text-foreground">Bs {costPrice.toFixed(2)}</span>
+                                  <span className="text-muted-foreground">Venta</span>
+                                  <span className="text-lg font-semibold text-foreground">Bs {salePrice.toFixed(2)}</span>
+                                </div>
+                                <div className={`mt-1 text-sm ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  Diferencia: Bs {diff.toFixed(2)} · Desc: {discountPct.toFixed(2)}%
+                                </div>
+                              </div>
                             ) : null}
                           </div>
                           <div className="md:col-span-1 flex justify-end">
@@ -365,9 +373,9 @@ export default function InventoryKitsPage() {
                     </CardContent>
                   </Card>
 
-                  <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-2 text-sm flex items-center justify-between">
+                  <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 text-base flex items-center justify-between">
                     <span className="text-muted-foreground">Total del kit</span>
-                    <span className="font-semibold">Bs {kitTotal.toFixed(2)}</span>
+                    <span className="text-lg font-semibold">Bs {kitTotal.toFixed(2)}</span>
                   </div>
 
                   <div className="flex justify-end gap-2">
@@ -403,14 +411,14 @@ export default function InventoryKitsPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {resolvedKits.map((kit) => (
-              <div key={kit.id} className="rounded-xl border border-border/70 bg-card/80 p-4 space-y-3">
+              <div key={kit.id} className="rounded-xl border border-border/70 bg-card/80 p-5 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="font-semibold">{kit.name}</p>
-                    <p className="text-xs text-muted-foreground">{kit.code}</p>
+                    <p className="text-base font-semibold">{kit.name}</p>
+                    <p className="text-sm text-muted-foreground">{kit.code}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-primary/15 text-primary">Bs {kit.total.toFixed(2)}</Badge>
+                    <Badge className="bg-primary/15 text-primary text-sm">Bs {kit.total.toFixed(2)}</Badge>
                     {canModify ? (
                       <Button variant="ghost" size="icon" onClick={() => void deleteKit(kit)}>
                         <Trash2 className="h-4 w-4 text-rose-500" />
@@ -418,9 +426,9 @@ export default function InventoryKitsPage() {
                     ) : null}
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground">{kit.description || 'Sin descripción'}</p>
-                <p className="text-xs text-emerald-600">Categoría: {kit.category || 'General'}</p>
-                <div className="space-y-1 text-xs">
+                <p className="text-base text-muted-foreground">{kit.description || 'Sin descripción'}</p>
+                <p className="text-sm text-emerald-600">Categoría: {kit.category || 'General'}</p>
+                <div className="space-y-1 text-sm">
                   {kit.detail.map((item, index) => (
                     <div key={item.id} className="flex justify-between gap-2">
                       <span>{index + 1}. {item.part_name} x {item.quantity}</span>

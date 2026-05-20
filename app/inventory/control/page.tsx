@@ -426,21 +426,29 @@ export default function InventoryControlPage() {
             </div>
 
             <div className="space-y-2">
-              {filteredLogs.map((record) => (
-                <div key={record.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold text-zinc-100">{record.part_name} ({record.part_code})</p>
-                    <Badge className={Number(record.difference_quantity) === 0 ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'}>
-                      Dif: {record.difference_quantity}
-                    </Badge>
+              {filteredLogs.map((record) => {
+                const diff = Number(record.difference_quantity)
+                const diffClass = diff === 0
+                  ? 'bg-slate-600 text-white'
+                  : diff > 0
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-rose-600 text-white'
+                const diffLabel = diff > 0 ? `+${diff}` : `${diff}`
+
+                return (
+                  <div key={record.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold text-zinc-100">{record.part_name} ({record.part_code})</p>
+                      <Badge className={diffClass}>Dif: {diffLabel}</Badge>
+                    </div>
+                    <p className="text-zinc-400">Sucursal: {record.branch_name}</p>
+                    <p className="text-zinc-400">Sistema: {record.system_quantity} | Contado: {record.counted_quantity}</p>
+                    <p className="text-zinc-400">Usuario: {record.recorded_by_name || 'N/A'} | Fecha: {new Date(record.recorded_at).toLocaleString('es-BO')}</p>
+                    <p className="text-zinc-300 mt-1">Motivo: {record.control_reason || 'Sin motivo'}</p>
+                    {record.notes ? <p className="text-zinc-300">Notas: {record.notes}</p> : null}
                   </div>
-                  <p className="text-zinc-400">Sucursal: {record.branch_name}</p>
-                  <p className="text-zinc-400">Sistema: {record.system_quantity} | Contado: {record.counted_quantity}</p>
-                  <p className="text-zinc-400">Usuario: {record.recorded_by_name || 'N/A'} | Fecha: {new Date(record.recorded_at).toLocaleString('es-BO')}</p>
-                  <p className="text-zinc-300 mt-1">Motivo: {record.control_reason || 'Sin motivo'}</p>
-                  {record.notes ? <p className="text-zinc-300">Notas: {record.notes}</p> : null}
-                </div>
-              ))}
+                )
+              })}
 
               {filteredLogs.length === 0 ? (
                 <p className="text-sm text-zinc-400">{isLoading ? 'Cargando registros...' : 'No hay registros para los filtros seleccionados.'}</p>

@@ -219,7 +219,7 @@ export default function CapitalProductsPage() {
                       {paginated.map((p) => (
                         <tr key={`${p.part_id}-${p.branch_id}`} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
                           <td className="py-2 px-3 font-mono text-xs text-muted-foreground">{p.part_code}</td>
-                          <td className="py-2 px-3"><p className="font-medium truncate max-w-[180px]">{p.part_name}</p></td>
+                          <td className="py-2 px-3"><p className="font-medium whitespace-nowrap">{p.part_name}</p></td>
                           <td className="py-2 px-3 hidden md:table-cell text-muted-foreground text-xs">{p.category_name}</td>
                           <td className="py-2 px-3 hidden lg:table-cell text-muted-foreground text-xs">{p.branch_name}</td>
                           <td className="py-2 px-3 text-right">

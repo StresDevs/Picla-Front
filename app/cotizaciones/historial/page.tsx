@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CreditCard, DollarSign, QrCode } from 'lucide-react'
+import { CreditCard, DollarSign, Printer, QrCode } from 'lucide-react'
 import {
   ACTIVE_ROLE_EVENT,
   getActiveUserContext,
@@ -19,6 +19,7 @@ import {
 import { printMockInvoice } from '@/lib/mock/invoice'
 import { quotationsService, type QuotationRecord } from '@/lib/supabase/quotations'
 import { posService } from '@/lib/supabase/pos'
+import { generateQuotationPdf } from '@/lib/pdf/generators'
 
 const PAYMENT_METHODS = [
   { id: 'cash', label: 'Efectivo', icon: DollarSign },
@@ -325,6 +326,33 @@ export default function QuotationsHistoryPage() {
                       disabled={!isActiveAndValid || !canConvertQuotation || isSubmitting}
                     >
                       Convertir en venta
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        generateQuotationPdf({
+                          quotationId: quotation.quotation_id,
+                          branchName: quotation.branch_name,
+                          quotedBy: quotation.quoted_by_name || 'Sin asignar',
+                          customerName: quotation.customer_name,
+                          customerNit: quotation.customer_nit_ci || '-',
+                          date: new Date(quotation.created_at).toLocaleDateString('es-BO'),
+                          expiresAt: new Date(quotation.expires_at).toLocaleDateString('es-BO'),
+                          items: (quotation.items || []).map(item => ({
+                            code: item.part_code,
+                            name: item.part_name,
+                            quantity: item.quantity,
+                            unitPrice: Number(item.unit_price || 0),
+                            lineTotal: Number(item.line_total || 0),
+                          })),
+                          total: Number(quotation.total_amount || 0),
+                          notes: quotation.notes,
+                        })
+                      }}
+                    >
+                      <Printer className="mr-1 h-4 w-4" />
+                      Imprimir
                     </Button>
                   </div>
                 </article>

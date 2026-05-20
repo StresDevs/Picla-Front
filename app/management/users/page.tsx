@@ -45,6 +45,8 @@ interface UserFormData {
   branchId: string
   roleId: string
   isActive: boolean
+  customPassword: string
+  useCustomPassword: boolean
 }
 
 interface CreatedCredentials {
@@ -62,6 +64,8 @@ const emptyUserForm: UserFormData = {
   branchId: '',
   roleId: '',
   isActive: true,
+  customPassword: '',
+  useCustomPassword: false,
 }
 
 const roleDisplayNames: Record<string, string> = {
@@ -183,7 +187,9 @@ export default function ManagementUsersPage() {
         phone: userForm.phone.trim() || null,
         branch_id: userForm.branchId,
         role: roleName,
-        send_reset_email: true,
+        send_reset_email: !userForm.useCustomPassword,
+        username: userForm.username.trim() || undefined,
+        password: userForm.useCustomPassword && userForm.customPassword ? userForm.customPassword : undefined,
       }),
     })
 
@@ -284,6 +290,8 @@ export default function ManagementUsersPage() {
       branchId: user.branch_id,
       roleId: user.role_id,
       isActive: user.is_active,
+      customPassword: '',
+      useCustomPassword: false,
     })
     setIsDialogOpen(true)
   }
@@ -369,7 +377,13 @@ export default function ManagementUsersPage() {
                         <label className="text-sm font-medium">Usuario</label>
                         <Input value={userForm.username} readOnly />
                       </div>
-                    ) : null}
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Nombre de usuario</label>
+                        <Input placeholder='Nombre de usuario (opcional)' value={userForm.username} onChange={(e) => setUserForm((prev) => ({ ...prev, username: e.target.value }))} />
+                        <p className="text-xs text-muted-foreground">Si no se especifica, se generará automáticamente</p>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Correo</label>
                       <Input type="email" value={userForm.email} onChange={(e) => setUserForm((prev) => ({ ...prev, email: e.target.value }))} />
@@ -410,6 +424,33 @@ export default function ManagementUsersPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {!editingUserId ? (
+                      <div className="space-y-3 md:col-span-2 rounded-lg border border-zinc-700/50 p-4">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id="useCustomPassword"
+                            checked={userForm.useCustomPassword}
+                            onChange={(e) => setUserForm((prev) => ({ ...prev, useCustomPassword: e.target.checked }))}
+                            className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-emerald-500 focus:ring-emerald-500"
+                          />
+                          <label htmlFor="useCustomPassword" className="text-sm font-medium cursor-pointer">Definir contraseña personalizada</label>
+                        </div>
+                        {userForm.useCustomPassword ? (
+                          <div className="space-y-2">
+                            <Input
+                              type="password"
+                              placeholder="Contraseña"
+                              value={userForm.customPassword}
+                              onChange={(e) => setUserForm((prev) => ({ ...prev, customPassword: e.target.value }))}
+                            />
+                            <p className="text-xs text-emerald-400/80">El usuario NO necesitará cambiar la contraseña en el primer inicio de sesión</p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Si no defines una contraseña, se generará una aleatoria</p>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex justify-end gap-2">

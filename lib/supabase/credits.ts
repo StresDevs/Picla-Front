@@ -61,6 +61,23 @@ export interface CreditAlertRow {
   status: 'active' | 'overdue' | 'paid'
 }
 
+export interface CreditPaymentRequest {
+  id: string
+  credit_id: string
+  branch_id: string
+  requested_by: string | null
+  requested_role: string
+  amount: number
+  payment_method: string
+  payment_date: string
+  notes: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  reviewed_by: string | null
+  review_notes: string | null
+  created_at: string
+  reviewed_at: string | null
+}
+
 function parseSingleRpcRow<T>(data: T[] | T | null): T | null {
   if (!data) return null
   return Array.isArray(data) ? (data[0] ?? null) : data
@@ -200,5 +217,47 @@ export const creditPaymentsService = {
 
     if (error) throw error
     return (data as CreditPayment[]) || []
+  },
+
+  async requestPayment(input: {
+    credit_id: string
+    amount: number
+    payment_method: string
+    payment_date?: string | null
+    notes?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('request_credit_payment', {
+      p_credit_id: input.credit_id,
+      p_amount: input.amount,
+      p_payment_method: input.payment_method,
+      p_payment_date: input.payment_date ?? null,
+      p_notes: input.notes ?? null,
+    })
+    if (error) throw error
+    return data as string
+  },
+
+  async getPendingRequests(input?: { branch_id?: string | null }) {
+    const { data, error } = await supabase
+      .from('credit_payment_requests')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async reviewRequest(input: {
+    request_id: string
+    action: 'approve' | 'reject'
+    review_notes?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('review_credit_payment_request', {
+      p_request_id: input.request_id,
+      p_action: input.action,
+      p_review_notes: input.review_notes ?? null,
+    })
+    if (error) throw error
+    return data as string
   },
 }

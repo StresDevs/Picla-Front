@@ -274,16 +274,12 @@ export default function POSAdvanceSalesPage() {
                 {selectedPart && (
                   <div className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total estimado</span>
-                      <span className="font-semibold">Bs {totalBob.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Anticipo</span>
-                      <span className="text-amber-400 font-medium">Bs {Number(advanceAmount || 0).toFixed(2)}</span>
+                      <span className="text-muted-foreground">Monto pagado (anticipo)</span>
+                      <span className="text-emerald-400 font-semibold">Bs {Number(advanceAmount || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between border-t border-border/40 pt-1 mt-1">
-                      <span className="text-muted-foreground">Saldo pendiente</span>
-                      <span className="text-rose-400 font-semibold">
+                      <span className="text-muted-foreground font-medium">Saldo pendiente (deuda)</span>
+                      <span className="text-rose-400 font-bold text-lg">
                         Bs {Math.max(0, totalBob - Number(advanceAmount || 0)).toFixed(2)}
                       </span>
                     </div>
@@ -346,9 +342,9 @@ export default function POSAdvanceSalesPage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="rounded-md border border-border/40 bg-muted/10 px-3 py-1.5">
-                          <p className="text-xs text-muted-foreground">Total</p>
-                          <p className="font-semibold">Bs {Number(delivery.total_amount || 0).toFixed(2)}</p>
+                        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5">
+                          <p className="text-xs text-muted-foreground">Anticipo pagado</p>
+                          <p className="font-semibold text-emerald-400">Bs {(Number(delivery.total_amount || 0) - Number(delivery.pending_amount || 0)).toFixed(2)}</p>
                         </div>
                         <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-1.5">
                           <p className="text-xs text-muted-foreground">Saldo pendiente</p>

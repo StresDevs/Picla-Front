@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { RotateCw, Trophy, Package } from 'lucide-react'
+import { RotateCw, Trophy, Package, Download, FileSpreadsheet } from 'lucide-react'
+import { exportToExcel } from '@/lib/excel/export'
 import { reportsService, type ReportTopProduct } from '@/lib/supabase/reports'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 
@@ -52,6 +53,38 @@ export default function ReportsTopProductsPage() {
     }
   }, [startDate, endDate])
 
+  const handleDownloadExcel = () => {
+    const headers = ['Código', 'Producto', 'Categoría', 'Ingresos', 'Unidades', 'Precio Prom.']
+    const excelRows = rows.map((row) => [
+      row.part_code,
+      row.part_name,
+      row.category_name,
+      Number(row.revenue || 0).toFixed(2),
+      row.units_sold,
+      Number(row.avg_price || 0).toFixed(2),
+    ])
+    exportToExcel({
+      fileName: `top_productos_${startDate}_a_${endDate}`,
+      headers: ['#', ...headers],
+      rows: excelRows.map((row, i) => [i + 1, ...row]),
+    })
+  }
+
+  const handleDownloadCSV = () => {
+    const headers = ['#', 'Código', 'Producto', 'Categoría', 'Ingresos', 'Unidades', 'Precio Prom.']
+    const csvRows = rows.map((row, i) =>
+      [i + 1, row.part_code, `"${row.part_name}"`, `"${row.category_name}"`, Number(row.revenue || 0).toFixed(2), row.units_sold, Number(row.avg_price || 0).toFixed(2)].join(',')
+    )
+    const csv = [headers.join(','), ...csvRows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `top_productos_${startDate}_a_${endDate}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   useEffect(() => {
     void loadData()
     const onCtxChange = () => void loadData()
@@ -70,10 +103,20 @@ export default function ReportsTopProductsPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between gap-3">
               <span>Rango de fechas</span>
-              <Button size="sm" onClick={() => void loadData()} disabled={isLoading}>
-                <RotateCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Consultar
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={handleDownloadExcel} disabled={isLoading || rows.length === 0}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Excel
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleDownloadCSV} disabled={isLoading || rows.length === 0}>
+                  <Download className="h-4 w-4 mr-2" />
+                  CSV
+                </Button>
+                <Button size="sm" onClick={() => void loadData()} disabled={isLoading}>
+                  <RotateCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                  Consultar
+                </Button>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -110,7 +153,7 @@ export default function ReportsTopProductsPage() {
                     <Trophy className={`h-5 w-5 ${RANK_COLORS[i]}`} />
                     <span className={`text-lg font-bold ${RANK_COLORS[i]}`}>#{i + 1}</span>
                   </div>
-                  <p className="text-sm font-semibold line-clamp-2 min-h-[2.5rem]">{row.part_name}</p>
+                  <p className="text-sm font-semibold whitespace-nowrap">{row.part_name}</p>
                   <p className="text-xs text-muted-foreground mt-1">{row.category_name}</p>
                   <p className="text-2xl font-bold text-primary mt-3">{formatBs(Number(row.revenue))}</p>
                   <p className="text-xs text-muted-foreground mt-1">{row.units_sold} unidades</p>
@@ -150,7 +193,7 @@ export default function ReportsTopProductsPage() {
                       #{i + 1}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{row.part_name}</p>
+                      <p className="text-sm font-semibold whitespace-nowrap">{row.part_name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <Badge variant="outline" className="text-[10px]">{row.part_code}</Badge>
                         <span className="text-xs text-muted-foreground">{row.category_name}</span>

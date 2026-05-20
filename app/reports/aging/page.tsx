@@ -17,7 +17,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Phone,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react'
+import { exportToExcel } from '@/lib/excel/export'
 import {
   reportsService,
   type ReportAgingDetail,
@@ -144,6 +147,45 @@ export default function ReportsAgingPage() {
     return AGING_BUCKETS.map((b) => ({ label: b, value: map.get(b) ?? 0 }))
   }, [details])
 
+  const handleDownloadExcel = () => {
+    const headers = ['Cliente', 'NIT', 'Teléfono', 'Producto', 'Vendedor', 'Sucursal', 'Total', 'Pagado', 'Saldo', 'Vencimiento', 'Días Vencido', 'Antigüedad', 'Estado']
+    const excelRows = details.map((c) => [
+      c.customer_name,
+      c.customer_nit,
+      c.customer_phone ?? '',
+      c.product_name,
+      c.seller_name,
+      c.branch_name,
+      Number(c.total_amount ?? 0).toFixed(2),
+      Number(c.paid_amount ?? 0).toFixed(2),
+      Number(c.balance ?? 0).toFixed(2),
+      c.due_date,
+      Number(c.days_overdue ?? 0),
+      c.aging_bucket,
+      c.status === 'overdue' ? 'Vencido' : 'Vigente',
+    ])
+    exportToExcel({
+      fileName: `cuentas_por_cobrar`,
+      headers: ['#', ...headers],
+      rows: excelRows.map((row, i) => [i + 1, ...row]),
+    })
+  }
+
+  const handleDownloadCSV = () => {
+    const headers = ['#', 'Cliente', 'NIT', 'Teléfono', 'Producto', 'Vendedor', 'Sucursal', 'Total', 'Pagado', 'Saldo', 'Vencimiento', 'Días Vencido', 'Antigüedad', 'Estado']
+    const csvRows = details.map((c, i) =>
+      [i + 1, `"${c.customer_name}"`, c.customer_nit, c.customer_phone ?? '', `"${c.product_name}"`, `"${c.seller_name}"`, `"${c.branch_name}"`, Number(c.total_amount ?? 0).toFixed(2), Number(c.paid_amount ?? 0).toFixed(2), Number(c.balance ?? 0).toFixed(2), c.due_date, Number(c.days_overdue ?? 0), c.aging_bucket, c.status === 'overdue' ? 'Vencido' : 'Vigente'].join(',')
+    )
+    const csv = [headers.join(','), ...csvRows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `cuentas_por_cobrar.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // Pagination
   const totalPages = Math.max(1, Math.ceil(details.length / ITEMS_PER_PAGE))
   const paginated = useMemo(
@@ -182,10 +224,20 @@ export default function ReportsAgingPage() {
               </SelectContent>
             </Select>
           </div>
-          <Button size="sm" onClick={() => void loadData()} disabled={isLoading}>
-            <RotateCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Consultar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={handleDownloadExcel} disabled={isLoading || details.length === 0}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Excel
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDownloadCSV} disabled={isLoading || details.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
+              CSV
+            </Button>
+            <Button size="sm" onClick={() => void loadData()} disabled={isLoading}>
+              <RotateCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Consultar
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -329,7 +381,7 @@ export default function ReportsAgingPage() {
                             )}
                           </td>
                           <td className="py-2 px-3 hidden md:table-cell">
-                            <p className="truncate max-w-[140px] text-muted-foreground text-xs">{credit.product_name}</p>
+                            <p className="text-muted-foreground text-xs whitespace-nowrap">{credit.product_name}</p>
                             <p className="text-[10px] text-muted-foreground">Vendedor: {credit.seller_name}</p>
                           </td>
                           <td className="py-2 px-3 hidden lg:table-cell text-muted-foreground text-xs">{credit.branch_name}</td>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageHeader } from '@/components/common/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import {
   cashService,
   type CashMovement,
@@ -31,6 +32,8 @@ import {
   PencilLine,
   ClipboardCheck,
   AlertTriangle,
+  Smartphone,
+  CreditCard,
 } from 'lucide-react'
 
 interface CurrentProfile {
@@ -136,6 +139,9 @@ export default function CashPage() {
 
   const [closingAmount, setClosingAmount] = useState('')
   const [closingNotes, setClosingNotes] = useState('')
+
+  const [autoCloseEnabled, setAutoCloseEnabled] = useState(false)
+  const autoCloseTimerRef = useRef<number | null>(null)
 
   const [requestReason, setRequestReason] = useState('')
   const [requestAmount, setRequestAmount] = useState('')
@@ -243,6 +249,19 @@ export default function CashPage() {
     return () => window.removeEventListener(ACTIVE_ROLE_EVENT, onActiveContextChanged)
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem('cash_auto_close_midnight')
+    if (stored !== null) {
+      setAutoCloseEnabled(stored === 'true')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('cash_auto_close_midnight', String(autoCloseEnabled))
+  }, [autoCloseEnabled])
+
   const totals = useMemo(() => {
     if (!session) {
       return {
@@ -276,6 +295,16 @@ export default function CashPage() {
       totalMovements: Number(session.total_movements || 0),
     }
   }, [session])
+
+  const paymentBreakdown = useMemo(() => {
+    const salesQr = movements
+      .filter(m => m.movement_type === 'sale_qr')
+      .reduce((sum, m) => sum + Math.abs(Number(m.amount || 0)), 0)
+    const salesCard = movements
+      .filter(m => m.movement_type === 'sale_card')
+      .reduce((sum, m) => sum + Math.abs(Number(m.amount || 0)), 0)
+    return { salesQr, salesCard }
+  }, [movements])
 
   const saleNumberMap = useMemo(() => {
     const saleMovements = movements.filter(
@@ -439,6 +468,73 @@ export default function CashPage() {
       }
     })()
   }
+
+  const clearAutoCloseTimer = () => {
+    if (autoCloseTimerRef.current !== null) {
+      window.clearTimeout(autoCloseTimerRef.current)
+      autoCloseTimerRef.current = null
+    }
+  }
+
+  const autoCloseSession = async () => {
+    if (!autoCloseEnabled || !canOpenClose) return
+
+    setError(null)
+    setFeedback(null)
+    setIsSubmitting(true)
+    try {
+      const currentSession = await cashService.getCurrentSession({ branch_id: activeBranchId })
+      if (!currentSession || currentSession.status !== 'open') return
+
+      const expectedAmount = Number(
+        currentSession.expected_now ?? currentSession.expected_closing_amount ?? 0,
+      )
+
+      const result = await cashService.closeSession({
+        cash_session_id: currentSession.cash_session_id,
+        closing_amount_counted: expectedAmount,
+        closing_notes: 'Cierre automático programado a las 00:00',
+      })
+
+      await loadCashData(activeBranchId)
+
+      if (result) {
+        setFeedback(
+          `Caja cerrada automaticamente. Esperado: ${currency(Number(result.expected_amount || 0))} | Contado: ${currency(
+            Number(result.counted_amount || 0),
+          )} | Diferencia: ${currency(Number(result.variance || 0))}`,
+        )
+      } else {
+        setFeedback('Caja cerrada automaticamente con el monto esperado.')
+      }
+    } catch (autoCloseError) {
+      const errDetails = parseErrorDetails(autoCloseError, 'No se pudo cerrar caja automaticamente')
+      setCriticalError({ title: 'Error al cerrar caja', ...errDetails })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  useEffect(() => {
+    clearAutoCloseTimer()
+
+    if (!autoCloseEnabled || !session || !canOpenClose) {
+      return
+    }
+
+    const now = new Date()
+    const nextMidnight = new Date(now)
+    nextMidnight.setHours(24, 0, 0, 0)
+    const delayMs = nextMidnight.getTime() - now.getTime()
+
+    autoCloseTimerRef.current = window.setTimeout(() => {
+      void autoCloseSession()
+    }, delayMs)
+
+    return () => {
+      clearAutoCloseTimer()
+    }
+  }, [autoCloseEnabled, canOpenClose, session?.cash_session_id, activeBranchId])
 
   const openRequestEditDialog = (movement: CashMovement) => {
     setSelectedMovement(movement)
@@ -787,6 +883,18 @@ export default function CashPage() {
               </div>
             </div>
 
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm">
+              <div>
+                <p className="font-medium text-zinc-200">Cierre automático a las 00:00</p>
+                <p className="text-xs text-zinc-400">Cierra con el monto esperado (sin cuadrar). Requiere esta pantalla abierta.</p>
+              </div>
+              <Switch
+                checked={autoCloseEnabled}
+                onCheckedChange={setAutoCloseEnabled}
+                disabled={!canOpenClose}
+              />
+            </div>
+
             <div className="text-zinc-400 text-sm flex items-center gap-2">
               <Clock3 className="w-4 h-4" />
               {session
@@ -835,12 +943,34 @@ export default function CashPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card className="bg-zinc-950/70">
             <CardContent className="pt-6">
-              <p className="text-sm text-zinc-400">Ventas del Día</p>
+              <p className="text-sm text-zinc-400">Ventas en Efectivo</p>
               <p className="text-4xl font-semibold text-zinc-100 mt-6">{currency(totals.sales)}</p>
               <p className="text-xs text-zinc-400 mt-2">Solo ventas en efectivo registradas en caja</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-zinc-950/70">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-violet-400" />
+                <p className="text-sm text-zinc-400">Ventas por QR</p>
+              </div>
+              <p className="text-4xl font-semibold text-zinc-100 mt-6">{currency(paymentBreakdown.salesQr)}</p>
+              <p className="text-xs text-zinc-400 mt-2">QR / transferencia bancaria</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-zinc-950/70">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-sky-400" />
+                <p className="text-sm text-zinc-400">Ventas por Tarjeta</p>
+              </div>
+              <p className="text-4xl font-semibold text-zinc-100 mt-6">{currency(paymentBreakdown.salesCard)}</p>
+              <p className="text-xs text-zinc-400 mt-2">Tarjeta de débito / crédito</p>
             </CardContent>
           </Card>
 

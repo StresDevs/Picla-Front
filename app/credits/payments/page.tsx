@@ -8,11 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { creditPaymentsService, creditsService, type CreditPortfolioRow } from '@/lib/supabase/credits'
+import { creditPaymentsService, creditsService, type CreditPortfolioRow, type CreditPaymentRequest } from '@/lib/supabase/credits'
 import { toast } from '@/hooks/use-toast'
 import type { CreditPayment } from '@/types/database'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
+import { CheckCircle, XCircle, Clock, Send, AlertTriangle } from 'lucide-react'
 
 export default function CreditsPaymentsPage() {
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
@@ -26,11 +28,14 @@ export default function CreditsPaymentsPage() {
   const [notes, setNotes] = useState('')
 
   const [payments, setPayments] = useState<CreditPayment[]>([])
+  const [pendingRequests, setPendingRequests] = useState<CreditPaymentRequest[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isReviewing, setIsReviewing] = useState<string | null>(null)
 
-  const canRegister = activeRole !== 'read_only'
-  const branchScope = activeRole === 'admin' ? null : activeBranchId
+  const isAdmin = activeRole === 'admin'
+  const canInteract = activeRole !== 'read_only'
+  const branchScope = isAdmin ? null : activeBranchId
 
   const selectedCredit = useMemo(
     () => credits.find((credit) => credit.credit_id === creditId) ?? null,
@@ -110,6 +115,25 @@ export default function CreditsPaymentsPage() {
     }
   }, [creditId])
 
+  // Load pending requests for admin
+  useEffect(() => {
+    if (!isAdmin) {
+      setPendingRequests([])
+      return
+    }
+
+    const loadRequests = async () => {
+      try {
+        const rows = await creditPaymentsService.getPendingRequests({ branch_id: branchScope })
+        setPendingRequests(rows as CreditPaymentRequest[])
+      } catch {
+        // silently fail
+      }
+    }
+
+    void loadRequests()
+  }, [isAdmin, branchScope])
+
   const handleRegisterPayment = async () => {
     const trimmedCreditId = creditId.trim()
     if (!trimmedCreditId) {
@@ -142,18 +166,36 @@ export default function CreditsPaymentsPage() {
 
     setIsSaving(true)
     try {
-      await creditPaymentsService.addPayment({
-        credit_id: trimmedCreditId,
-        amount: parsedAmount,
-        payment_method: paymentMethod.trim(),
-        payment_date: paymentDate || null,
-        notes: notes.trim() || null,
-      })
+      if (isAdmin) {
+        // Admin registers directly
+        await creditPaymentsService.addPayment({
+          credit_id: trimmedCreditId,
+          amount: parsedAmount,
+          payment_method: paymentMethod.trim(),
+          payment_date: paymentDate || null,
+          notes: notes.trim() || null,
+        })
 
-      toast({
-        title: 'Pago registrado',
-        description: 'El pago se guardó correctamente.',
-      })
+        toast({
+          title: 'Pago registrado',
+          description: 'El pago se guardó correctamente.',
+        })
+      } else {
+        // Manager/Employee creates a request
+        await creditPaymentsService.requestPayment({
+          credit_id: trimmedCreditId,
+          amount: parsedAmount,
+          payment_method: paymentMethod.trim(),
+          payment_date: paymentDate || null,
+          notes: notes.trim() || null,
+        })
+
+        toast({
+          title: 'Solicitud enviada',
+          description: 'La solicitud de pago fue enviada al administrador para su aprobación.',
+        })
+      }
+
       setAmount('')
       setPaymentMethod('')
       setPaymentDate('')
@@ -163,12 +205,46 @@ export default function CreditsPaymentsPage() {
       setPayments(rows)
     } catch (saveError) {
       toast({
-        title: 'No se pudo registrar el pago',
+        title: isAdmin ? 'No se pudo registrar el pago' : 'No se pudo enviar la solicitud',
         description: saveError instanceof Error ? saveError.message : 'Intenta nuevamente',
         variant: 'destructive',
       })
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleReviewRequest = async (requestId: string, action: 'approve' | 'reject') => {
+    setIsReviewing(requestId)
+    try {
+      await creditPaymentsService.reviewRequest({
+        request_id: requestId,
+        action,
+        review_notes: null,
+      })
+
+      toast({
+        title: action === 'approve' ? 'Pago aprobado' : 'Solicitud rechazada',
+        description: action === 'approve'
+          ? 'El pago fue registrado exitosamente.'
+          : 'La solicitud fue rechazada.',
+      })
+
+      // Reload requests and payments
+      const [requests, paymentRows] = await Promise.all([
+        creditPaymentsService.getPendingRequests({ branch_id: branchScope }),
+        creditId ? creditPaymentsService.getByCredit(creditId) : Promise.resolve([]),
+      ])
+      setPendingRequests(requests as CreditPaymentRequest[])
+      if (creditId) setPayments(paymentRows as CreditPayment[])
+    } catch (reviewError) {
+      toast({
+        title: 'Error',
+        description: reviewError instanceof Error ? reviewError.message : 'No se pudo procesar la solicitud',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsReviewing(null)
     }
   }
 
@@ -178,9 +254,79 @@ export default function CreditsPaymentsPage() {
         <PageHeader title="Pagos de Crédito" description="Registro de cuotas, abonos y cancelación final" />
         <CreditsSubnav />
 
+        {/* Pending requests - only visible to admin */}
+        {isAdmin && pendingRequests.length > 0 && (
+          <Card className="border-amber-500/40 bg-amber-500/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-400">
+                <AlertTriangle className="h-5 w-5" />
+                Solicitudes de pago pendientes ({pendingRequests.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pendingRequests.map((req) => (
+                <div key={req.id} className="rounded-lg border border-amber-500/30 bg-card/80 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-foreground">
+                        Solicitud de pago — Bs {Number(req.amount).toFixed(2)}
+                      </p>
+                      <p className="text-muted-foreground mt-0.5">
+                        Método: {req.payment_method} | Fecha: {req.payment_date || 'Hoy'}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Solicitado por: <span className="text-foreground/80">{req.requested_role}</span>
+                      </p>
+                      {req.notes && (
+                        <p className="text-muted-foreground mt-1">Nota: {req.notes}</p>
+                      )}
+                      <div className="flex items-center gap-1 mt-1">
+                        <Clock className="h-3 w-3 text-amber-400" />
+                        <span className="text-[11px] text-amber-400">
+                          {new Date(req.created_at).toLocaleString('es-BO')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                        onClick={() => handleReviewRequest(req.id, 'approve')}
+                        disabled={isReviewing === req.id}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Aprobar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-rose-500/40 text-rose-400 hover:bg-rose-500/10"
+                        onClick={() => handleReviewRequest(req.id, 'reject')}
+                        disabled={isReviewing === req.id}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Rechazar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Payment form */}
         <Card>
           <CardHeader>
-            <CardTitle>Registrar pago</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              {isAdmin ? 'Registrar pago' : 'Solicitar registro de pago'}
+              {!isAdmin && (
+                <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30">
+                  Requiere aprobación del admin
+                </Badge>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="space-y-2">
@@ -219,8 +365,20 @@ export default function CreditsPaymentsPage() {
               <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalle opcional" />
             </div>
 
-            <Button className="md:col-span-5" onClick={handleRegisterPayment} disabled={!canRegister || isSaving}>
-              {isSaving ? 'Registrando...' : 'Registrar pago'}
+            <Button
+              className="md:col-span-5"
+              onClick={handleRegisterPayment}
+              disabled={!canInteract || isSaving}
+              variant={isAdmin ? 'default' : 'outline'}
+            >
+              {isAdmin ? (
+                isSaving ? 'Registrando...' : 'Registrar pago'
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  {isSaving ? 'Enviando solicitud...' : 'Solicitar registro de pago'}
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>

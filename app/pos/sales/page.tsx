@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins } from 'lucide-react'
+import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins, ChevronRight } from 'lucide-react'
 import {
   ACTIVE_ROLE_EVENT,
   canRoleCompleteSale,
@@ -148,6 +148,7 @@ export default function POSSalesPage() {
     email: '',
   })
   const [expandedCartItemId, setExpandedCartItemId] = useState<string | null>(null)
+  const [isCartOpen, setIsCartOpen] = useState(true)
 
   const canCompleteSale = canRoleCompleteSale(activeRole)
   const canQueueSale = activeRole === 'read_only'
@@ -1168,8 +1169,48 @@ export default function POSSalesPage() {
           </DialogContent>
         </Dialog>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)] 2xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)] items-start">
-          <section className="space-y-4">
+        {!isCartOpen ? (
+          <div className="sticky top-0 z-50 -mx-4 mb-4 border-b border-emerald-600/30 bg-emerald-500 px-4 py-3 shadow-lg shadow-emerald-950/25 md:-mx-6 md:px-6 lg:rounded-xl lg:border lg:border-emerald-400/40">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3 text-white">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                  <ShoppingCart className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold leading-tight">Carrito oculto</p>
+                  <p className="text-xs text-emerald-50/90">
+                    {cart.length > 0
+                      ? `${cart.length} producto${cart.length === 1 ? '' : 's'} · Bs ${cartTotalBob.toFixed(2)}`
+                      : 'Abre el panel para cobrar y revisar la venta'}
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="lg"
+                className="h-11 shrink-0 rounded-lg border-0 bg-white px-5 font-bold text-emerald-700 shadow-md hover:bg-emerald-50 hover:text-emerald-800"
+                onClick={() => setIsCartOpen(true)}
+              >
+                <ShoppingCart className="mr-2 h-5 w-5" />
+                Mostrar carrito
+                {cart.length > 0 ? (
+                  <span className="ml-2 rounded-md bg-emerald-500 px-2 py-0.5 text-xs font-bold text-white">
+                    {cart.length}
+                  </span>
+                ) : null}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        <div
+          className={`grid grid-cols-1 gap-6 items-start ${
+            isCartOpen
+              ? 'lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)] 2xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]'
+              : 'lg:grid-cols-1'
+          }`}
+        >
+          <section className="space-y-4 min-w-0">
             <Card>
               <CardHeader>
                 <CardTitle>Productos de la sucursal</CardTitle>
@@ -1188,53 +1229,123 @@ export default function POSSalesPage() {
                 {isLoading ? (
                   <p className="text-sm text-muted-foreground">Cargando catálogo...</p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
-                    {filteredCatalog.map((product) => (
-                      <article key={product.part_id} className="flex h-full flex-col overflow-hidden rounded-xl border border-border/70 bg-card/70">
-                        <div className="relative aspect-[4/3] overflow-hidden border-b border-border/60">
-                          <img
-                            src={product.image_url || '/placeholder.svg'}
-                            alt={product.name}
-                            className="h-full w-full object-cover"
-                            onError={(event) => {
-                              event.currentTarget.src = '/placeholder.svg'
-                            }}
-                          />
-                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 pb-2 pt-8">
-                            <p className="text-sm font-semibold text-white leading-snug break-words">{product.name}</p>
-                            <p className="text-[11px] text-white/80">{product.category}</p>
+                  <div
+                    className={`grid gap-4 ${
+                      isCartOpen
+                        ? 'grid-cols-1 min-[520px]:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3'
+                        : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4'
+                    }`}
+                  >
+                    {filteredCatalog.map((product) => {
+                      const stock = Number(product.stock || 0)
+                      const outOfStock = stock <= 0
+
+                      return (
+                        <article
+                          key={product.part_id}
+                          className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm"
+                        >
+                          <div className="relative aspect-[5/4] shrink-0 overflow-hidden border-b border-border/60 bg-muted/25">
+                            <img
+                              src={product.image_url || '/placeholder.svg'}
+                              alt=""
+                              className="h-full w-full object-contain p-2"
+                              onError={(event) => {
+                                event.currentTarget.src = '/placeholder.svg'
+                              }}
+                            />
+                            {outOfStock ? (
+                              <div className="absolute inset-0 flex items-center justify-center bg-background/55">
+                                <Badge variant="destructive" className="text-xs font-semibold">
+                                  Sin stock
+                                </Badge>
+                              </div>
+                            ) : null}
                           </div>
-                          <div className="absolute left-2 top-2">
-                            <Badge className="bg-background/90 text-foreground">{product.code}</Badge>
+
+                          <div className="flex min-w-0 flex-1 flex-col gap-2.5 p-3">
+                            <Badge
+                              variant="secondary"
+                              className="w-fit max-w-full truncate font-mono text-[11px] font-semibold tracking-wide"
+                              title={product.code}
+                            >
+                              {product.code}
+                            </Badge>
+
+                            <h3
+                              className="text-sm font-semibold leading-snug text-foreground line-clamp-4"
+                              title={product.name}
+                            >
+                              {product.name}
+                            </h3>
+
+                            {product.category ? (
+                              <p className="text-xs text-muted-foreground line-clamp-1" title={product.category}>
+                                {product.category}
+                              </p>
+                            ) : null}
+
+                            <div className="mt-auto space-y-2 border-t border-border/50 pt-2.5">
+                              <div className="flex items-end justify-between gap-2">
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Precio</p>
+                                  <p className="text-lg font-bold leading-none text-primary">
+                                    Bs {Number(product.price || 0).toFixed(2)}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[11px] text-muted-foreground">Stock</p>
+                                  <p
+                                    className={`text-sm font-bold tabular-nums ${outOfStock ? 'text-red-500' : 'text-foreground'}`}
+                                  >
+                                    {stock}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <Button
+                                size="sm"
+                                className="w-full"
+                                onClick={() => addToCart(product)}
+                                disabled={outOfStock}
+                              >
+                                <Plus className="mr-1 h-4 w-4" /> Agregar
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex flex-1 flex-col gap-3 p-3">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Precio</p>
-                            <p className="text-lg font-bold text-primary">Bs {Number(product.price || 0).toFixed(2)}</p>
-                          </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Stock disponible</span>
-                            <span className={Number(product.stock || 0) <= 0 ? 'font-semibold text-red-600' : 'font-semibold text-foreground'}>
-                              {Number(product.stock || 0)}
-                            </span>
-                          </div>
-                          <Button size="sm" className="mt-auto" onClick={() => addToCart(product)} disabled={Number(product.stock || 0) <= 0}>
-                            <Plus className="h-4 w-4 mr-1" /> Agregar
-                          </Button>
-                        </div>
-                      </article>
-                    ))}
+                        </article>
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>
             </Card>
           </section>
 
-          <aside className="2xl:sticky 2xl:top-6 2xl:self-start">
+          {isCartOpen ? (
+          <aside className="min-w-0 2xl:sticky 2xl:top-6 2xl:self-start">
             <Card className="flex max-h-none flex-col overflow-visible border-border/70 bg-card/95 shadow-xl shadow-black/10 2xl:max-h-[calc(100svh-3rem)] 2xl:overflow-hidden">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary" />Carrito</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5 text-primary" />
+                  Carrito
+                  {cart.length > 0 ? (
+                    <Badge variant="secondary" className="font-normal">
+                      {cart.length}
+                    </Badge>
+                  ) : null}
+                </CardTitle>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setIsCartOpen(false)}
+                  aria-label="Ocultar carrito"
+                  title="Ocultar carrito"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </CardHeader>
               <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 2xl:overflow-y-auto 2xl:pr-1">
                 <div className="rounded-2xl border border-border/70 bg-muted/20 p-3">
@@ -1369,6 +1480,7 @@ export default function POSSalesPage() {
               </CardContent>
             </Card>
           </aside>
+          ) : null}
         </div>
 
         {canApproveQueue ? (

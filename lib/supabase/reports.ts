@@ -96,6 +96,17 @@ export interface ReportAgingSummary {
   avg_days_overdue: number
 }
 
+export interface ReportProfitDay {
+  sale_date: string
+  branch_id: string
+  branch_name: string
+  payment_method: string
+  total_revenue: number
+  total_cost: number
+  total_profit: number
+  sale_count: number
+}
+
 export const reportsService = {
   async getSalesByDay(input?: {
     branch_id?: string | null
@@ -112,6 +123,23 @@ export const reportsService = {
 
     if (error) throw error
     return (data || []) as ReportSaleDay[]
+  },
+
+  async getProfitByDay(input?: {
+    branch_id?: string | null
+    date_from?: string | null
+    date_to?: string | null
+    payment_method?: string | null
+  }): Promise<ReportProfitDay[]> {
+    const { data, error } = await supabase.rpc('get_report_profit_by_day', {
+      p_branch_id: input?.branch_id ?? null,
+      p_date_from: input?.date_from ?? null,
+      p_date_to: input?.date_to ?? null,
+      p_payment_method: input?.payment_method ?? null,
+    })
+
+    if (error) throw error
+    return (data || []) as ReportProfitDay[]
   },
 
   async getTopProducts(input?: {

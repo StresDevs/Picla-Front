@@ -16,11 +16,13 @@ import {
   DollarSign,
   Users,
   ChevronDown,
+  ChevronLeft,
   LogOut,
   Cpu,
   Building2,
   UserRound,
   KeyRound,
+  Bell,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useEffect, useMemo, useState } from 'react'
@@ -148,7 +150,12 @@ const menuItems: MenuItem[] = [
 const inventoryBasicRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
 const inventoryAdminRoutes = new Set(['/inventory/recovery', '/inventory/price-matrix'])
 
-export function Sidebar() {
+interface SidebarProps {
+  desktopOpen?: boolean
+  onDesktopToggle?: () => void
+}
+
+export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
@@ -157,6 +164,7 @@ export function Sidebar() {
   const [activeBranchId, setActiveBranchId] = useState('branch-1')
   const [activeBranchName, setActiveBranchName] = useState('Sin sucursal')
   const [availableBranches, setAvailableBranches] = useState<Array<{ id: string; name: string }>>([])
+  const [notificationCount, setNotificationCount] = useState(0)
   const pathname = usePathname()
 
   useEffect(() => {
@@ -242,6 +250,31 @@ export function Sidebar() {
       window.removeEventListener('focus', syncRole)
     }
   }, [])
+
+  // Fetch notification count for admin
+  useEffect(() => {
+    if (activeRole !== 'admin') {
+      setNotificationCount(0)
+      return
+    }
+
+    const fetchNotifications = async () => {
+      try {
+        const supabase = getSupabaseClient()
+        const { count } = await supabase
+          .from('credit_payment_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+        setNotificationCount(count || 0)
+      } catch {
+        // silently fail
+      }
+    }
+
+    void fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [activeRole])
 
   const visibleMenuItems = useMemo(() => {
     if (activeRole === 'read_only') {
@@ -356,23 +389,42 @@ export function Sidebar() {
         </Button>
       </div>
 
-      {/* Sidebar - Persistente en desktop */}
+      {/* Sidebar - Persistente en desktop, colapsable */}
       <aside
-        className={`fixed inset-y-14 left-0 z-50 w-[88vw] max-w-[22rem] bg-sidebar/95 border-r border-sidebar-border transform transition-transform duration-200 ease-out overflow-y-auto h-[calc(100svh-56px)] backdrop-blur-xl lg:relative lg:inset-y-0 lg:left-auto lg:w-72 lg:max-w-none lg:h-svh lg:translate-x-0 ${
+        className={`fixed inset-y-14 left-0 z-50 w-[88vw] max-w-[22rem] shrink-0 bg-sidebar/95 border-r border-sidebar-border transform transition-[transform,width,opacity] duration-200 ease-out overflow-y-auto h-[calc(100svh-56px)] backdrop-blur-xl lg:relative lg:inset-y-0 lg:left-auto lg:h-svh ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        } ${
+          desktopOpen
+            ? 'lg:w-72 lg:max-w-none lg:opacity-100 lg:pointer-events-auto'
+            : 'lg:w-0 lg:max-w-0 lg:opacity-0 lg:pointer-events-none lg:overflow-hidden lg:border-r-0'
         }`}
       >
-        <div className="flex flex-col min-h-full pt-6 px-4 pb-4">
+        <div className="flex flex-col min-h-full pt-6 px-4 pb-4 lg:min-w-72">
           {/* Hidden on Mobile, shown on Desktop */}
           <div className="hidden lg:block mb-8">
-            <div className="rounded-2xl border border-sidebar-border/70 bg-gradient-to-br from-red-950/35 via-rose-950/25 to-zinc-900/30 p-4 shadow-[0_12px_28px_-16px_hsl(0_70%_5%/0.8)]">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/70">
-                <Cpu className="h-3.5 w-3.5 text-cyan-300" />
-                Repuestos Mecanicos
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0 rounded-2xl border border-sidebar-border/70 bg-gradient-to-br from-red-950/35 via-rose-950/25 to-zinc-900/30 p-4 shadow-[0_12px_28px_-16px_hsl(0_70%_5%/0.8)]">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/70">
+                  <Cpu className="h-3.5 w-3.5 text-cyan-300" />
+                  Repuestos Mecanicos
+                </div>
+                <h1 className="mt-2 text-[1.6rem] font-extrabold leading-tight tracking-[0.03em] text-transparent bg-clip-text bg-gradient-to-r from-zinc-100 via-cyan-200 to-sky-300 drop-shadow-[0_1px_0_hsl(0_0%_100%_/_0.15)]">
+                  Picla
+                </h1>
               </div>
-              <h1 className="mt-2 text-[1.6rem] font-extrabold leading-tight tracking-[0.03em] text-transparent bg-clip-text bg-gradient-to-r from-zinc-100 via-cyan-200 to-sky-300 drop-shadow-[0_1px_0_hsl(0_0%_100%_/_0.15)]">
-                Picla
-              </h1>
+              {onDesktopToggle ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 h-9 w-9 text-sidebar-foreground hover:bg-sidebar-accent/70"
+                  onClick={onDesktopToggle}
+                  aria-label="Ocultar menú"
+                  title="Ocultar menú"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              ) : null}
             </div>
 
             <div className="mt-3 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/35 p-3 space-y-2">
@@ -490,6 +542,21 @@ export function Sidebar() {
 
           {/* Bottom Section */}
           <div className="space-y-2 border-t border-sidebar-border/80 pt-4 mt-4">
+            {activeRole === 'admin' && notificationCount > 0 && (
+              <Button
+                asChild
+                variant="ghost"
+                className="w-full justify-start gap-3 rounded-xl py-2.5 text-amber-400 hover:bg-amber-500/10 relative"
+              >
+                <Link href="/credits/payments" onClick={() => setIsOpen(false)}>
+                  <Bell className="w-5 h-5" />
+                  <span>Solicitudes pendientes</span>
+                  <span className="ml-auto inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-amber-500 text-[10px] font-bold text-black">
+                    {notificationCount}
+                  </span>
+                </Link>
+              </Button>
+            )}
             <ThemeSwitcher />
             <Button
               asChild

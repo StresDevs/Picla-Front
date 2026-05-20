@@ -9,6 +9,8 @@ type CreateUserBody = {
   branch_id: string
   role?: 'admin' | 'manager' | 'employee' | 'read_only'
   send_reset_email?: boolean
+  username?: string
+  password?: string
 }
 
 const USERNAME_BASE_MAX = 24
@@ -89,6 +91,8 @@ export async function POST(request: Request) {
     const branchId = body.branch_id
     const roleName = body.role?.trim() || 'employee'
     const shouldSendResetEmail = body.send_reset_email !== false
+    const customUsername = body.username?.trim() || null
+    const customPassword = body.password || null
 
     if (!email || !fullName || !branchId) {
       return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 })
@@ -132,9 +136,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Sucursal no encontrada' }, { status: 400 })
     }
 
-    const usernameBase = normalizeUsernameBase(fullName)
-    const username = await resolveUniqueUsername(supabaseAdmin, usernameBase)
-    const tempPassword = generateTempPassword()
+    let username: string
+    if (customUsername) {
+      // Validate uniqueness
+      const { data: existingUser } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .ilike('username', customUsername)
+        .limit(1)
+      if (existingUser && existingUser.length > 0) {
+        return NextResponse.json({ error: 'El nombre de usuario ya existe' }, { status: 400 })
+      }
+      username = customUsername
+    } else {
+      const usernameBase = normalizeUsernameBase(fullName)
+      username = await resolveUniqueUsername(supabaseAdmin, usernameBase)
+    }
+
+    const tempPassword = customPassword || generateTempPassword()
+    const mustChangePassword = !customPassword
 
     const { data: authUserData, error: authCreateError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -143,7 +163,7 @@ export async function POST(request: Request) {
       user_metadata: {
         full_name: fullName,
         username,
-        must_change_password: true,
+        must_change_password: mustChangePassword,
       },
     })
 
@@ -165,7 +185,7 @@ export async function POST(request: Request) {
         username,
         role_id: roleData.id,
         branch_id: branchId,
-        must_change_password: true,
+        must_change_password: mustChangePassword,
       },
     ])
 

@@ -174,17 +174,65 @@ export default function CreditsPortfolioPage() {
             ) : credits.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No se encontraron créditos con los filtros aplicados.</p>
             ) : (
-              credits.map((credit) => (
-                <article key={credit.credit_id} className="rounded-lg border border-border bg-card/70 p-3 text-sm">
-                  <p className="font-semibold text-foreground">Crédito - {credit.customer_name}</p>
-                  <p className="text-muted-foreground">
-                    Sucursal: {credit.branch_name} | Producto: {credit.product_name} | Vencimiento: {new Date(credit.due_date).toLocaleDateString('es-BO')}
-                  </p>
-                  <p className="text-foreground/90">
-                    Total: Bs {credit.total_amount.toFixed(2)} | Pagado: Bs {credit.paid_amount.toFixed(2)} | Saldo: Bs {credit.balance.toFixed(2)}
-                  </p>
-                </article>
-              ))
+              credits.map((credit) => {
+                const isOverdue = credit.status === 'overdue'
+                const isPaid = credit.status === 'paid'
+                const dueDate = new Date(credit.due_date)
+                const today = new Date()
+                const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                const isNearDue = !isOverdue && !isPaid && daysUntilDue <= 5 && daysUntilDue >= 0
+
+                const borderClass = isOverdue
+                  ? 'border-rose-500/50 bg-rose-500/5'
+                  : isPaid
+                    ? 'border-emerald-500/50 bg-emerald-500/5'
+                    : isNearDue
+                      ? 'border-amber-500/50 bg-amber-500/5'
+                      : 'border-border bg-card/70'
+
+                const statusLabel = isOverdue
+                  ? 'Vencido'
+                  : isPaid
+                    ? 'Pagado'
+                    : isNearDue
+                      ? 'Por vencer'
+                      : 'Activo'
+
+                const statusClass = isOverdue
+                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                  : isPaid
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                    : isNearDue
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                      : 'bg-sky-500/20 text-sky-400 border-sky-500/30'
+
+                return (
+                  <article key={credit.credit_id} className={`rounded-lg border ${borderClass} p-3 text-sm transition-colors`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-foreground">Crédito - {credit.customer_name}</p>
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusClass}`}>
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground mt-1">
+                      Sucursal: {credit.branch_name} | Producto: {credit.product_name} | Vencimiento: {new Date(credit.due_date).toLocaleDateString('es-BO')}
+                    </p>
+                    <div className="flex gap-4 mt-1">
+                      <span className="text-foreground/90">Total: Bs {credit.total_amount.toFixed(2)}</span>
+                      <span className="text-emerald-400">Pagado: Bs {credit.paid_amount.toFixed(2)}</span>
+                      <span className={isOverdue ? 'text-rose-400 font-semibold' : 'text-foreground/90'}>
+                        Saldo: Bs {credit.balance.toFixed(2)}
+                      </span>
+                    </div>
+                    {isOverdue && (
+                      <p className="text-[11px] text-rose-400 mt-1">⚠ Vencido hace {Math.abs(daysUntilDue)} días</p>
+                    )}
+                    {isNearDue && (
+                      <p className="text-[11px] text-amber-400 mt-1">⏰ Vence en {daysUntilDue} {daysUntilDue === 1 ? 'día' : 'días'}</p>
+                    )}
+                  </article>
+                )
+              })
             )}
           </CardContent>
         </Card>

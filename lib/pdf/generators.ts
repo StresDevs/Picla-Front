@@ -131,6 +131,10 @@ export function generateInventoryPdf(input: {
   const doc = new jsPDF()
   const now = new Date()
   const variant = input.variant ?? 'detailed'
+  const resolvedBranches = new Set(
+    input.rows.map((row) => row.branch || input.branchName).filter((value) => Boolean(value)),
+  )
+  const showBranchColumn = resolvedBranches.size > 1 || /todas/i.test(input.branchName)
   buildTitle(doc, 'Reporte de Inventario', `Sucursal: ${input.branchName} — ${fmtDateTime(now)}`)
 
   if (variant === 'stock-check') {
@@ -162,19 +166,36 @@ export function generateInventoryPdf(input: {
     return
   }
 
-  const body: RowData[] = input.rows.map((r, i) => [
-    i + 1,
-    r.code,
-    r.stock,
-    r.name,
-    r.category || '-',
-    `Bs ${fmtMoney(r.cost)}`,
-    `Bs ${fmtMoney(r.price)}`,
-  ])
+  const body: RowData[] = input.rows.map((r, i) => (
+    showBranchColumn
+      ? [
+        i + 1,
+        r.branch || input.branchName,
+        r.code,
+        r.stock,
+        r.name,
+        r.category || '-',
+        `Bs ${fmtMoney(r.cost)}`,
+        `Bs ${fmtMoney(r.price)}`,
+      ]
+      : [
+        i + 1,
+        r.code,
+        r.stock,
+        r.name,
+        r.category || '-',
+        `Bs ${fmtMoney(r.cost)}`,
+        `Bs ${fmtMoney(r.price)}`,
+      ]
+  ))
 
   autoTable(doc, {
     startY: 34,
-    head: [['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta']],
+    head: [
+      showBranchColumn
+        ? ['#', 'Sucursal', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta']
+        : ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta'],
+    ],
     body,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
@@ -652,21 +673,45 @@ export function generateEntriesPdf(input: {
     : 'Todos los registros'
   buildTitle(doc, 'Reporte de Ingresos de Inventario', `${input.branchName} — ${dateRange}`)
 
-  const body: RowData[] = input.rows.map((r, i) => [
-    i + 1,
-    fmtDateTime(r.date),
-    r.code,
-    r.name,
-    r.quantity,
-    `Bs ${fmtMoney(r.unitCost)}`,
-    `Bs ${fmtMoney(r.unitPrice)}`,
-    r.supplier || '-',
-    r.reason || '-',
-  ])
+  const resolvedBranches = new Set(
+    input.rows.map((row) => row.branchName || input.branchName).filter((value) => Boolean(value)),
+  )
+  const showBranchColumn = resolvedBranches.size > 1 || /todas/i.test(input.branchName)
+
+  const body: RowData[] = input.rows.map((r, i) => (
+    showBranchColumn
+      ? [
+        i + 1,
+        fmtDateTime(r.date),
+        r.code,
+        r.name,
+        r.quantity,
+        `Bs ${fmtMoney(r.unitCost)}`,
+        `Bs ${fmtMoney(r.unitPrice)}`,
+        r.supplier || '-',
+        r.reason || '-',
+        r.branchName || input.branchName,
+      ]
+      : [
+        i + 1,
+        fmtDateTime(r.date),
+        r.code,
+        r.name,
+        r.quantity,
+        `Bs ${fmtMoney(r.unitCost)}`,
+        `Bs ${fmtMoney(r.unitPrice)}`,
+        r.supplier || '-',
+        r.reason || '-',
+      ]
+  ))
 
   autoTable(doc, {
     startY: 34,
-    head: [['#', 'Fecha', 'Código', 'Producto', 'Cant.', 'Costo', 'Precio', 'Proveedor', 'Motivo']],
+    head: [
+      showBranchColumn
+        ? ['#', 'Fecha', 'Código', 'Producto', 'Cant.', 'Costo', 'Precio', 'Proveedor', 'Motivo', 'Sucursal']
+        : ['#', 'Fecha', 'Código', 'Producto', 'Cant.', 'Costo', 'Precio', 'Proveedor', 'Motivo'],
+    ],
     body,
     styles: { fontSize: 7, cellPadding: 2 },
     headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
@@ -754,4 +799,82 @@ export function generateAuditPdf(input: {
 
   addFooter(doc, `Auditoria — ${input.branchName} — Generado: ${fmtDateTime(now)}`)
   savePdf(doc, `auditoria_${input.branchName.replace(/\s+/g, '_')}`)
+}
+
+// -------------------------------------------------------------------
+// 11. Quotation PDF (cotización)
+// -------------------------------------------------------------------
+
+export interface QuotationPdfItem {
+  code: string
+  name: string
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+}
+
+export function generateQuotationPdf(input: {
+  quotationId: string
+  branchName: string
+  quotedBy: string
+  customerName: string
+  customerNit: string
+  date: string
+  expiresAt: string
+  items: QuotationPdfItem[]
+  total: number
+  notes?: string | null
+}) {
+  const doc = new jsPDF()
+  buildTitle(doc, 'COTIZACIÓN')
+
+  let y = 32
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Cotizado por: ${input.quotedBy}`, 14, y); y += 5
+  doc.text(`Sucursal: ${input.branchName}`, 14, y); y += 5
+  doc.text(`Cliente: ${input.customerName}`, 14, y); y += 5
+  doc.text(`NIT/CI: ${input.customerNit}`, 14, y); y += 5
+  doc.text(`Fecha: ${input.date}`, 14, y)
+  doc.text(`Vigencia: ${input.expiresAt}`, 130, y)
+  y += 8
+
+  const body: RowData[] = input.items.map((item, i) => [
+    i + 1,
+    item.code || '-',
+    item.name,
+    item.quantity,
+    `Bs ${fmtMoney(item.unitPrice)}`,
+    `Bs ${fmtMoney(item.lineTotal)}`,
+  ])
+
+  autoTable(doc, {
+    startY: y,
+    head: [['#', 'Código', 'Producto', 'Cantidad', 'Precio Unit.', 'Subtotal']],
+    body,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+  })
+
+  const finalY = (doc as unknown as Record<string, number>).lastAutoTable?.finalY ?? 180
+  let ty = finalY + 8
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.text(`TOTAL: Bs ${fmtMoney(input.total)}`, doc.internal.pageSize.getWidth() - 14, ty, { align: 'right' })
+  ty += 8
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'italic')
+  doc.text(`Son: ${numberToSpanish(input.total)} Bolivianos`, 14, ty)
+
+  if (input.notes) {
+    ty += 8
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    const noteLines = doc.splitTextToSize(`Notas: ${input.notes}`, 180)
+    doc.text(noteLines, 14, ty)
+  }
+
+  addFooter(doc, `Cotización — ${input.customerName} — ${input.branchName}`)
+  savePdf(doc, `cotizacion_${input.quotationId.slice(0, 8)}`)
 }

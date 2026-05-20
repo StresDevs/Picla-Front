@@ -1065,6 +1065,7 @@ CREATE TABLE public.inventory_transfer_request_items (
 	updated_at timestamptz DEFAULT now() NOT NULL,
 	destination_part_id uuid NULL,
 	reserved_quantity numeric(12, 3) DEFAULT 0 NOT NULL,
+	unit_price numeric(12, 2) NULL,
 	CONSTRAINT inventory_transfer_request_items_pkey PRIMARY KEY (id),
 	CONSTRAINT inventory_transfer_request_items_quantity_check CHECK ((quantity > (0)::numeric)),
 	CONSTRAINT inventory_transfer_request_items_reserved_quantity_check CHECK (((reserved_quantity >= (0)::numeric) AND (reserved_quantity <= quantity))),

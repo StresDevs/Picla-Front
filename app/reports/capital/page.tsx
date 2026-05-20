@@ -17,7 +17,10 @@ import {
   BarChart3,
   ArrowUpDown,
   PackageSearch,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react'
+import { exportToExcel } from '@/lib/excel/export'
 import {
   reportsService,
   type ReportCapitalSummary,
@@ -162,6 +165,41 @@ export default function ReportsCapitalPage() {
     [summaryData],
   )
 
+  const handleDownloadExcel = () => {
+    const headers = ['Sucursal', 'Capital Invertido', 'Valor Venta', 'Ganancia', 'Margen %', 'Productos', 'Stock', 'Stock Bajo', 'Sin Stock']
+    const excelRows = summaryData.map((b) => [
+      b.branch_name,
+      Number(b.capital_cost ?? 0).toFixed(2),
+      Number(b.capital_retail ?? 0).toFixed(2),
+      Number(b.potential_profit ?? 0).toFixed(2),
+      Number(b.profit_margin ?? 0).toFixed(1),
+      Number(b.total_products ?? 0),
+      Number(b.total_stock ?? 0),
+      Number(b.low_stock_count ?? 0),
+      Number(b.zero_stock_count ?? 0),
+    ])
+    exportToExcel({
+      fileName: `reporte_capital`,
+      headers: ['#', ...headers],
+      rows: excelRows.map((row, i) => [i + 1, ...row]),
+    })
+  }
+
+  const handleDownloadCSV = () => {
+    const headers = ['#', 'Sucursal', 'Capital', 'Valor Venta', 'Ganancia', 'Margen %', 'Productos', 'Stock', 'Stock Bajo', 'Sin Stock']
+    const csvRows = summaryData.map((b, i) =>
+      [i + 1, `"${b.branch_name}"`, Number(b.capital_cost ?? 0).toFixed(2), Number(b.capital_retail ?? 0).toFixed(2), Number(b.potential_profit ?? 0).toFixed(2), Number(b.profit_margin ?? 0).toFixed(1), Number(b.total_products ?? 0), Number(b.total_stock ?? 0), Number(b.low_stock_count ?? 0), Number(b.zero_stock_count ?? 0)].join(',')
+    )
+    const csv = [headers.join(','), ...csvRows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `reporte_capital.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -185,10 +223,20 @@ export default function ReportsCapitalPage() {
               </SelectContent>
             </Select>
           </div>
-          <Button size="sm" onClick={() => void loadData()} disabled={isLoading} className="w-full sm:w-auto">
-            <RotateCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Consultar
-          </Button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button size="sm" variant="outline" onClick={handleDownloadExcel} disabled={isLoading || summaryData.length === 0}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Excel
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDownloadCSV} disabled={isLoading || summaryData.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
+              CSV
+            </Button>
+            <Button size="sm" onClick={() => void loadData()} disabled={isLoading}>
+              <RotateCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Consultar
+            </Button>
+          </div>
         </div>
 
         {error && (

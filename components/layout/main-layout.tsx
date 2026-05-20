@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from './sidebar'
+import { Menu } from 'lucide-react'
 import { getCurrentAuthUser, getCurrentSession } from '@/lib/supabase/auth'
 import { supabase } from '@/lib/supabase/client'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
+import { Button } from '@/components/ui/button'
 
 export function MainLayout({
   children,
@@ -15,6 +17,7 @@ export function MainLayout({
   const router = useRouter()
   const pathname = usePathname()
   const [isChecking, setIsChecking] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
   useEffect(() => {
     const basicInventoryRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
@@ -129,8 +132,21 @@ export function MainLayout({
 
   return (
     <div className="flex h-svh bg-transparent text-foreground overflow-x-hidden">
-      <Sidebar />
+      <Sidebar
+        desktopOpen={isSidebarOpen}
+        onDesktopToggle={() => setIsSidebarOpen((prev) => !prev)}
+      />
       <main className="flex-1 overflow-y-auto pt-14 lg:pt-0 lg:pl-0">
+        {!isSidebarOpen ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="hidden lg:inline-flex fixed top-4 left-4 z-30 shadow-md"
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <Menu className="h-4 w-4 mr-2" /> Mostrar menú
+          </Button>
+        ) : null}
         <div className="page-fade p-4 lg:p-8 xl:p-10 max-w-[120rem]">
           <div className="surface-panel p-4 md:p-6 lg:p-8 min-h-[calc(100svh-6rem)]">
           {children}

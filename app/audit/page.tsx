@@ -106,6 +106,7 @@ function resolveStockImpact(metadata: Record<string, unknown> | null) {
 const ENTITY_OPTIONS = [
   { label: 'Ventas', value: 'pos_sales' },
   { label: 'Ítems de venta', value: 'pos_sale_items' },
+  { label: 'Devoluciones', value: 'pos_sale_returns' },
   { label: 'Créditos', value: 'credits' },
   { label: 'Pagos de crédito', value: 'credit_payments' },
   { label: 'Sesiones de caja', value: 'cash_sessions' },
@@ -113,6 +114,9 @@ const ENTITY_OPTIONS = [
   { label: 'Inventario', value: 'inventory' },
   { label: 'Productos', value: 'parts' },
   { label: 'Clientes', value: 'customers' },
+  { label: 'Cotizaciones', value: 'quotations' },
+  { label: 'Sucursales', value: 'branches' },
+  { label: 'Usuarios', value: 'users' },
 ]
 
 export default function AuditPage() {

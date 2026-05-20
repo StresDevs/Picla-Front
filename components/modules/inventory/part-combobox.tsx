@@ -53,12 +53,12 @@ export function PartCombobox({
           variant="outline"
           disabled={disabled || parts.length === 0}
           className={cn(
-            'h-auto min-h-9 w-full min-w-0 justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
+            'h-auto min-h-9 w-max min-w-full justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
             !selected && 'text-slate-400 dark:text-muted-foreground',
             className,
           )}
         >
-          <span className="text-left break-words whitespace-normal leading-snug">
+          <span className="text-left whitespace-nowrap leading-snug">
             {selected
               ? `${selected.name} (${selected.code})`
               : parts.length === 0
@@ -68,7 +68,7 @@ export function PartCombobox({
           <ChevronDownIcon className="size-4 shrink-0 opacity-50 ml-1" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent className="min-w-[var(--radix-popover-trigger-width)] w-max max-w-[90vw] p-0" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
@@ -90,8 +90,8 @@ export function PartCombobox({
                       value === part.id ? 'opacity-100' : 'opacity-0',
                     )}
                   />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium leading-snug whitespace-normal break-words">
+                  <div className="min-w-max">
+                    <p className="text-sm font-medium leading-snug whitespace-nowrap">
                       {part.name}
                     </p>
                     <p className="text-xs text-muted-foreground">{part.code}</p>
@@ -138,16 +138,16 @@ export function SearchableStringPick({
           variant="outline"
           disabled={disabled || options.length === 0}
           className={cn(
-            'h-auto min-h-9 w-full min-w-0 justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
+            'h-auto min-h-9 w-max min-w-full justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
             !selected && 'text-slate-400 dark:text-muted-foreground',
             className,
           )}
         >
-          <span className="text-left break-words whitespace-normal leading-snug">{selected?.label ?? placeholder}</span>
+          <span className="text-left whitespace-nowrap leading-snug">{selected?.label ?? placeholder}</span>
           <ChevronDownIcon className="size-4 shrink-0 opacity-50 ml-1" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent className="min-w-[var(--radix-popover-trigger-width)] w-max max-w-[90vw] p-0" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
@@ -163,7 +163,7 @@ export function SearchableStringPick({
                   }}
                 >
                   <CheckIcon className={cn('size-4 shrink-0', value === opt.value ? 'opacity-100' : 'opacity-0')} />
-                  <span className="min-w-0 truncate">{opt.label}</span>
+                  <span className="min-w-max whitespace-nowrap">{opt.label}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

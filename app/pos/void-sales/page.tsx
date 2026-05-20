@@ -16,7 +16,7 @@ import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-stor
 import { posService, type POSSaleRecord } from '@/lib/supabase/pos'
 import { showConfirmAlert } from '@/lib/sweet-alert'
 import { toast } from '@/hooks/use-toast'
-import { Ban, AlertTriangle } from 'lucide-react'
+import { Ban, AlertTriangle, Check, Undo2 } from 'lucide-react'
 
 const paymentLabels: Record<string, string> = {
   cash: 'Efectivo',
@@ -34,6 +34,9 @@ export default function POSVoidSalesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [returnMode, setReturnMode] = useState(false)
+  const [selectedItems, setSelectedItems] = useState<Map<string, number>>(new Map())
+  const [isReturning, setIsReturning] = useState(false)
 
   const canVoid = activeRole === 'admin' || activeRole === 'manager'
 
@@ -82,6 +85,40 @@ export default function POSVoidSalesPage() {
     )
   }, [sales, searchTerm])
 
+  const returnTotal = useMemo(() => {
+    if (!selectedSale) return 0
+    let total = 0
+    selectedItems.forEach((qty, itemId) => {
+      const item = selectedSale.items.find(i => i.id === itemId)
+      if (item) total += qty * Number(item.unit_price || 0)
+    })
+    return total
+  }, [selectedSale, selectedItems])
+
+  const toggleItem = (itemId: string, maxQty: number) => {
+    setSelectedItems(prev => {
+      const next = new Map(prev)
+      if (next.has(itemId)) {
+        next.delete(itemId)
+      } else {
+        next.set(itemId, maxQty)
+      }
+      return next
+    })
+  }
+
+  const updateItemQty = (itemId: string, qty: number) => {
+    setSelectedItems(prev => {
+      const next = new Map(prev)
+      if (qty <= 0) {
+        next.delete(itemId)
+      } else {
+        next.set(itemId, qty)
+      }
+      return next
+    })
+  }
+
   const openVoidConfirm = () => {
     if (!selectedSale || !reason.trim()) return
     setIsConfirmOpen(true)
@@ -108,6 +145,8 @@ export default function POSVoidSalesPage() {
       await loadData(activeBranchId)
       setSelectedSale(null)
       setReason('')
+      setReturnMode(false)
+      setSelectedItems(new Map())
     } catch (err) {
       toast({
         title: 'Error al anular',
@@ -116,6 +155,40 @@ export default function POSVoidSalesPage() {
       })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handlePartialReturn = async () => {
+    if (!selectedSale || !reason.trim() || selectedItems.size === 0) return
+
+    const confirmed = await showConfirmAlert({
+      title: '¿Devolver productos seleccionados?',
+      text: `Se restockearán los productos seleccionados y se revertirá el monto correspondiente.`,
+      confirmButtonText: 'Sí, devolver',
+    })
+    if (!confirmed) return
+
+    setIsReturning(true)
+    try {
+      const items = Array.from(selectedItems.entries()).map(([saleItemId, qty]) => ({
+        sale_item_id: saleItemId,
+        quantity: qty,
+      }))
+      await posService.createReturn({
+        sale_id: selectedSale.sale_id,
+        reason: reason.trim(),
+        items,
+      })
+      toast({ title: 'Devolución exitosa', description: 'Los productos fueron devueltos y restockeados.' })
+      await loadData(activeBranchId)
+      setSelectedSale(null)
+      setReason('')
+      setReturnMode(false)
+      setSelectedItems(new Map())
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'No se pudo realizar la devolución', variant: 'destructive' })
+    } finally {
+      setIsReturning(false)
     }
   }
 
@@ -236,56 +309,135 @@ export default function POSVoidSalesPage() {
                       <p className="font-medium mt-0.5">{selectedSale.customer_name ?? 'Mostrador'}</p>
                     </div>
 
+                    {/* Mode toggle */}
+                    <div className="flex rounded-lg border border-border/50 overflow-hidden">
+                      <button
+                        type="button"
+                        className={`flex-1 text-xs py-1.5 px-2 transition-colors flex items-center justify-center gap-1.5 ${
+                          !returnMode
+                            ? 'bg-rose-500/20 text-rose-300 font-medium'
+                            : 'text-muted-foreground hover:bg-muted/30'
+                        }`}
+                        onClick={() => { setReturnMode(false); setSelectedItems(new Map()) }}
+                      >
+                        <Ban className="w-3.5 h-3.5" /> Anular completa
+                      </button>
+                      <button
+                        type="button"
+                        className={`flex-1 text-xs py-1.5 px-2 transition-colors flex items-center justify-center gap-1.5 ${
+                          returnMode
+                            ? 'bg-amber-500/20 text-amber-300 font-medium'
+                            : 'text-muted-foreground hover:bg-muted/30'
+                        }`}
+                        onClick={() => { setReturnMode(true); setSelectedItems(new Map()) }}
+                      >
+                        <Undo2 className="w-3.5 h-3.5" /> Devolver productos
+                      </button>
+                    </div>
+
                     {/* Items */}
                     <div>
                       <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">Ítems</p>
                       <div className="space-y-1">
                         {(selectedSale.items || []).map((item) => (
-                          <div key={item.id} className="flex items-center justify-between text-sm rounded-md bg-muted/10 border border-border/30 px-3 py-1.5">
-                            <span>{item.part_name}</span>
-                            <span className="text-muted-foreground text-xs">{item.quantity} × Bs {Number(item.unit_price || 0).toFixed(2)}</span>
+                          <div
+                            key={item.id}
+                            className={`flex items-center gap-2 text-sm rounded-md border px-3 py-1.5 transition-colors ${
+                              returnMode && selectedItems.has(item.id)
+                                ? 'bg-amber-500/10 border-amber-500/40'
+                                : 'bg-muted/10 border-border/30'
+                            }`}
+                          >
+                            {returnMode && (
+                              <button
+                                type="button"
+                                className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                  selectedItems.has(item.id)
+                                    ? 'bg-amber-500 border-amber-500 text-white'
+                                    : 'border-border/60 hover:border-amber-500/60'
+                                }`}
+                                onClick={() => toggleItem(item.id, item.quantity)}
+                              >
+                                {selectedItems.has(item.id) && <Check className="w-3 h-3" />}
+                              </button>
+                            )}
+                            <span className="flex-1 truncate">{item.part_name}</span>
+                            {returnMode && selectedItems.has(item.id) ? (
+                              <div className="flex items-center gap-1.5">
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={item.quantity}
+                                  value={selectedItems.get(item.id) ?? item.quantity}
+                                  onChange={(e) => {
+                                    const val = Math.min(Math.max(1, parseInt(e.target.value) || 1), item.quantity)
+                                    updateItemQty(item.id, val)
+                                  }}
+                                  className="h-7 w-14 text-xs text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                                <span className="text-muted-foreground text-xs whitespace-nowrap">/ {item.quantity}</span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-xs whitespace-nowrap">{item.quantity} × Bs {Number(item.unit_price || 0).toFixed(2)}</span>
+                            )}
                           </div>
                         ))}
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3">
-                      <p className="text-sm font-medium">Total a revertir</p>
-                      <p className="font-bold text-rose-400">Bs {Number(selectedSale.total_amount || 0).toFixed(2)}</p>
+                      <p className="text-sm font-medium">{returnMode ? 'Total a devolver' : 'Total a revertir'}</p>
+                      <p className="font-bold text-rose-400">
+                        Bs {returnMode ? returnTotal.toFixed(2) : Number(selectedSale.total_amount || 0).toFixed(2)}
+                      </p>
                     </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Void form */}
-            <Card className="border-rose-500/30 bg-rose-500/5">
+            {/* Void / Return form */}
+            <Card className={`${returnMode ? 'border-amber-500/30 bg-amber-500/5' : 'border-rose-500/30 bg-rose-500/5'}`}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm text-rose-300 flex items-center gap-2">
-                  <Ban className="w-4 h-4" /> Registrar anulación
+                <CardTitle className={`text-sm flex items-center gap-2 ${returnMode ? 'text-amber-300' : 'text-rose-300'}`}>
+                  {returnMode ? <><Undo2 className="w-4 h-4" /> Registrar devolución</> : <><Ban className="w-4 h-4" /> Registrar anulación</>}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label className="text-sm">Motivo de anulación <span className="text-rose-400">*</span></Label>
+                  <Label className="text-sm">{returnMode ? 'Motivo de devolución' : 'Motivo de anulación'} <span className="text-rose-400">*</span></Label>
                   <Input
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="Describe el motivo de la anulación..."
+                    placeholder={returnMode ? 'Describe el motivo de la devolución...' : 'Describe el motivo de la anulación...'}
                     disabled={!canVoid || !selectedSale}
                     className="h-9"
                   />
                 </div>
-                <Button
-                  variant="destructive"
-                  className="w-full"
-                  onClick={voidSale}
-                  disabled={!canVoid || !selectedSale || !reason.trim() || isSubmitting || isLoading}
-                >
-                  {isSubmitting ? 'Anulando...' : 'Anular venta seleccionada'}
-                </Button>
+                {returnMode ? (
+                  <Button
+                    variant="default"
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={handlePartialReturn}
+                    disabled={!canVoid || !selectedSale || !reason.trim() || selectedItems.size === 0 || isReturning || isLoading}
+                  >
+                    {isReturning ? 'Procesando...' : `Devolver ${selectedItems.size} producto(s)`}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={voidSale}
+                    disabled={!canVoid || !selectedSale || !reason.trim() || isSubmitting || isLoading}
+                  >
+                    {isSubmitting ? 'Anulando...' : 'Anular venta seleccionada'}
+                  </Button>
+                )}
                 {!selectedSale && (
                   <p className="text-xs text-muted-foreground text-center">Selecciona una venta de la lista primero.</p>
+                )}
+                {returnMode && selectedSale && selectedItems.size === 0 && (
+                  <p className="text-xs text-muted-foreground text-center">Selecciona al menos un producto para devolver.</p>
                 )}
               </CardContent>
             </Card>
