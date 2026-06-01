@@ -343,4 +343,12 @@ export const posService = {
       data as Array<{ sale_id: string; reversed_amount: number }> | { sale_id: string; reversed_amount: number } | null,
     )
   },
+
+  async markItemsForDelivery(saleId: string, partIds: string[]) {
+    const { error } = await supabase.rpc('pos_mark_sale_items_for_delivery', {
+      p_sale_id: saleId,
+      p_part_ids: partIds,
+    })
+    if (error) throw error
+  },
 }

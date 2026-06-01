@@ -636,36 +636,29 @@ export default function POSSalesPage() {
 
       let receiptNumber = 'N0'
       try {
-        const allSales = await posService.getSales(branchId, true)
-        const createdSaleData = allSales.find((s) => s.sale_id === result.sale_id)
-
-        if (createdSaleData) {
-          const dateKey = (v: string) => {
-            const dt = new Date(v)
-            return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-          }
-          const targetKey = dateKey(createdSaleData.created_at)
-          const daySales = allSales.filter((s) => dateKey(s.created_at) === targetKey)
-          daySales.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-          const idx = daySales.findIndex((s) => s.sale_id === result.sale_id)
-          receiptNumber = `N${idx >= 0 ? idx + 1 : daySales.length + 1}`
-
-          // Items NOT checked for later delivery → mark as delivered immediately
-          const immediateItems = (createdSaleData.items ?? []).filter(
-            (item) => !deliverySet.has(item.part_id),
-          )
-          if (immediateItems.length > 0) {
-            posService
-              .registerDelivery({
-                sale_id: result.sale_id,
-                items: immediateItems.map((item) => ({ sale_item_id: item.id, quantity: Number(item.quantity) })),
-              })
-              .catch(() => {/* delivery marking is non-critical */})
-          }
-        }
+        receiptNumber = await posService.getSaleReceiptNumber(result.sale_id, branchId)
       } catch {
         receiptNumber = 'N0'
       }
+
+      // Items checked for deferred delivery → reset from auto-delivered back to pending.
+      // pos_create_sale marks ALL immediate-mode items as delivered; this call reverts the selected ones.
+      if (deliverySet.size > 0) {
+        try {
+          await posService.markItemsForDelivery(result.sale_id, Array.from(deliverySet))
+        } catch (deliveryErr) {
+          const deliveryErrMsg = deliveryErr instanceof Error ? deliveryErr.message : String(deliveryErr)
+          toast({
+            title: 'Aviso: marcado de entrega falló',
+            description: `La venta se registró correctamente, pero no se pudo marcar los ítems para entrega posterior. Error: ${deliveryErrMsg}`,
+            variant: 'destructive',
+          })
+        }
+      }
+
+      const pendingDeliveryNames = cart
+        .filter((item) => deliverySet.has(item.part_id))
+        .map((item) => item.name)
 
       if (printInvoiceOnSale) {
         printMockInvoice({
@@ -683,6 +676,7 @@ export default function POSSalesPage() {
           })),
           isCredit: isCreditSale,
           notes: isCreditSale && creditNotes.trim() ? creditNotes.trim() : undefined,
+          pendingDeliveryItems: pendingDeliveryNames.length > 0 ? pendingDeliveryNames : undefined,
         })
       }
 
