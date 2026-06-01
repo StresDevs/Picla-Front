@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins, ChevronRight } from 'lucide-react'
+import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins, ChevronRight, Truck } from 'lucide-react'
 import {
   ACTIVE_ROLE_EVENT,
   canRoleCompleteSale,
@@ -149,6 +149,7 @@ export default function POSSalesPage() {
   })
   const [expandedCartItemId, setExpandedCartItemId] = useState<string | null>(null)
   const [isCartOpen, setIsCartOpen] = useState(true)
+  const [deliverySet, setDeliverySet] = useState<Set<string>>(new Set())
 
   const canCompleteSale = canRoleCompleteSale(activeRole)
   const canQueueSale = activeRole === 'read_only'
@@ -635,7 +636,33 @@ export default function POSSalesPage() {
 
       let receiptNumber = 'N0'
       try {
-        receiptNumber = await posService.getSaleReceiptNumber(result.sale_id, branchId)
+        const allSales = await posService.getSales(branchId, true)
+        const createdSaleData = allSales.find((s) => s.sale_id === result.sale_id)
+
+        if (createdSaleData) {
+          const dateKey = (v: string) => {
+            const dt = new Date(v)
+            return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+          }
+          const targetKey = dateKey(createdSaleData.created_at)
+          const daySales = allSales.filter((s) => dateKey(s.created_at) === targetKey)
+          daySales.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          const idx = daySales.findIndex((s) => s.sale_id === result.sale_id)
+          receiptNumber = `N${idx >= 0 ? idx + 1 : daySales.length + 1}`
+
+          // Items NOT checked for later delivery → mark as delivered immediately
+          const immediateItems = (createdSaleData.items ?? []).filter(
+            (item) => !deliverySet.has(item.part_id),
+          )
+          if (immediateItems.length > 0) {
+            posService
+              .registerDelivery({
+                sale_id: result.sale_id,
+                items: immediateItems.map((item) => ({ sale_item_id: item.id, quantity: Number(item.quantity) })),
+              })
+              .catch(() => {/* delivery marking is non-critical */})
+          }
+        }
       } catch {
         receiptNumber = 'N0'
       }
@@ -654,6 +681,8 @@ export default function POSSalesPage() {
             quantity: item.quantity,
             unitPrice: item.unit_price,
           })),
+          isCredit: isCreditSale,
+          notes: isCreditSale && creditNotes.trim() ? creditNotes.trim() : undefined,
         })
       }
 
@@ -670,6 +699,7 @@ export default function POSSalesPage() {
         setCreditReminderDate('')
         setCreditNotes('')
       }
+      setDeliverySet(new Set())
       return true
     } catch (submitError) {
       const errDetails = parseErrorDetails(submitError, 'No se pudo procesar la venta')
@@ -1095,18 +1125,54 @@ export default function POSSalesPage() {
                         <p className="text-base font-semibold">Resumen de la venta</p>
                         <Badge variant="outline">{cart.length} productos</Badge>
                       </div>
+                      {deliverySet.size > 0 && (
+                        <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/8 px-3 py-2 text-xs text-amber-300">
+                          <Truck className="h-3.5 w-3.5 shrink-0" />
+                          {deliverySet.size === cart.length
+                            ? 'Todos los productos se marcarán para entrega posterior.'
+                            : `${deliverySet.size} producto${deliverySet.size > 1 ? 's' : ''} se marcarán para entrega posterior.`}
+                        </div>
+                      )}
                       <div className="mt-4 space-y-3 text-sm">
-                        {cart.map((item) => (
-                          <div key={`checkout-${item.part_id}`} className="flex items-start justify-between gap-4 rounded-2xl bg-muted/40 px-4 py-3">
-                            <div className="min-w-0">
-                              <p className="font-medium leading-tight">{item.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {item.quantity} x Bs {item.unit_price.toFixed(2)}
-                              </p>
+                        {cart.map((item) => {
+                          const forDelivery = deliverySet.has(item.part_id)
+                          return (
+                            <div key={`checkout-${item.part_id}`} className="rounded-2xl bg-muted/40 overflow-hidden">
+                              <div className="flex items-start justify-between gap-4 px-4 pt-3 pb-2">
+                                <div className="min-w-0">
+                                  <p className="font-medium leading-tight">{item.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.quantity} x Bs {item.unit_price.toFixed(2)}
+                                  </p>
+                                </div>
+                                <p className="shrink-0 font-semibold text-primary">Bs {(item.quantity * item.unit_price).toFixed(2)}</p>
+                              </div>
+                              <label
+                                className={`flex items-center gap-2 cursor-pointer px-4 pb-3 pt-1 transition-colors ${forDelivery ? 'text-amber-300' : 'text-muted-foreground hover:text-foreground'}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-3.5 w-3.5 shrink-0 accent-amber-400"
+                                  checked={forDelivery}
+                                  onChange={(e) => {
+                                    setDeliverySet((prev) => {
+                                      const next = new Set(prev)
+                                      if (e.target.checked) next.add(item.part_id)
+                                      else next.delete(item.part_id)
+                                      return next
+                                    })
+                                  }}
+                                />
+                                <Truck className="h-3 w-3 shrink-0" />
+                                <span className="text-[11px] font-medium">
+                                  {forDelivery
+                                    ? 'Marcado para entrega posterior — no se entregará de inmediato'
+                                    : 'Marcar para entregar después'}
+                                </span>
+                              </label>
                             </div>
-                            <p className="shrink-0 font-semibold text-primary">Bs {(item.quantity * item.unit_price).toFixed(2)}</p>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
 

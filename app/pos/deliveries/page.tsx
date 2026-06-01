@@ -7,9 +7,9 @@ import { POSSubnav } from '@/components/modules/pos/pos-subnav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { posService, type POSPendingDelivery } from '@/lib/supabase/pos'
+import { SearchableStringPick } from '@/components/modules/inventory/part-combobox'
 
 export default function POSDeliveriesPage() {
   const [pendingDeliveries, setPendingDeliveries] = useState<POSPendingDelivery[]>([])
@@ -129,30 +129,30 @@ export default function POSDeliveriesPage() {
           <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="space-y-2 lg:col-span-2">
               <label className="text-sm font-medium">Venta pendiente</label>
-              <Select value={selectedSaleId} onValueChange={setSelectedSaleId}>
-                <SelectTrigger><SelectValue placeholder="Selecciona venta" /></SelectTrigger>
-                <SelectContent>
-                  {pendingDeliveries.map((delivery) => (
-                    <SelectItem key={delivery.sale_id} value={delivery.sale_id}>
-                      {delivery.sale_id} - {delivery.customer_name || 'Mostrador'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableStringPick
+                value={selectedSaleId}
+                onValueChange={setSelectedSaleId}
+                options={pendingDeliveries.map((d) => ({
+                  value: d.sale_id,
+                  label: `${d.sale_id.slice(0, 8)}… - ${d.customer_name || 'Mostrador'}`,
+                }))}
+                placeholder="Selecciona venta"
+                searchPlaceholder="Buscar venta..."
+              />
             </div>
 
             <div className="space-y-2 lg:col-span-2">
               <label className="text-sm font-medium">Ítem pendiente</label>
-              <Select value={selectedSaleItemId} onValueChange={setSelectedSaleItemId}>
-                <SelectTrigger><SelectValue placeholder="Selecciona ítem" /></SelectTrigger>
-                <SelectContent>
-                  {pendingItems.map((item) => (
-                    <SelectItem key={item.sale_item_id} value={item.sale_item_id}>
-                      {item.part_name} ({Number(item.delivered_quantity || 0)}/{Number(item.quantity || 0)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableStringPick
+                value={selectedSaleItemId}
+                onValueChange={setSelectedSaleItemId}
+                options={pendingItems.map((item) => ({
+                  value: item.sale_item_id,
+                  label: `${item.part_name} (${Number(item.delivered_quantity || 0)}/${Number(item.quantity || 0)})`,
+                }))}
+                placeholder="Selecciona ítem"
+                searchPlaceholder="Buscar ítem..."
+              />
             </div>
 
             <div className="space-y-2">

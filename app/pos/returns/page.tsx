@@ -7,10 +7,10 @@ import { POSSubnav } from '@/components/modules/pos/pos-subnav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable } from '@/components/common/data-table'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { posService, type POSReturnRecord, type POSSaleRecord } from '@/lib/supabase/pos'
+import { SearchableStringPick } from '@/components/modules/inventory/part-combobox'
 
 export default function POSReturnsPage() {
   const [sales, setSales] = useState<POSSaleRecord[]>([])
@@ -18,8 +18,7 @@ export default function POSReturnsPage() {
   const [activeBranchId, setActiveBranchId] = useState('branch-1')
 
   const [selectedSaleId, setSelectedSaleId] = useState('')
-  const [selectedSaleItemId, setSelectedSaleItemId] = useState('')
-  const [quantity, setQuantity] = useState('1')
+  const [returnItemsMap, setReturnItemsMap] = useState<Record<string, { checked: boolean; qty: string }>>({})
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
 
@@ -68,6 +67,7 @@ export default function POSReturnsPage() {
       window.removeEventListener(ACTIVE_ROLE_EVENT, syncContext)
       window.removeEventListener('focus', syncContext)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const selectedSale = useMemo(
@@ -75,23 +75,39 @@ export default function POSReturnsPage() {
     [sales, selectedSaleId],
   )
 
-  const availableItems = selectedSale?.items || []
-
   useEffect(() => {
     if (!selectedSale) {
-      setSelectedSaleItemId('')
+      setReturnItemsMap({})
       return
     }
-
-    if (!selectedSaleItemId && availableItems.length > 0) {
-      setSelectedSaleItemId(availableItems[0].id)
+    const map: Record<string, { checked: boolean; qty: string }> = {}
+    for (const item of (selectedSale.items || [])) {
+      map[item.id] = { checked: false, qty: String(item.quantity) }
     }
-  }, [availableItems, selectedSale, selectedSaleItemId])
+    setReturnItemsMap(map)
+  }, [selectedSale])
+
+  const saleDisplayMap = useMemo(() => {
+    const map = new Map<string, string>()
+    sales.forEach((sale) => {
+      const date = new Date(sale.created_at).toLocaleDateString('es-BO', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      })
+      const customer = sale.customer_name || 'Mostrador'
+      map.set(sale.sale_id, `${customer} · ${date} · Bs ${Number(sale.total_amount || 0).toFixed(2)}`)
+    })
+    return map
+  }, [sales])
 
   const registerReturn = async () => {
-    const qty = Number(quantity)
-    if (!selectedSaleId || !selectedSaleItemId || !Number.isFinite(qty) || qty <= 0 || !reason.trim()) {
-      setFeedback('Completa venta, ítem, cantidad y motivo.')
+    const checkedItems = Object.entries(returnItemsMap)
+      .filter(([, v]) => v.checked && Number(v.qty) > 0)
+      .map(([id, v]) => ({ sale_item_id: id, quantity: Number(v.qty) }))
+
+    if (!selectedSaleId || checkedItems.length === 0 || !reason.trim()) {
+      setFeedback('Selecciona una venta, marca al menos un ítem y escribe el motivo.')
       return
     }
 
@@ -104,19 +120,13 @@ export default function POSReturnsPage() {
         sale_id: selectedSaleId,
         reason: reason.trim(),
         notes: notes.trim() || null,
-        items: [
-          {
-            sale_item_id: selectedSaleItemId,
-            quantity: qty,
-          },
-        ],
+        items: checkedItems,
       })
 
       await loadData(activeBranchId)
-      setQuantity('1')
       setReason('')
       setNotes('')
-      setFeedback(`Devolución registrada: ${result?.return_id || 'OK'}`)
+      setFeedback(`Devolución registrada: DEV-${result?.return_id?.slice(0, 8) ?? 'OK'}`)
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'No se pudo registrar la devolución')
     } finally {
@@ -137,52 +147,113 @@ export default function POSReturnsPage() {
           <CardHeader>
             <CardTitle>Nueva devolución</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Venta</label>
-              <Select value={selectedSaleId} onValueChange={setSelectedSaleId}>
-                <SelectTrigger><SelectValue placeholder="Selecciona venta" /></SelectTrigger>
-                <SelectContent>
-                  {sales.map((sale) => (
-                    <SelectItem key={sale.sale_id} value={sale.sale_id}>
-                      {sale.sale_id} - Bs {Number(sale.total_amount || 0).toFixed(2)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium">Venta a devolver</label>
+              <SearchableStringPick
+                value={selectedSaleId}
+                onValueChange={setSelectedSaleId}
+                options={sales.map((sale) => ({
+                  value: sale.sale_id,
+                  label: saleDisplayMap.get(sale.sale_id) ?? sale.sale_id,
+                }))}
+                placeholder="Selecciona una venta..."
+                searchPlaceholder="Buscar por cliente, fecha..."
+              />
+            </div>
+
+            {selectedSale && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Productos a devolver
+                  <span className="ml-1 text-xs text-muted-foreground font-normal">
+                    — marca los que se devuelven e ingresa la cantidad
+                  </span>
+                </label>
+                {(selectedSale.items || []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground rounded-lg border border-border/60 p-3">
+                    Esta venta no tiene ítems disponibles para devolución.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {(selectedSale.items || []).map((item) => {
+                      const entry = returnItemsMap[item.id] ?? { checked: false, qty: String(item.quantity) }
+                      return (
+                        <label
+                          key={item.id}
+                          className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
+                            entry.checked
+                              ? 'border-primary/40 bg-primary/5'
+                              : 'border-border/60 bg-muted/20 hover:border-border'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 shrink-0"
+                            checked={entry.checked}
+                            onChange={(e) =>
+                              setReturnItemsMap((prev) => ({
+                                ...prev,
+                                [item.id]: { ...prev[item.id], checked: e.target.checked },
+                              }))
+                            }
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{item.part_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Vendido: {Number(item.quantity)} · Bs {Number(item.unit_price || 0).toFixed(2)} c/u
+                            </p>
+                          </div>
+                          <div className="shrink-0 flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Cant.:</span>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={Number(item.quantity)}
+                              value={entry.qty}
+                              disabled={!entry.checked}
+                              className="w-20 h-8 text-center"
+                              onClick={(e) => e.preventDefault()}
+                              onChange={(e) =>
+                                setReturnItemsMap((prev) => ({
+                                  ...prev,
+                                  [item.id]: { ...prev[item.id], qty: e.target.value },
+                                }))
+                              }
+                            />
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Motivo <span className="text-rose-400">*</span>
+              </label>
+              <Input
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Motivo de la devolución (requerido)"
+              />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Ítem de venta</label>
-              <Select value={selectedSaleItemId} onValueChange={setSelectedSaleItemId}>
-                <SelectTrigger><SelectValue placeholder="Selecciona ítem" /></SelectTrigger>
-                <SelectContent>
-                  {availableItems.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.part_name} (vendido {item.quantity})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Cantidad</label>
-              <Input type="number" min={1} value={quantity} onChange={(event) => setQuantity(event.target.value)} />
-            </div>
-
-            <div className="space-y-2 lg:col-span-2">
-              <label className="text-sm font-medium">Motivo</label>
-              <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motivo de devolución" />
-            </div>
-
-            <div className="space-y-2 lg:col-span-3">
               <label className="text-sm font-medium">Notas</label>
-              <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Observaciones opcionales" />
+              <Input
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Observaciones opcionales"
+              />
             </div>
 
-            <div className="lg:col-span-3 flex justify-end">
-              <Button onClick={registerReturn} disabled={isSubmitting || isLoading}>Registrar devolución</Button>
+            <div className="flex justify-end">
+              <Button onClick={registerReturn} disabled={isSubmitting || isLoading}>
+                {isSubmitting ? 'Registrando...' : 'Registrar devolución'}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -194,12 +265,34 @@ export default function POSReturnsPage() {
           <CardContent>
             <DataTable
               columns={[
-                { key: 'created_at', label: 'Fecha', render: (value) => new Date(String(value)).toLocaleString() },
-                { key: 'return_id', label: 'ID', render: (value) => String(value) },
-                { key: 'sale_id', label: 'Venta', render: (value) => String(value) },
+                {
+                  key: 'created_at',
+                  label: 'Fecha',
+                  render: (value) =>
+                    new Date(String(value)).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' }),
+                },
+                {
+                  key: 'return_id',
+                  label: 'ID Dev.',
+                  render: (value) => `DEV-${String(value).slice(0, 8)}`,
+                },
+                {
+                  key: 'sale_id',
+                  label: 'Venta',
+                  render: (value) =>
+                    saleDisplayMap.get(String(value)) ?? `...${String(value).slice(-8)}`,
+                },
                 { key: 'reason', label: 'Motivo', render: (value) => String(value) },
-                { key: 'total_return_amount', label: 'Monto', render: (value) => `Bs ${Number(value || 0).toFixed(2)}` },
-                { key: 'status', label: 'Estado', render: (value) => String(value) },
+                {
+                  key: 'total_return_amount',
+                  label: 'Monto dev.',
+                  render: (value) => `Bs ${Number(value || 0).toFixed(2)}`,
+                },
+                {
+                  key: 'status',
+                  label: 'Estado',
+                  render: (value) => (String(value) === 'completed' ? 'Completada' : String(value)),
+                },
               ]}
               data={returns.map((r) => ({ ...r, id: r.return_id }))}
               emptyMessage={isLoading ? 'Cargando devoluciones...' : 'No hay devoluciones registradas'}

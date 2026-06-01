@@ -9,13 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 import { branchesService, entriesService, inventoryService, partsService, type InventoryEntryView } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
 import { generateEntriesPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
 import { Download, FileSpreadsheet } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { SearchableStringPick } from '@/components/modules/inventory/part-combobox'
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 
 function toIsoStart(date: string) {
   if (!date) return null
@@ -58,6 +60,15 @@ export default function InventoryEntriesPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [entriesPage, setEntriesPage] = useState(1)
+  const [avgPriceDialog, setAvgPriceDialog] = useState<{
+    avgCost: number
+    currentStock: number
+    currentCost: number
+    newQty: number
+    newCost: number
+    acceptedCost: string
+  } | null>(null)
 
   const canRegister = activeRole === 'admin'
 
@@ -166,7 +177,7 @@ export default function InventoryEntriesPage() {
     void fetchData()
   }, [branchFilter, fromDate, toDate, activeRole, activeBranchId])
 
-  const registerEntry = async () => {
+  const registerEntry = () => {
     setFeedback(null)
     setError(null)
 
@@ -192,7 +203,32 @@ export default function InventoryEntriesPage() {
       return
     }
 
+    const selectedProduct = products.find((p) => p.id === partId)
+    const currentCost = selectedProduct ? Number(selectedProduct.cost || 0) : 0
+    const newCost = unitCost.trim() ? Number(unitCost) : currentCost
+    const newQty = qty
+    const totalNew = newQty + selectedStock
+    const avgCost = totalNew > 0
+      ? (selectedStock * currentCost + newQty * newCost) / totalNew
+      : newCost
+
+    setAvgPriceDialog({
+      avgCost: Number(avgCost.toFixed(4)),
+      currentStock: selectedStock,
+      currentCost,
+      newQty,
+      newCost,
+      acceptedCost: avgCost.toFixed(2),
+    })
+  }
+
+  const confirmEntry = async (finalCost: string) => {
+    const qty = Number(quantity)
+    const minQuote = quotationMinPrice.trim() ? Number(quotationMinPrice) : null
+    const maxQuote = quotationMaxPrice.trim() ? Number(quotationMaxPrice) : null
+
     setIsSaving(true)
+    setAvgPriceDialog(null)
     try {
       const createdId = await entriesService.create({
         branch_id: branchId,
@@ -202,7 +238,7 @@ export default function InventoryEntriesPage() {
         source_reference: sourceReference.trim() || null,
         supplier_name: supplierName.trim() || null,
         notes: notes.trim() || null,
-        unit_cost: unitCost.trim() ? Number(unitCost) : null,
+        unit_cost: finalCost.trim() ? Number(finalCost) : null,
         unit_price: unitPrice.trim() ? Number(unitPrice) : null,
         quotation_min_price: minQuote,
         quotation_max_price: maxQuote,
@@ -265,16 +301,15 @@ export default function InventoryEntriesPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="space-y-2">
                 <Label>Sucursal</Label>
-                <Select value={branchId} onValueChange={setBranchId}>
-                  <SelectTrigger><SelectValue placeholder="Sucursal" /></SelectTrigger>
-                  <SelectContent>
-                    {branches.map((branch) => (
-                      <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableStringPick
+                  value={branchId}
+                  onValueChange={setBranchId}
+                  options={branches.map((b) => ({ value: b.id, label: b.name }))}
+                  placeholder="Seleccionar sucursal"
+                  searchPlaceholder="Buscar sucursal..."
+                />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label>Producto</Label>
                 <PartCombobox parts={products} value={partId} onValueChange={setPartId} />
               </div>
@@ -284,13 +319,13 @@ export default function InventoryEntriesPage() {
               </div>
               <div className="space-y-2">
                 <Label>Moneda</Label>
-                <Select value={currency} onValueChange={(value: 'BOB' | 'USD') => setCurrency(value)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="BOB">BOB</SelectItem>
-                    <SelectItem value="USD">USD</SelectItem>
-                  </SelectContent>
-                </Select>
+                <SearchableStringPick
+                  value={currency}
+                  onValueChange={(v) => setCurrency(v as 'BOB' | 'USD')}
+                  options={[{ value: 'BOB', label: 'BOB' }, { value: 'USD', label: 'USD' }]}
+                  placeholder="Moneda"
+                  searchPlaceholder="Buscar..."
+                />
               </div>
               <div className="space-y-2">
                 <Label>Precio compra</Label>
@@ -424,15 +459,16 @@ export default function InventoryEntriesPage() {
               </div>
               <div className="space-y-2">
                 <Label>Sucursal</Label>
-                <Select value={branchFilter} onValueChange={setBranchFilter}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {activeRole === 'admin' ? <SelectItem value="all">Todas</SelectItem> : null}
-                    {branches.map((branch) => (
-                      <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableStringPick
+                  value={branchFilter}
+                  onValueChange={setBranchFilter}
+                  options={[
+                    ...(activeRole === 'admin' ? [{ value: 'all', label: 'Todas' }] : []),
+                    ...branches.map((b) => ({ value: b.id, label: b.name })),
+                  ]}
+                  placeholder="Seleccionar sucursal"
+                  searchPlaceholder="Buscar sucursal..."
+                />
               </div>
               <div className="space-y-2">
                 <Label>Estado</Label>
@@ -442,31 +478,131 @@ export default function InventoryEntriesPage() {
               </div>
             </div>
 
-            {entries.map((entry) => (
-              <div key={entry.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
-                <p className="text-zinc-100 font-semibold">{entry.id} - {entry.part_name} ({entry.part_code})</p>
-                <p className="text-zinc-400">
-                  {new Date(entry.created_at).toLocaleString('es-BO')} | {entry.branch_name} | Usuario: {entry.created_by_name || 'No disponible'}
-                </p>
-                <p className="text-zinc-400">
-                  Cantidad: {entry.quantity} | Moneda: {entry.currency}
-                  {entry.exchange_rate ? ` | TC: ${entry.exchange_rate}` : ''}
-                </p>
-                <p className="text-zinc-400">
-                  Costo: {entry.unit_cost ?? '-'} | Precio: {entry.unit_price ?? '-'}
-                </p>
-                <p className="text-zinc-400">Motivo: {entry.reason}</p>
-                <p className="text-zinc-400">Proveedor: {entry.supplier_name || 'No disponible'} | Referencia: {entry.source_reference || 'No disponible'}</p>
-                {entry.notes ? <p className="text-zinc-300 mt-1">Notas: {entry.notes}</p> : null}
-              </div>
-            ))}
+            {(() => {
+              const ENTRIES_PER_PAGE = 15
+              const totalPages = Math.max(1, Math.ceil(entries.length / ENTRIES_PER_PAGE))
+              const paginated = entries.slice((entriesPage - 1) * ENTRIES_PER_PAGE, entriesPage * ENTRIES_PER_PAGE)
 
-            {!isLoading && entries.length === 0 ? (
-              <p className="text-sm text-zinc-400">No hay ingresos para los filtros seleccionados.</p>
-            ) : null}
+              return (
+                <>
+                  {paginated.map((entry) => (
+                    <div key={entry.id} className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 text-sm">
+                      <p className="text-zinc-100 font-semibold">{entry.id} - {entry.part_name} ({entry.part_code})</p>
+                      <p className="text-zinc-400">
+                        {new Date(entry.created_at).toLocaleString('es-BO')} | {entry.branch_name} | Usuario: {entry.created_by_name || 'No disponible'}
+                      </p>
+                      <p className="text-zinc-400">
+                        Cantidad: {entry.quantity} | Moneda: {entry.currency}
+                        {entry.exchange_rate ? ` | TC: ${entry.exchange_rate}` : ''}
+                      </p>
+                      <p className="text-zinc-400">
+                        Costo: {entry.unit_cost ?? '-'} | Precio: {entry.unit_price ?? '-'}
+                      </p>
+                      <p className="text-zinc-400">Motivo: {entry.reason}</p>
+                      <p className="text-zinc-400">Proveedor: {entry.supplier_name || 'No disponible'} | Referencia: {entry.source_reference || 'No disponible'}</p>
+                      {entry.notes ? <p className="text-zinc-300 mt-1">Notas: {entry.notes}</p> : null}
+                    </div>
+                  ))}
+
+                  {!isLoading && entries.length === 0 ? (
+                    <p className="text-sm text-zinc-400">No hay ingresos para los filtros seleccionados.</p>
+                  ) : null}
+
+                  {totalPages > 1 && (
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); setEntriesPage((p) => Math.max(1, p - 1)) }}
+                            aria-disabled={entriesPage === 1}
+                            className={entriesPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                          />
+                        </PaginationItem>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              href="#"
+                              isActive={page === entriesPage}
+                              onClick={(e) => { e.preventDefault(); setEntriesPage(page) }}
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); setEntriesPage((p) => Math.min(totalPages, p + 1)) }}
+                            aria-disabled={entriesPage === totalPages}
+                            className={entriesPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  )}
+                </>
+              )
+            })()}
           </CardContent>
         </Card>
       </div>
+
+      {/* Average price confirmation dialog */}
+      <Dialog open={avgPriceDialog !== null} onOpenChange={(open) => { if (!open) setAvgPriceDialog(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar precio de costo</DialogTitle>
+          </DialogHeader>
+
+          {avgPriceDialog && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Stock actual</span>
+                  <span className="font-medium">{avgPriceDialog.currentStock} unidades @ Bs {avgPriceDialog.currentCost.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Nuevo ingreso</span>
+                  <span className="font-medium">{avgPriceDialog.newQty} unidades @ Bs {avgPriceDialog.newCost.toFixed(2)}</span>
+                </div>
+                <div className="border-t border-border/50 pt-2 flex justify-between">
+                  <span className="font-semibold text-foreground">Costo promedio calculado</span>
+                  <span className="font-bold text-primary text-base">Bs {avgPriceDialog.avgCost.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">
+                  Costo a registrar (puede modificar)
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={avgPriceDialog.acceptedCost}
+                  onChange={(e) => setAvgPriceDialog((prev) => prev ? { ...prev, acceptedCost: e.target.value } : prev)}
+                  className="text-lg font-semibold"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se precargó el precio promedio. Modifícalo si lo deseas antes de confirmar.
+                </p>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAvgPriceDialog(null)}>Cancelar</Button>
+                <Button
+                  onClick={() => void confirmEntry(avgPriceDialog.acceptedCost)}
+                  disabled={isSaving}
+                >
+                  {isSaving ? 'Registrando...' : 'Confirmar ingreso'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
     </MainLayout>
   )
 }

@@ -7,19 +7,20 @@ import { POSSubnav } from '@/components/modules/pos/pos-subnav'
 import { EmptyState } from '@/components/common/empty-state'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { getSupabaseClient } from '@/lib/supabase/client'
-import { posService, type POSQueuedSale, type POSSaleRecord } from '@/lib/supabase/pos'
-import { ShoppingCart, ChevronRight, FileSearch, Download, FileSpreadsheet } from 'lucide-react'
+import { posService, type POSQueuedSale, type POSSaleRecord, type POSSaleItem } from '@/lib/supabase/pos'
+import { ShoppingCart, ChevronDown, FileSearch, Download, FileSpreadsheet, Truck, Pencil, AlertTriangle } from 'lucide-react'
 import { generateSaleInvoicePdf, generateCashSessionPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
 import { getAppSettings } from '@/lib/mock/runtime-store'
+import { SearchableStringPick } from '@/components/modules/inventory/part-combobox'
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 
 const paymentLabels: Record<string, string> = {
   cash: 'Efectivo',
@@ -71,8 +72,22 @@ export default function POSSalesHistoryPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedSale, setSelectedSale] = useState<POSSaleRecord | null>(null)
-  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null)
+  const [salesPage, setSalesPage] = useState(1)
+  const [deliveryDialogSale, setDeliveryDialogSale] = useState<POSSaleRecord | null>(null)
+  const [deliveryQtys, setDeliveryQtys] = useState<Record<string, string>>({})
+  const [deliveryNotes, setDeliveryNotes] = useState('')
+  const [isSubmittingDelivery, setIsSubmittingDelivery] = useState(false)
+  const [deliveryFeedback, setDeliveryFeedback] = useState<string | null>(null)
+
+  const [editDialogSale, setEditDialogSale] = useState<POSSaleRecord | null>(null)
+  const [editSection, setEditSection] = useState<'return' | 'void'>('return')
+  const [editReturnChecked, setEditReturnChecked] = useState<Set<string>>(new Set())
+  const [editReturnQtys, setEditReturnQtys] = useState<Record<string, string>>({})
+  const [editReturnReason, setEditReturnReason] = useState('')
+  const [editVoidReason, setEditVoidReason] = useState('')
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false)
+  const [editFeedback, setEditFeedback] = useState<string | null>(null)
 
   const loadData = async (branchId?: string) => {
     setIsLoading(true)
@@ -206,8 +221,134 @@ export default function POSSalesHistoryPage() {
   const totalSales = filteredSales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0)
   const activeBranchName = branches.find((b) => b.id === activeBranchId)?.name ?? activeBranchId
 
+  const SALES_PER_PAGE = 15
+  const totalSalesPages = Math.max(1, Math.ceil(filteredSales.length / SALES_PER_PAGE))
+  const paginatedSales = useMemo(() => {
+    const start = (salesPage - 1) * SALES_PER_PAGE
+    return filteredSales.slice(start, start + SALES_PER_PAGE)
+  }, [filteredSales, salesPage])
+
+  useEffect(() => {
+    setSalesPage(1)
+  }, [paymentFilter, statusFilter, searchTerm, dateFrom, dateTo, branchFilter])
+
   const resolveSaleNumber = (saleId: string) => saleNumberMap.get(saleId) ?? null
   const resolveQueueNumber = (queueId: string) => queueNumberMap.get(queueId) ?? null
+
+  const openDeliveryDialog = (sale: POSSaleRecord) => {
+    const pendingItems = (sale.items || []).filter(
+      (item) => Number(item.delivered_quantity || 0) < Number(item.quantity || 0),
+    )
+    const initialQtys: Record<string, string> = {}
+    for (const item of pendingItems) {
+      const remaining = Number(item.quantity) - Number(item.delivered_quantity || 0)
+      initialQtys[item.id] = String(remaining)
+    }
+    setDeliveryQtys(initialQtys)
+    setDeliveryNotes('')
+    setDeliveryFeedback(null)
+    setDeliveryDialogSale(sale)
+  }
+
+  const submitDelivery = async () => {
+    if (!deliveryDialogSale) return
+
+    const itemsToDeliver = Object.entries(deliveryQtys)
+      .map(([saleItemId, qty]) => ({ sale_item_id: saleItemId, quantity: Number(qty) }))
+      .filter((entry) => entry.quantity > 0)
+
+    if (itemsToDeliver.length === 0) {
+      setDeliveryFeedback('Ingresa al menos una cantidad mayor a 0 para entregar.')
+      return
+    }
+
+    setIsSubmittingDelivery(true)
+    setDeliveryFeedback(null)
+
+    try {
+      await posService.registerDelivery({
+        sale_id: deliveryDialogSale.sale_id,
+        notes: deliveryNotes.trim() || null,
+        items: itemsToDeliver,
+      })
+
+      setDeliveryDialogSale(null)
+      void loadData(branchFilter !== 'all' ? branchFilter : activeBranchId)
+    } catch (err) {
+      setDeliveryFeedback(err instanceof Error ? err.message : 'No se pudo registrar la entrega')
+    } finally {
+      setIsSubmittingDelivery(false)
+    }
+  }
+
+  const openEditDialog = (sale: POSSaleRecord) => {
+    setEditDialogSale(sale)
+    setEditSection('return')
+    setEditReturnChecked(new Set())
+    const initQtys: Record<string, string> = {}
+    for (const item of (sale.items || [])) {
+      initQtys[item.id] = String(item.quantity)
+    }
+    setEditReturnQtys(initQtys)
+    setEditReturnReason('')
+    setEditVoidReason('')
+    setEditFeedback(null)
+  }
+
+  const submitReturnFromEdit = async () => {
+    if (!editDialogSale || editReturnChecked.size === 0 || !editReturnReason.trim()) {
+      setEditFeedback('Selecciona al menos un ítem y escribe el motivo.')
+      return
+    }
+    const items = Array.from(editReturnChecked)
+      .map((id) => ({ sale_item_id: id, quantity: Number(editReturnQtys[id] || 1) }))
+      .filter((i) => i.quantity > 0)
+    if (items.length === 0) return
+    setIsSubmittingEdit(true)
+    setEditFeedback(null)
+    try {
+      await posService.createReturn({
+        sale_id: editDialogSale.sale_id,
+        reason: editReturnReason.trim(),
+        items,
+      })
+      setEditDialogSale(null)
+      void loadData(branchFilter !== 'all' ? branchFilter : activeBranchId)
+    } catch (err) {
+      setEditFeedback(err instanceof Error ? err.message : 'No se pudo registrar la devolución')
+    } finally {
+      setIsSubmittingEdit(false)
+    }
+  }
+
+  const submitVoidSale = async () => {
+    if (!editDialogSale || !editVoidReason.trim()) {
+      setEditFeedback('Escribe el motivo de la anulación.')
+      return
+    }
+    setIsSubmittingEdit(true)
+    setEditFeedback(null)
+    try {
+      await posService.voidSale({ sale_id: editDialogSale.sale_id, reason: editVoidReason.trim() })
+      setEditDialogSale(null)
+      void loadData(branchFilter !== 'all' ? branchFilter : activeBranchId)
+    } catch (err) {
+      setEditFeedback(err instanceof Error ? err.message : 'No se pudo anular la venta')
+    } finally {
+      setIsSubmittingEdit(false)
+    }
+  }
+
+  const getSaleBadge = (sale: POSSaleRecord) => {
+    if (sale.payment_method === 'credit') {
+      const isPaid = Number(sale.pending_amount || 0) === 0
+      if (isPaid) {
+        return { label: 'Crédito pagado', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' }
+      }
+      return { label: 'A crédito', className: 'bg-amber-500/15 text-amber-400 border-amber-500/30' }
+    }
+    return statusConfig[sale.status] ?? { label: sale.status, className: 'bg-muted text-muted-foreground' }
+  }
 
   return (
     <MainLayout>
@@ -243,41 +384,49 @@ export default function POSSalesHistoryPage() {
             {activeRole === 'admin' && (
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Sucursal</label>
-                <Select value={branchFilter} onValueChange={setBranchFilter}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={activeBranchId}>Sucursal activa</SelectItem>
-                    {branches.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableStringPick
+                  value={branchFilter}
+                  onValueChange={setBranchFilter}
+                  options={[
+                    { value: activeBranchId, label: 'Sucursal activa' },
+                    ...branches.map((b) => ({ value: b.id, label: b.name })),
+                  ]}
+                  placeholder="Seleccionar sucursal"
+                  searchPlaceholder="Buscar sucursal..."
+                />
               </div>
             )}
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Método de pago</label>
-              <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="cash">Efectivo</SelectItem>
-                  <SelectItem value="card">Tarjeta</SelectItem>
-                  <SelectItem value="qr">QR/Transferencia</SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchableStringPick
+                value={paymentFilter}
+                onValueChange={setPaymentFilter}
+                options={[
+                  { value: 'all', label: 'Todos' },
+                  { value: 'cash', label: 'Efectivo' },
+                  { value: 'card', label: 'Tarjeta' },
+                  { value: 'qr', label: 'QR/Transferencia' },
+                  { value: 'credit', label: 'Crédito' },
+                ]}
+                placeholder="Todos los métodos"
+                searchPlaceholder="Buscar método..."
+              />
             </div>
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Estado</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="completed">Completada</SelectItem>
-                  <SelectItem value="voided">Anulada</SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchableStringPick
+                value={statusFilter}
+                onValueChange={setStatusFilter}
+                options={[
+                  { value: 'all', label: 'Todos' },
+                  { value: 'completed', label: 'Completada' },
+                  { value: 'voided', label: 'Anulada' },
+                ]}
+                placeholder="Todos los estados"
+                searchPlaceholder="Buscar estado..."
+              />
             </div>
 
             <div className="space-y-1">
@@ -406,76 +555,243 @@ export default function POSSalesHistoryPage() {
           </TabsList>
 
           <TabsContent value="sales">
-            <Card className="border-border/60 overflow-hidden">
+            <div className="space-y-2">
               {isLoading ? (
-                <div className="space-y-0">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex gap-4 px-4 py-3 border-b border-border/40 animate-pulse">
-                      <div className="h-4 bg-muted/50 rounded w-36" />
-                      <div className="h-4 bg-muted/50 rounded w-28" />
-                      <div className="h-4 bg-muted/50 rounded w-20" />
-                      <div className="h-4 bg-muted/50 rounded w-16 ml-auto" />
-                    </div>
-                  ))}
-                </div>
+                <Card className="border-border/60 overflow-hidden">
+                  <div className="space-y-0">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex gap-4 px-4 py-3 border-b border-border/40 animate-pulse">
+                        <div className="h-4 bg-muted/50 rounded w-36" />
+                        <div className="h-4 bg-muted/50 rounded w-28" />
+                        <div className="h-4 bg-muted/50 rounded w-20" />
+                        <div className="h-4 bg-muted/50 rounded w-16 ml-auto" />
+                      </div>
+                    ))}
+                  </div>
+                </Card>
               ) : filteredSales.length === 0 ? (
-                <EmptyState
-                  icon={ShoppingCart}
-                  title="Sin ventas"
-                  description={`No hay ventas para los filtros seleccionados en ${activeBranchName}.`}
-                />
+                <Card className="border-border/60">
+                  <EmptyState
+                    icon={ShoppingCart}
+                    title="Sin ventas"
+                    description={`No hay ventas para los filtros seleccionados en ${activeBranchName}.`}
+                  />
+                </Card>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-border/50 bg-muted/20">
-                      <TableHead className="text-xs font-medium">Fecha</TableHead>
-                      <TableHead className="text-xs font-medium">Nro. Venta</TableHead>
-                      <TableHead className="text-xs font-medium">Cliente</TableHead>
-                      <TableHead className="text-xs font-medium">Método</TableHead>
-                      <TableHead className="text-xs font-medium">Modo</TableHead>
-                      <TableHead className="text-xs font-medium">Entrega</TableHead>
-                      <TableHead className="text-xs font-medium">Estado</TableHead>
-                      <TableHead className="text-xs font-medium text-right">Total</TableHead>
-                      <TableHead className="w-8" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredSales.map((sale) => {
-                      const status = statusConfig[sale.status] ?? { label: sale.status, className: 'bg-muted text-muted-foreground' }
-                      return (
-                        <TableRow
-                          key={sale.sale_id}
-                          className="border-border/40 hover:bg-primary/5 cursor-pointer transition-colors"
-                          onClick={() => { setSelectedSale(sale); setIsDetailOpen(true) }}
+                <>
+                  {paginatedSales.map((sale) => {
+                    const badge = getSaleBadge(sale)
+                    const isExpanded = expandedSaleId === sale.sale_id
+                    const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
+                    const saleNumber = resolveSaleNumber(sale.sale_id) ?? 'N0'
+                    const hasDeliveryPending = sale.delivery_status !== 'delivered'
+
+                    return (
+                      <div key={sale.sale_id} className="rounded-xl border border-border/60 bg-card overflow-hidden">
+                        <button
+                          type="button"
+                          className="w-full flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-primary/5 transition-colors cursor-pointer"
+                          onClick={() => setExpandedSaleId((prev) => prev === sale.sale_id ? null : sale.sale_id)}
+                          aria-expanded={isExpanded}
                         >
-                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(sale.created_at).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
-                          </TableCell>
-                          <TableCell className="text-xs font-mono text-muted-foreground">
-                            {resolveSaleNumber(sale.sale_id) ?? 'N0'}
-                          </TableCell>
-                          <TableCell className="text-sm">{sale.customer_name ?? 'Mostrador'}</TableCell>
-                          <TableCell className="text-sm">{paymentLabels[sale.payment_method] ?? sale.payment_method}</TableCell>
-                          <TableCell className="text-xs capitalize">{sale.sale_mode === 'advance' ? 'Adelantada' : 'Inmediata'}</TableCell>
-                          <TableCell className="text-xs">{deliveryLabels[sale.delivery_status] ?? sale.delivery_status}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`text-xs ${status.className}`}>
-                              {status.label}
+                          </span>
+                          <span className="text-xs font-mono text-muted-foreground">{saleNumber}</span>
+                          <span className="text-sm font-medium flex-1 min-w-[120px]">{sale.customer_name ?? 'Mostrador'}</span>
+                          <span className="text-xs text-muted-foreground">{paymentLabels[sale.payment_method] ?? sale.payment_method}</span>
+                          <Badge variant="outline" className={`text-xs ${badge.className}`}>{badge.label}</Badge>
+                          {hasDeliveryPending && (
+                            <Badge variant="outline" className="text-xs bg-sky-500/15 text-sky-400 border-sky-500/30">
+                              <Truck className="w-3 h-3 mr-1" />{deliveryLabels[sale.delivery_status] ?? sale.delivery_status}
                             </Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-sm">
+                          )}
+                          <span className="font-semibold text-sm text-primary ml-auto">
                             Bs {Number(sale.total_amount || 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell>
-                            <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                          </span>
+                          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {isExpanded && (
+                          <div className="border-t border-border/50 px-4 py-3 space-y-3 bg-muted/10">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
+                              <div><span className="font-medium text-foreground">Modo:</span> {sale.sale_mode === 'advance' ? 'Adelantada' : 'Inmediata'}</div>
+                              <div><span className="font-medium text-foreground">Entrega:</span> {deliveryLabels[sale.delivery_status] ?? sale.delivery_status}</div>
+                              <div><span className="font-medium text-foreground">Método:</span> {paymentLabels[sale.payment_method] ?? sale.payment_method}</div>
+                            </div>
+
+                            {sale.payment_method === 'credit' && (
+                              <div className="flex gap-3 text-xs rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                                <span className="font-medium text-amber-300">Crédito</span>
+                                <span className="text-amber-300">Total: Bs {Number(sale.total_amount || 0).toFixed(2)}</span>
+                                {Number(sale.pending_amount || 0) > 0 && (
+                                  <span className="text-rose-400">Saldo pendiente: Bs {Number(sale.pending_amount || 0).toFixed(2)}</span>
+                                )}
+                                {Number(sale.pending_amount || 0) === 0 && (
+                                  <span className="text-emerald-400">Pagado en su totalidad</span>
+                                )}
+                              </div>
+                            )}
+
+                            {sale.sale_mode === 'advance' && sale.payment_method !== 'credit' && (
+                              <div className="flex gap-3 text-xs">
+                                <span className="text-amber-400">Anticipo: Bs {Number(sale.advance_amount || 0).toFixed(2)}</span>
+                                <span className="text-rose-400">Pendiente: Bs {Number(sale.pending_amount || 0).toFixed(2)}</span>
+                              </div>
+                            )}
+
+                            <div className="rounded-lg border border-border/50 overflow-hidden">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow className="bg-muted/30 border-border/40">
+                                    <TableHead className="text-xs py-2">#</TableHead>
+                                    <TableHead className="text-xs py-2">Producto</TableHead>
+                                    <TableHead className="text-xs py-2 text-right">Cant.</TableHead>
+                                    <TableHead className="text-xs py-2 text-right">Entregado</TableHead>
+                                    <TableHead className="text-xs py-2 text-right">P.Unit</TableHead>
+                                    <TableHead className="text-xs py-2 text-right">Total</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {(sale.items || []).map((item, idx) => {
+                                    const delivered = Number(item.delivered_quantity || 0)
+                                    const total = Number(item.quantity || 0)
+                                    const isFullyDelivered = delivered >= total
+                                    return (
+                                      <TableRow key={item.id} className="border-border/40">
+                                        <TableCell className="text-xs py-2 text-muted-foreground">{idx + 1}</TableCell>
+                                        <TableCell className="text-sm py-2">{item.part_name}</TableCell>
+                                        <TableCell className="text-sm py-2 text-right">{total}</TableCell>
+                                        <TableCell className="text-sm py-2 text-right">
+                                          <span className={isFullyDelivered ? 'text-emerald-400' : 'text-amber-400'}>
+                                            {delivered}/{total}
+                                          </span>
+                                        </TableCell>
+                                        <TableCell className="text-sm py-2 text-right">Bs {Number(item.unit_price || 0).toFixed(2)}</TableCell>
+                                        <TableCell className="text-sm py-2 text-right font-medium">Bs {Number(item.line_total || 0).toFixed(2)}</TableCell>
+                                      </TableRow>
+                                    )
+                                  })}
+                                </TableBody>
+                              </Table>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    generateSaleInvoicePdf({
+                                      saleId: sale.sale_id,
+                                      saleNumber,
+                                      date: sale.created_at,
+                                      customer: sale.customer_name ?? 'Mostrador',
+                                      paymentMethod: paymentLabels[sale.payment_method] ?? sale.payment_method,
+                                      branchName,
+                                      items: (sale.items || []).map((item) => ({
+                                        code: '',
+                                        name: item.part_name,
+                                        quantity: Number(item.quantity),
+                                        unitPrice: Number(item.unit_price || 0),
+                                        lineTotal: Number(item.line_total || 0),
+                                      })),
+                                      total: Number(sale.total_amount || 0),
+                                      exchangeRate: getAppSettings().usd_to_bob_rate,
+                                    })
+                                  }}
+                                >
+                                  <Download className="mr-1 h-3 w-3" /> PDF
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    exportToExcel({
+                                      fileName: `recibo_${saleNumber}_${branchName.replace(/\s+/g, '_')}`,
+                                      headers: ['#', 'Codigo', 'Producto', 'Cant.', 'P. Unit.', 'Total'],
+                                      rows: (sale.items || []).map((item, index) => [
+                                        index + 1,
+                                        '',
+                                        item.part_name,
+                                        Number(item.quantity),
+                                        Number(item.unit_price || 0),
+                                        Number(item.line_total || 0),
+                                      ]),
+                                    })
+                                  }}
+                                >
+                                  <FileSpreadsheet className="mr-1 h-3 w-3" /> Excel
+                                </Button>
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {hasDeliveryPending && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10"
+                                    onClick={(e) => { e.stopPropagation(); openDeliveryDialog(sale) }}
+                                  >
+                                    <Truck className="mr-1 h-3 w-3" /> Registrar entrega
+                                  </Button>
+                                )}
+                                {activeRole === 'admin' && sale.status === 'completed' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-orange-500/40 text-orange-400 hover:bg-orange-500/10"
+                                    onClick={(e) => { e.stopPropagation(); openEditDialog(sale) }}
+                                  >
+                                    <Pencil className="mr-1 h-3 w-3" /> Editar venta
+                                  </Button>
+                                )}
+                                <p className="text-sm font-bold text-primary">
+                                  Total: Bs {Number(sale.total_amount || 0).toFixed(2)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {totalSalesPages > 1 && (
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); setSalesPage((p) => Math.max(1, p - 1)) }}
+                            aria-disabled={salesPage === 1}
+                            className={salesPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                          />
+                        </PaginationItem>
+                        {Array.from({ length: totalSalesPages }, (_, i) => i + 1).map((page) => (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              href="#"
+                              isActive={page === salesPage}
+                              onClick={(e) => { e.preventDefault(); setSalesPage(page) }}
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); setSalesPage((p) => Math.min(totalSalesPages, p + 1)) }}
+                            aria-disabled={salesPage === totalSalesPages}
+                            className={salesPage === totalSalesPages ? 'pointer-events-none opacity-50' : ''}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  )}
+                </>
               )}
-            </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="queue">
@@ -542,136 +858,249 @@ export default function POSSalesHistoryPage() {
         </Tabs>
       </div>
 
-      {/* Sale detail dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      {/* Delivery items dialog */}
+      <Dialog open={deliveryDialogSale !== null} onOpenChange={(open) => { if (!open) setDeliveryDialogSale(null) }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4" />
-              Detalle de venta
+              <Truck className="w-4 h-4 text-sky-400" />
+              Registrar entrega de ítems
             </DialogTitle>
           </DialogHeader>
 
-          {selectedSale && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                {[
-                  { label: 'Nro. Venta', value: resolveSaleNumber(selectedSale.sale_id) ?? 'N0' },
-                  { label: 'Fecha', value: new Date(selectedSale.created_at).toLocaleString('es-BO') },
-                  { label: 'Cliente', value: selectedSale.customer_name ?? 'Mostrador' },
-                  { label: 'Método', value: paymentLabels[selectedSale.payment_method] ?? selectedSale.payment_method },
-                  { label: 'Modo', value: selectedSale.sale_mode === 'advance' ? 'Adelantada' : 'Inmediata' },
-                  { label: 'Entrega', value: deliveryLabels[selectedSale.delivery_status] ?? selectedSale.delivery_status },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <p className="font-medium mt-0.5 break-all">{item.value}</p>
-                  </div>
-                ))}
-              </div>
+          {deliveryDialogSale && (() => {
+            const pendingItems = (deliveryDialogSale.items || []).filter(
+              (item: POSSaleItem) => Number(item.delivered_quantity || 0) < Number(item.quantity || 0),
+            )
 
-              {selectedSale.sale_mode === 'advance' && (
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">Anticipo</p>
-                    <p className="font-medium text-amber-400">Bs {Number(selectedSale.advance_amount || 0).toFixed(2)}</p>
-                  </div>
-                  <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">Saldo pendiente</p>
-                    <p className="font-medium text-rose-400">Bs {Number(selectedSale.pending_amount || 0).toFixed(2)}</p>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Ítems</p>
-                <div className="rounded-lg border border-border/50 overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/20 border-border/40">
-                        <TableHead className="text-xs">Producto</TableHead>
-                        <TableHead className="text-xs text-right">Cant.</TableHead>
-                        <TableHead className="text-xs text-right">P.Unit</TableHead>
-                        <TableHead className="text-xs text-right">Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(selectedSale.items || []).map((item) => (
-                        <TableRow key={item.id} className="border-border/40">
-                          <TableCell className="text-sm">{item.part_name}</TableCell>
-                          <TableCell className="text-sm text-right">{item.quantity}</TableCell>
-                          <TableCell className="text-sm text-right">Bs {Number(item.unit_price || 0).toFixed(2)}</TableCell>
-                          <TableCell className="text-sm text-right font-medium">Bs {Number(item.line_total || 0).toFixed(2)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-border/50 bg-primary/5 px-4 py-3">
-                <p className="font-medium">Total</p>
-                <p className="text-xl font-bold text-primary">
-                  Bs {Number(selectedSale.total_amount || 0).toFixed(2)}
+            return (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Cliente: <span className="text-foreground font-medium">{deliveryDialogSale.customer_name ?? 'Mostrador'}</span>
                 </p>
-              </div>
 
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!selectedSale) return
-                    const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
-                    const saleNumber = resolveSaleNumber(selectedSale.sale_id) ?? undefined
-                    generateSaleInvoicePdf({
-                      saleId: selectedSale.sale_id,
-                      saleNumber,
-                      date: selectedSale.created_at,
-                      customer: selectedSale.customer_name ?? 'Mostrador',
-                      paymentMethod: paymentLabels[selectedSale.payment_method] ?? selectedSale.payment_method,
-                      branchName,
-                      items: (selectedSale.items || []).map((item) => ({
-                        code: '',
-                        name: item.part_name,
-                        quantity: Number(item.quantity),
-                        unitPrice: Number(item.unit_price || 0),
-                        lineTotal: Number(item.line_total || 0),
-                      })),
-                      total: Number(selectedSale.total_amount || 0),
-                      exchangeRate: getAppSettings().usd_to_bob_rate,
-                    })
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" /> Recibo PDF
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!selectedSale) return
-                    const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
-                    const saleNumber = resolveSaleNumber(selectedSale.sale_id) ?? selectedSale.sale_id
-                    exportToExcel({
-                      fileName: `recibo_${saleNumber}_${branchName.replace(/\s+/g, '_')}`,
-                      headers: ['#', 'Codigo', 'Producto', 'Cant.', 'P. Unit.', 'Total'],
-                      rows: (selectedSale.items || []).map((item, index) => [
-                        index + 1,
-                        '',
-                        item.part_name,
-                        Number(item.quantity),
-                        Number(item.unit_price || 0),
-                        Number(item.line_total || 0),
-                      ]),
-                    })
-                  }}
-                >
-                  <FileSpreadsheet className="mr-2 h-4 w-4" /> Recibo Excel
-                </Button>
-                <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Cerrar</Button>
+                {pendingItems.length === 0 ? (
+                  <p className="text-sm text-emerald-400 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                    Todos los ítems de esta venta ya fueron entregados.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                      Ítems pendientes de entrega — ingresa la cantidad a entregar ahora:
+                    </p>
+                    {pendingItems.map((item: POSSaleItem) => {
+                      const remaining = Number(item.quantity) - Number(item.delivered_quantity || 0)
+                      return (
+                        <div key={item.id} className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{item.part_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Pendiente: {remaining} de {Number(item.quantity)} — Ya entregado: {Number(item.delivered_quantity || 0)}
+                            </p>
+                          </div>
+                          <div className="shrink-0 w-24">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={remaining}
+                              value={deliveryQtys[item.id] ?? '0'}
+                              onChange={(e) => {
+                                const val = Math.min(Number(e.target.value), remaining)
+                                setDeliveryQtys((prev) => ({ ...prev, [item.id]: String(Math.max(0, val)) }))
+                              }}
+                              className="h-8 text-center"
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Notas de entrega (opcional)</label>
+                      <Input
+                        placeholder="Observaciones..."
+                        value={deliveryNotes}
+                        onChange={(e) => setDeliveryNotes(e.target.value)}
+                      />
+                    </div>
+
+                    {deliveryFeedback && (
+                      <p className="text-sm text-rose-400 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3">
+                        {deliveryFeedback}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDeliveryDialogSale(null)}>Cancelar</Button>
+                  {pendingItems.length > 0 && (
+                    <Button
+                      onClick={() => void submitDelivery()}
+                      disabled={isSubmittingDelivery}
+                      className="bg-sky-600 hover:bg-sky-700 text-white"
+                    >
+                      <Truck className="mr-2 h-4 w-4" />
+                      {isSubmittingDelivery ? 'Registrando...' : 'Confirmar entrega'}
+                    </Button>
+                  )}
+                </DialogFooter>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </DialogContent>
       </Dialog>
+
+      {/* Edit sale dialog — admin only */}
+      <Dialog open={editDialogSale !== null} onOpenChange={(open) => { if (!open) setEditDialogSale(null) }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-4 h-4 text-orange-400" />
+              Editar venta {editDialogSale ? (resolveSaleNumber(editDialogSale.sale_id) ?? '') : ''}
+            </DialogTitle>
+          </DialogHeader>
+
+          {editDialogSale && (() => {
+            const sale = editDialogSale
+            return (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-xs space-y-1">
+                  <p><span className="text-muted-foreground">Cliente:</span> <span className="font-medium">{sale.customer_name ?? 'Mostrador'}</span></p>
+                  <p><span className="text-muted-foreground">Fecha:</span> {new Date(sale.created_at).toLocaleString('es-BO', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                  <p><span className="text-muted-foreground">Total:</span> <span className="font-semibold text-primary">Bs {Number(sale.total_amount || 0).toFixed(2)}</span></p>
+                </div>
+
+                {/* Section toggle */}
+                <div className="flex rounded-lg border border-border/60 overflow-hidden">
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${editSection === 'return' ? 'bg-primary/10 text-primary border-r border-border/60' : 'text-muted-foreground hover:bg-muted/30 border-r border-border/60'}`}
+                    onClick={() => { setEditSection('return'); setEditFeedback(null) }}
+                  >
+                    Registrar devolución
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${editSection === 'void' ? 'bg-rose-500/10 text-rose-400' : 'text-muted-foreground hover:bg-muted/30'}`}
+                    onClick={() => { setEditSection('void'); setEditFeedback(null) }}
+                  >
+                    Anular venta
+                  </button>
+                </div>
+
+                {editSection === 'return' && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted-foreground">Marca los productos a devolver e ingresa la cantidad.</p>
+                    {(sale.items || []).map((item) => {
+                      const isChecked = editReturnChecked.has(item.id)
+                      const qty = editReturnQtys[item.id] ?? String(item.quantity)
+                      return (
+                        <label
+                          key={item.id}
+                          className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${isChecked ? 'border-primary/40 bg-primary/5' : 'border-border/60 bg-muted/20 hover:border-border'}`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 shrink-0"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              setEditReturnChecked((prev) => {
+                                const next = new Set(prev)
+                                if (e.target.checked) next.add(item.id)
+                                else next.delete(item.id)
+                                return next
+                              })
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{item.part_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Qty: {Number(item.quantity)} · Bs {Number(item.unit_price || 0).toFixed(2)} c/u
+                            </p>
+                          </div>
+                          <div className="shrink-0 flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Cant.:</span>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={Number(item.quantity)}
+                              value={qty}
+                              disabled={!isChecked}
+                              className="w-20 h-8 text-center"
+                              onClick={(e) => e.preventDefault()}
+                              onChange={(e) => setEditReturnQtys((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            />
+                          </div>
+                        </label>
+                      )
+                    })}
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Motivo de devolución <span className="text-rose-400">*</span>
+                      </label>
+                      <Input
+                        placeholder="Motivo (requerido)"
+                        value={editReturnReason}
+                        onChange={(e) => setEditReturnReason(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {editSection === 'void' && (
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-300">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                      <p>Anular la venta revierte el movimiento de caja e inventario. Esta acción no se puede deshacer.</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Motivo de anulación <span className="text-rose-400">*</span>
+                      </label>
+                      <Input
+                        placeholder="Motivo (requerido)"
+                        value={editVoidReason}
+                        onChange={(e) => setEditVoidReason(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {editFeedback && (
+                  <p className="text-sm text-rose-400 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3">
+                    {editFeedback}
+                  </p>
+                )}
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setEditDialogSale(null)} disabled={isSubmittingEdit}>
+                    Cancelar
+                  </Button>
+                  {editSection === 'return' ? (
+                    <Button
+                      onClick={() => void submitReturnFromEdit()}
+                      disabled={isSubmittingEdit || editReturnChecked.size === 0}
+                    >
+                      {isSubmittingEdit ? 'Registrando...' : 'Registrar devolución'}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      onClick={() => void submitVoidSale()}
+                      disabled={isSubmittingEdit || !editVoidReason.trim()}
+                    >
+                      {isSubmittingEdit ? 'Anulando...' : 'Confirmar anulación'}
+                    </Button>
+                  )}
+                </DialogFooter>
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
+
     </MainLayout>
   )
 }

@@ -47,6 +47,8 @@ import {
 import type { InventoryCategory, Part, ProductPriceTier } from '@/types/database'
 import { generateInventoryPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
+import { SearchableStringPick } from '@/components/modules/inventory/part-combobox'
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 
 interface BranchOption {
   id: string
@@ -376,6 +378,7 @@ export default function InventoryProductsPage() {
   const [inventoryReportVariant, setInventoryReportVariant] = useState<'detailed' | 'stock-check'>('detailed')
   const [viewMode, setViewMode] = useState<'cards' | 'rows'>('cards')
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
+  const [productsPage, setProductsPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -490,6 +493,7 @@ export default function InventoryProductsPage() {
   }, [categories, parts])
 
   const filteredParts = useMemo(() => {
+    setProductsPage(1)
     return parts.filter((part) => {
       const byTerm =
         part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -501,7 +505,15 @@ export default function InventoryProductsPage() {
 
       return byTerm && byCategory && byMin && byMax
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parts, searchTerm, selectedCategory, minPrice, maxPrice])
+
+  const PRODUCTS_PER_PAGE = 12
+  const totalProductPages = Math.max(1, Math.ceil(filteredParts.length / PRODUCTS_PER_PAGE))
+  const paginatedParts = useMemo(() => {
+    const start = (productsPage - 1) * PRODUCTS_PER_PAGE
+    return filteredParts.slice(start, start + PRODUCTS_PER_PAGE)
+  }, [filteredParts, productsPage])
 
   const selectedStock = useMemo(() => {
     if (!selectedProduct) return 0
@@ -696,7 +708,9 @@ export default function InventoryProductsPage() {
       setIsDeleteProductOpen(false)
       setDeleteProductTarget(null)
       setIsDetailOpen(false)
+      setIsEditOpen(false)
       setSelectedProduct(null)
+      setEditingProductId(null)
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'No se pudo eliminar el producto')
     } finally {
@@ -1353,17 +1367,16 @@ export default function InventoryProductsPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Categoría</label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas las categorías</SelectItem>
-                    {categoryOptions.map((cat) => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableStringPick
+                  value={selectedCategory}
+                  onValueChange={setSelectedCategory}
+                  options={[
+                    { value: 'all', label: 'Todas las categorías' },
+                    ...categoryOptions.map((cat) => ({ value: cat, label: cat })),
+                  ]}
+                  placeholder="Todas las categorías"
+                  searchPlaceholder="Buscar categoría..."
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Precio mínimo</label>
@@ -1446,28 +1459,15 @@ export default function InventoryProductsPage() {
 
                 <div className="flex justify-end gap-2">
                   {canModify ? (
-                    <>
-                      <Button
-                        variant="destructive"
-                        onClick={() => {
-                          if (selectedProduct) {
-                            openDeleteProduct(selectedProduct)
-                          }
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Eliminar
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          if (selectedProduct) {
-                            openEditProduct(selectedProduct)
-                          }
-                        }}
-                      >
-                        Editar producto
-                      </Button>
-                    </>
+                    <Button
+                      onClick={() => {
+                        if (selectedProduct) {
+                          openEditProduct(selectedProduct)
+                        }
+                      }}
+                    >
+                      Editar producto
+                    </Button>
                   ) : null}
                   <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Cerrar</Button>
                 </div>
@@ -1643,18 +1643,33 @@ export default function InventoryProductsPage() {
               </CardContent>
             </Card>
 
-            <div className="flex justify-end gap-2">
-              <Button variant="destructive" onClick={() => setIsEditOpen(false)}>Cancelar</Button>
-              <Button onClick={() => void saveEditedProduct()} disabled={isSaving}>
-                {isSaving ? 'Guardando...' : 'Guardar cambios'}
-              </Button>
+            <div className="flex items-center justify-between gap-2">
+              {canModify ? (
+                <Button
+                  variant="destructive"
+                  disabled={isSaving}
+                  onClick={() => {
+                    const part = parts.find((p) => p.id === editingProductId)
+                    if (part) openDeleteProduct(part)
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Eliminar producto
+                </Button>
+              ) : <span />}
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancelar</Button>
+                <Button onClick={() => void saveEditedProduct()} disabled={isSaving}>
+                  {isSaving ? 'Guardando...' : 'Guardar cambios'}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
 
         {viewMode === 'cards' ? (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-            {filteredParts.map((part) => {
+            {paginatedParts.map((part) => {
               const branchName = branches.find((branch) => branch.id === part.branch_id)?.name ?? part.branch_id
               const tiers = [...(part.price_tiers || [])]
                 .filter((tier) => tier.min_quantity > 1)
@@ -1735,20 +1750,6 @@ export default function InventoryProductsPage() {
                         <Boxes className="w-4 h-4 mr-2" />
                         Ver detalle
                       </Button>
-                      {canModify ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-9 w-9 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 hover:border-red-500/30"
-                          title="Eliminar producto"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openDeleteProduct(part)
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      ) : null}
                     </div>
                   </div>
                 </article>
@@ -1757,7 +1758,7 @@ export default function InventoryProductsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredParts.map((part) => {
+            {paginatedParts.map((part) => {
               const branchName = branches.find((branch) => branch.id === part.branch_id)?.name ?? part.branch_id
               const tiers = [...(part.price_tiers || [])]
                 .filter((tier) => tier.min_quantity > 1)
@@ -1872,18 +1873,6 @@ export default function InventoryProductsPage() {
                           <Boxes className="w-4 h-4 mr-2" />
                           Ver detalle
                         </Button>
-                        {canModify ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-500 hover:text-red-600 hover:bg-red-500/10 hover:border-red-500/30"
-                            title="Eliminar producto"
-                            onClick={() => openDeleteProduct(part)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Eliminar
-                          </Button>
-                        ) : null}
                       </div>
                     </div>
                   ) : null}
@@ -1891,6 +1880,41 @@ export default function InventoryProductsPage() {
               )
             })}
           </div>
+        )}
+
+        {/* Pagination */}
+        {totalProductPages > 1 && (
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setProductsPage((p) => Math.max(1, p - 1)) }}
+                  aria-disabled={productsPage === 1}
+                  className={productsPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalProductPages }, (_, i) => i + 1).map((page) => (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === productsPage}
+                    onClick={(e) => { e.preventDefault(); setProductsPage(page) }}
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setProductsPage((p) => Math.min(totalProductPages, p + 1)) }}
+                  aria-disabled={productsPage === totalProductPages}
+                  className={productsPage === totalProductPages ? 'pointer-events-none opacity-50' : ''}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         )}
 
         {/* Delete Product Confirmation */}
@@ -1903,8 +1927,7 @@ export default function InventoryProductsPage() {
                 desactivado. No se eliminará permanentemente y podrá ser restaurado por un administrador.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isSaving}>Cancelar</AlertDialogCancel>
+            <AlertDialogFooter className="sm:justify-between">
               <AlertDialogAction
                 onClick={() => void handleDeleteProduct()}
                 disabled={isSaving}
@@ -1912,6 +1935,7 @@ export default function InventoryProductsPage() {
               >
                 {isSaving ? 'Eliminando...' : 'Eliminar producto'}
               </AlertDialogAction>
+              <AlertDialogCancel disabled={isSaving}>Cancelar</AlertDialogCancel>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

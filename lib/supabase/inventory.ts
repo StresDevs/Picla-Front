@@ -417,8 +417,8 @@ export const partsService = {
       p_quotation_max_price: part.quotation_max_price ?? null,
       p_tracking_mode: part.tracking_mode || 'none',
       p_requires_serialization: part.requires_serialization ?? (part.tracking_mode === 'serial'),
-      p_initial_quantity: part.initial_quantity ?? 0,
-      p_min_quantity: part.min_quantity ?? 0,
+      p_initial_quantity: part.initial_quantity !== undefined ? part.initial_quantity : null,
+      p_min_quantity: part.min_quantity !== undefined ? part.min_quantity : null,
       p_price_tiers: buildTiersPayload(part.price_tiers, part.price),
     })
 
