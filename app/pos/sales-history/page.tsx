@@ -15,7 +15,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { posService, type POSQueuedSale, type POSSaleRecord, type POSSaleItem } from '@/lib/supabase/pos'
-import { ShoppingCart, ChevronDown, FileSearch, Download, FileSpreadsheet, Truck, Pencil, AlertTriangle } from 'lucide-react'
+import { ShoppingCart, ChevronDown, FileSearch, Download, FileSpreadsheet, Truck, Pencil, AlertTriangle, HandCoins } from 'lucide-react'
+
+interface SaleCreditInfo {
+  credit_id: string
+  total_amount: number
+  paid_amount: number
+  balance: number
+  status: 'active' | 'overdue' | 'paid'
+  due_date: string
+  seller_name: string
+  notes: string | null
+}
 import { generateSaleInvoicePdf, generateCashSessionPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
 import { getAppSettings } from '@/lib/mock/runtime-store'
@@ -80,6 +91,8 @@ export default function POSSalesHistoryPage() {
   const [isSubmittingDelivery, setIsSubmittingDelivery] = useState(false)
   const [deliveryFeedback, setDeliveryFeedback] = useState<string | null>(null)
 
+  const [creditMap, setCreditMap] = useState<Map<string, SaleCreditInfo>>(new Map())
+
   const [editDialogSale, setEditDialogSale] = useState<POSSaleRecord | null>(null)
   const [editSection, setEditSection] = useState<'return' | 'void'>('return')
   const [editReturnChecked, setEditReturnChecked] = useState<Set<string>>(new Set())
@@ -100,6 +113,34 @@ export default function POSSalesHistoryPage() {
       ])
       setSales(salesData)
       setQueuedSales(queueData)
+
+      // Load credit info for sales that have a credit record
+      if (salesData.length > 0) {
+        const supabase = getSupabaseClient()
+        const saleIds = salesData.map((s) => s.sale_id)
+        const { data: creditsData } = await supabase
+          .from('credits')
+          .select('id, sale_id, total_amount, paid_amount, balance, status, due_date, seller_name, notes')
+          .in('sale_id', saleIds)
+        if (creditsData && creditsData.length > 0) {
+          const map = new Map<string, SaleCreditInfo>()
+          for (const c of creditsData) {
+            map.set(c.sale_id as string, {
+              credit_id: c.id as string,
+              total_amount: Number(c.total_amount),
+              paid_amount: Number(c.paid_amount),
+              balance: Number(c.balance),
+              status: c.status as SaleCreditInfo['status'],
+              due_date: c.due_date as string,
+              seller_name: c.seller_name as string,
+              notes: c.notes as string | null,
+            })
+          }
+          setCreditMap(map)
+        } else {
+          setCreditMap(new Map())
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el historial')
     } finally {
@@ -340,10 +381,13 @@ export default function POSSalesHistoryPage() {
   }
 
   const getSaleBadge = (sale: POSSaleRecord) => {
-    if (sale.payment_method === 'credit') {
-      const isPaid = Number(sale.pending_amount || 0) === 0
-      if (isPaid) {
+    const credit = creditMap.get(sale.sale_id)
+    if (credit) {
+      if (credit.status === 'paid') {
         return { label: 'Crédito pagado', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' }
+      }
+      if (credit.status === 'overdue') {
+        return { label: 'Crédito vencido', className: 'bg-rose-500/15 text-rose-400 border-rose-500/30' }
       }
       return { label: 'A crédito', className: 'bg-amber-500/15 text-amber-400 border-amber-500/30' }
     }
@@ -620,18 +664,59 @@ export default function POSSalesHistoryPage() {
                               <div><span className="font-medium text-foreground">Método:</span> {paymentLabels[sale.payment_method] ?? sale.payment_method}</div>
                             </div>
 
-                            {sale.payment_method === 'credit' && (
-                              <div className="flex gap-3 text-xs rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-                                <span className="font-medium text-amber-300">Crédito</span>
-                                <span className="text-amber-300">Total: Bs {Number(sale.total_amount || 0).toFixed(2)}</span>
-                                {Number(sale.pending_amount || 0) > 0 && (
-                                  <span className="text-rose-400">Saldo pendiente: Bs {Number(sale.pending_amount || 0).toFixed(2)}</span>
-                                )}
-                                {Number(sale.pending_amount || 0) === 0 && (
-                                  <span className="text-emerald-400">Pagado en su totalidad</span>
-                                )}
-                              </div>
-                            )}
+                            {creditMap.has(sale.sale_id) && (() => {
+                              const credit = creditMap.get(sale.sale_id)!
+                              const isPaid = credit.status === 'paid'
+                              const isOverdue = credit.status === 'overdue'
+                              const borderClass = isPaid
+                                ? 'border-emerald-500/30 bg-emerald-500/8'
+                                : isOverdue
+                                ? 'border-rose-500/30 bg-rose-500/8'
+                                : 'border-amber-500/30 bg-amber-500/8'
+                              const titleClass = isPaid ? 'text-emerald-300' : isOverdue ? 'text-rose-300' : 'text-amber-300'
+                              return (
+                                <div className={`rounded-lg border ${borderClass} px-3 py-2.5 text-xs space-y-2`}>
+                                  <div className="flex items-center gap-2">
+                                    <HandCoins className={`h-3.5 w-3.5 ${titleClass}`} />
+                                    <span className={`font-semibold ${titleClass}`}>
+                                      {isPaid ? 'Crédito pagado en su totalidad' : isOverdue ? 'Crédito vencido' : 'Venta a crédito'}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-muted-foreground">
+                                    <div>
+                                      <span className="font-medium text-foreground">Total crédito:</span>{' '}
+                                      Bs {credit.total_amount.toFixed(2)}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium text-foreground">Pagado:</span>{' '}
+                                      <span className="text-emerald-400">Bs {credit.paid_amount.toFixed(2)}</span>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium text-foreground">Saldo:</span>{' '}
+                                      <span className={credit.balance > 0 ? 'text-rose-400' : 'text-emerald-400'}>
+                                        Bs {credit.balance.toFixed(2)}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium text-foreground">Vencimiento:</span>{' '}
+                                      <span className={isOverdue ? 'text-rose-400' : ''}>
+                                        {new Date(credit.due_date).toLocaleDateString('es-BO')}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium text-foreground">Vendedor:</span>{' '}
+                                      {credit.seller_name}
+                                    </div>
+                                    {credit.notes && (
+                                      <div className="sm:col-span-3">
+                                        <span className="font-medium text-foreground">Notas:</span>{' '}
+                                        {credit.notes}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })()}
 
                             {sale.sale_mode === 'advance' && sale.payment_method !== 'credit' && (
                               <div className="flex gap-3 text-xs">
