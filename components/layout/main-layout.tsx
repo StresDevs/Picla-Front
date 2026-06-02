@@ -20,14 +20,14 @@ export function MainLayout({
 
   useEffect(() => {
     const basicInventoryRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
-    const managerEmployeeRestrictedModules = ['/management', '/reports', '/audit', '/settings']
+    const managerEmployeeRestrictedRoutes = ['/management', '/reports', '/audit', '/settings', '/pos/void-sales']
 
     const enforceRouteAccess = () => {
       const context = getActiveUserContext()
 
       if (context.role === 'manager' || context.role === 'employee') {
-        if (managerEmployeeRestrictedModules.some((r) => pathname.startsWith(r))) {
-          router.replace('/dashboard')
+        if (pathname === '/dashboard' || managerEmployeeRestrictedRoutes.some((r) => pathname.startsWith(r))) {
+          router.replace('/inventory/products')
           return
         }
         if (pathname.startsWith('/inventory') && pathname !== '/inventory/products') {
@@ -38,6 +38,10 @@ export function MainLayout({
       }
 
       if (context.role === 'read_only') {
+        if (pathname === '/dashboard') {
+          router.replace('/pos/sales')
+          return
+        }
         if (!basicInventoryRoutes.has(pathname) && pathname.startsWith('/inventory')) {
           router.replace('/inventory/products')
         }

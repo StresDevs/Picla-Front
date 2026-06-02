@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getCurrentSession } from '@/lib/supabase/auth'
+import { getActiveUserContext } from '@/lib/mock/runtime-store'
 
 export default function Home() {
   const router = useRouter()
@@ -10,7 +11,18 @@ export default function Home() {
   useEffect(() => {
     const checkSession = async () => {
       const session = await getCurrentSession()
-      router.replace(session ? '/dashboard' : '/login')
+      if (!session) {
+        router.replace('/login')
+        return
+      }
+      const { role } = getActiveUserContext()
+      if (role === 'manager' || role === 'employee') {
+        router.replace('/inventory/products')
+      } else if (role === 'read_only') {
+        router.replace('/pos/sales')
+      } else {
+        router.replace('/dashboard')
+      }
     }
 
     void checkSession()

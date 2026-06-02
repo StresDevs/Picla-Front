@@ -375,7 +375,10 @@ export default function InventoryProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
-  const [inventoryReportVariant, setInventoryReportVariant] = useState<'detailed' | 'stock-check'>('detailed')
+  const [inventoryReportVariant, setInventoryReportVariant] = useState<'detailed' | 'stock-check' | 'sale-price'>(() => {
+    const role = getActiveUserContext().role
+    return role === 'admin' ? 'detailed' : 'sale-price'
+  })
   const [viewMode, setViewMode] = useState<'cards' | 'rows'>('cards')
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
   const [productsPage, setProductsPage] = useState(1)
@@ -1279,10 +1282,13 @@ export default function InventoryProductsPage() {
         <InventorySubnav />
 
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Select value={inventoryReportVariant} onValueChange={(value: 'detailed' | 'stock-check') => setInventoryReportVariant(value)}>
+          <Select value={inventoryReportVariant} onValueChange={(value: 'detailed' | 'stock-check' | 'sale-price') => setInventoryReportVariant(value)}>
             <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="detailed">Reporte con precios</SelectItem>
+              {canSeePurchasePrice && (
+                <SelectItem value="detailed">Reporte con precios</SelectItem>
+              )}
+              <SelectItem value="sale-price">Reporte precio de venta</SelectItem>
               <SelectItem value="stock-check">Reporte control (sin precios)</SelectItem>
             </SelectContent>
           </Select>
@@ -1329,6 +1335,21 @@ export default function InventoryProductsPage() {
                   fileName: `inventario_control_${branchName.replace(/\s+/g, '_')}`,
                   headers: ['Sucursal', 'Codigo producto', 'Nombre producto', 'Stock'],
                   rows: rows.map((r) => [r.branch || branchName, r.code, r.name, r.stock]),
+                })
+                return
+              }
+              if (inventoryReportVariant === 'sale-price') {
+                exportToExcel({
+                  fileName: `inventario_${branchName.replace(/\s+/g, '_')}`,
+                  headers: ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio venta'],
+                  rows: rows.map((r, index) => [
+                    index + 1,
+                    r.code,
+                    r.stock,
+                    r.name,
+                    r.category || '-',
+                    r.price ?? 0,
+                  ]),
                 })
                 return
               }

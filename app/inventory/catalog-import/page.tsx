@@ -107,6 +107,8 @@ export default function InventoryCatalogImportPage() {
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [importWithStock, setImportWithStock] = useState(false)
+  const [isImportingImages, setIsImportingImages] = useState(false)
+  const [imageFeedback, setImageFeedback] = useState<string | null>(null)
 
   useEffect(() => {
     const syncContext = () => {
@@ -275,6 +277,66 @@ export default function InventoryCatalogImportPage() {
     }
   }
 
+  const importImagesAcrossBranches = async () => {
+    if (activeRole !== 'admin') {
+      setImageFeedback('Solo admin puede importar imágenes.')
+      return
+    }
+    if (!importFromBranch) {
+      setImageFeedback('Selecciona una sucursal origen.')
+      return
+    }
+
+    setIsImportingImages(true)
+    setImageFeedback(null)
+    setError(null)
+
+    try {
+      const sourceProducts = await partsService.getAll(importFromBranch)
+      const sourceWithImages = sourceProducts.filter((p) => p.image_url)
+
+      if (sourceWithImages.length === 0) {
+        setImageFeedback('La sucursal origen no tiene productos con imágenes.')
+        return
+      }
+
+      const sourceByName = new Map<string, string>()
+      for (const p of sourceWithImages) {
+        sourceByName.set(p.name.trim().toLowerCase(), p.image_url!)
+      }
+
+      const otherBranches = branches.filter((b) => b.id !== importFromBranch)
+      let updatedCount = 0
+      let branchesAffected = 0
+
+      for (const branch of otherBranches) {
+        const targetProducts = await partsService.getAll(branch.id)
+        const toUpdate = targetProducts.filter((p) => {
+          const matchUrl = sourceByName.get(p.name.trim().toLowerCase())
+          return matchUrl !== undefined && p.image_url !== matchUrl
+        })
+
+        for (const p of toUpdate) {
+          const imageUrl = sourceByName.get(p.name.trim().toLowerCase())!
+          await partsService.updateImageUrl(p.id, imageUrl)
+          updatedCount++
+        }
+
+        if (toUpdate.length > 0) branchesAffected++
+      }
+
+      setImageFeedback(
+        updatedCount > 0
+          ? `Importación de imágenes completada: ${updatedCount} productos actualizados en ${branchesAffected} sucursal${branchesAffected !== 1 ? 'es' : ''}.`
+          : 'No se encontraron productos coincidentes por nombre en otras sucursales que necesiten actualizar imagen.',
+      )
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : 'No se pudo importar imágenes')
+    } finally {
+      setIsImportingImages(false)
+    }
+  }
+
   const filteredImportRows = useMemo(() => {
     const term = importSearch.trim().toLowerCase()
     if (!term) return importRows
@@ -364,10 +426,13 @@ export default function InventoryCatalogImportPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Acciones</label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={applyPercentageToAllImportRows} disabled={activeRole !== 'admin' || importRows.length === 0}>Aplicar %</Button>
                   <Button onClick={() => void importCatalog()} disabled={activeRole !== 'admin' || isImporting || importRows.length === 0 || isLoading}>
-                    {isImporting ? 'Importando...' : 'Importar'}
+                    {isImporting ? 'Importando...' : 'Importar catálogo'}
+                  </Button>
+                  <Button variant="outline" onClick={() => void importImagesAcrossBranches()} disabled={activeRole !== 'admin' || isImportingImages || !importFromBranch}>
+                    {isImportingImages ? 'Importando imágenes...' : 'Solo importar imágenes'}
                   </Button>
                 </div>
               </div>
@@ -401,6 +466,11 @@ export default function InventoryCatalogImportPage() {
             {feedback ? (
               <div className="rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-sm">
                 {feedback}
+              </div>
+            ) : null}
+            {imageFeedback ? (
+              <div className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-sm text-sky-700 dark:text-sky-300">
+                {imageFeedback}
               </div>
             ) : null}
 

@@ -40,6 +40,7 @@ interface CartItem {
   name: string
   quantity: number
   unit_price: number
+  base_price: number
 }
 
 interface NewCustomerForm {
@@ -341,6 +342,7 @@ export default function POSSalesPage() {
           name: product.name,
           quantity: 1,
           unit_price: Number(product.price || 0),
+          base_price: Number(product.price || 0),
         },
       ]
     })
@@ -368,7 +370,15 @@ export default function POSSalesPage() {
     if (!Number.isFinite(price) || price < 0) return
 
     setCart((prev) =>
-      prev.map((item) => (item.part_id === partId ? { ...item, unit_price: Number(price.toFixed(2)) } : item)),
+      prev.map((item) => {
+        if (item.part_id !== partId) return item
+        let resolvedPrice = Number(price.toFixed(2))
+        if (activeRole === 'manager') {
+          const floor = Number((item.base_price * 0.9).toFixed(2))
+          if (resolvedPrice < floor) resolvedPrice = floor
+        }
+        return { ...item, unit_price: resolvedPrice }
+      }),
     )
   }
 
@@ -599,6 +609,15 @@ export default function POSSalesPage() {
           customer_nit_ci: selectedCustomer?.nit_ci ?? null,
           customer_is_anonymous: anonymousSale,
           payment_type: isCreditSale ? 'credit' : selectedPayment,
+          ...(cart.some((item) => item.unit_price < item.base_price) && {
+            price_discounts: cart
+              .filter((item) => item.unit_price < item.base_price)
+              .map((item) => {
+                const pct = (((item.base_price - item.unit_price) / item.base_price) * 100).toFixed(1)
+                return `${item.name}: Bs ${item.base_price.toFixed(2)} → Bs ${item.unit_price.toFixed(2)} (-${pct}%)`
+              })
+              .join('; '),
+          }),
         },
       })
 
@@ -779,7 +798,7 @@ export default function POSSalesPage() {
             <div className="flex items-center gap-3">
               <ShieldCheck className={`h-5 w-5 ${canCompleteSale ? 'text-emerald-500' : canQueueSale ? 'text-amber-500' : 'text-muted-foreground'}`} />
               <div>
-                <p className="text-sm font-semibold">Rol activo: {activeRole}</p>
+                <p className="text-sm font-semibold">Rol activo: {activeRole === 'admin' ? 'Administrador' : activeRole === 'manager' ? 'Encargado' : activeRole === 'employee' ? 'Empleado' : 'Solo lectura'}</p>
                 <p className="text-xs text-muted-foreground">
                   {canCompleteSale
                     ? 'Puede completar ventas y aprobar cola.'
@@ -1481,12 +1500,17 @@ export default function POSSalesPage() {
                               <Input type="number" min={1} value={item.quantity} onChange={(event) => updateCartQuantity(item.part_id, event.target.value)} />
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Precio unitario</p>
+                              <p className="text-xs text-muted-foreground">
+                                Precio unitario
+                                {activeRole === 'manager' && (
+                                  <span className="ml-1 text-muted-foreground">(mín Bs {(item.base_price * 0.9).toFixed(2)})</span>
+                                )}
+                              </p>
                               {canCompleteSale ? (
                                 <Input
                                   type="number"
                                   step="0.01"
-                                  min={0}
+                                  min={activeRole === 'manager' ? item.base_price * 0.9 : 0}
                                   value={item.unit_price}
                                   onChange={(event) => updateCartPrice(item.part_id, event.target.value)}
                                   onBlur={(event) => updateCartPrice(item.part_id, event.target.value)}
@@ -1499,6 +1523,11 @@ export default function POSSalesPage() {
                               <span>Producto: {item.code}</span>
                               <span>Subtotal: Bs {(item.quantity * item.unit_price).toFixed(2)}</span>
                             </div>
+                            {item.unit_price < item.base_price && (
+                              <div className="col-span-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+                                Rebaja aplicada: -{(((item.base_price - item.unit_price) / item.base_price) * 100).toFixed(1)}% — se registrará en la observación de la venta
+                              </div>
+                            )}
                           </div>
                         ) : null}
                       </div>

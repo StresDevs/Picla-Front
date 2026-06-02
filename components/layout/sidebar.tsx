@@ -284,11 +284,6 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
     if (activeRole === 'read_only') {
       return [
         {
-          label: 'Panel principal',
-          href: '/dashboard',
-          icon: BarChart3,
-        },
-        {
           label: 'Punto de Venta',
           href: '/pos/sales',
           icon: ShoppingCart,
@@ -311,7 +306,7 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
     }
 
     if (activeRole === 'manager' || activeRole === 'employee') {
-      const hiddenModules = new Set(['Gestión', 'Reportes', 'Auditoría', 'Configuración'])
+      const hiddenModules = new Set(['Panel principal', 'Gestión', 'Reportes', 'Auditoría', 'Configuración'])
       return menuItems
         .filter((item) => !hiddenModules.has(item.label))
         .map((item) => {
@@ -320,6 +315,12 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
               ...item,
               href: '/inventory/products',
               subItems: [{ label: 'Productos', href: '/inventory/products' }],
+            }
+          }
+          if (item.label === 'Punto de Venta') {
+            return {
+              ...item,
+              subItems: (item.subItems || []).filter((sub) => sub.href !== '/pos/void-sales'),
             }
           }
           return item
@@ -463,7 +464,7 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
                     {activeUserName}
                   </p>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-orange-300/90">
-                    Rol: {activeRole}
+                    Rol: {activeRole === 'admin' ? 'Administrador' : activeRole === 'manager' ? 'Encargado' : activeRole === 'employee' ? 'Empleado' : 'Solo lectura'}
                   </p>
                   {activeRole === 'admin' ? (
                     <div className="space-y-1">

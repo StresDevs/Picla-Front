@@ -495,6 +495,14 @@ export const partsService = {
     return updated
   },
 
+  async updateImageUrl(id: string, imageUrl: string | null) {
+    const { error } = await supabase
+      .from('parts')
+      .update({ image_url: imageUrl })
+      .eq('id', id)
+    if (error) throw error
+  },
+
   async delete(id: string) {
     const { error } = await supabase.rpc('soft_delete_inventory_product', {
       p_part_id: id,

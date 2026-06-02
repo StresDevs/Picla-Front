@@ -126,7 +126,7 @@ export interface InventoryReportRow {
 export function generateInventoryPdf(input: {
   branchName: string
   rows: InventoryReportRow[]
-  variant?: 'detailed' | 'stock-check'
+  variant?: 'detailed' | 'stock-check' | 'sale-price'
 }) {
   const doc = new jsPDF()
   const now = new Date()
@@ -163,6 +163,40 @@ export function generateInventoryPdf(input: {
 
     addFooter(doc, `Inventario — ${input.branchName} — Generado: ${fmtDateTime(now)}`)
     savePdf(doc, `inventario_control_${input.branchName.replace(/\s+/g, '_')}`)
+    return
+  }
+
+  if (variant === 'sale-price') {
+    const body: RowData[] = input.rows.map((r, i) => (
+      showBranchColumn
+        ? [i + 1, r.branch || input.branchName, r.code, r.stock, r.name, r.category || '-', `Bs ${fmtMoney(r.price)}`]
+        : [i + 1, r.code, r.stock, r.name, r.category || '-', `Bs ${fmtMoney(r.price)}`]
+    ))
+    autoTable(doc, {
+      startY: 34,
+      head: [
+        showBranchColumn
+          ? ['#', 'Sucursal', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio venta']
+          : ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio venta'],
+      ],
+      body,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    })
+    const totalStock = input.rows.reduce((s, r) => s + r.stock, 0)
+    const totalPrice = input.rows.reduce((s, r) => s + (r.price ?? 0) * r.stock, 0)
+    const finalY = (doc as unknown as Record<string, number>).lastAutoTable?.finalY ?? 200
+    let ty = finalY + 8
+    const pageWidth = doc.internal.pageSize.getWidth()
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total productos: ${input.rows.length}`, 14, ty)
+    doc.text(`Total unidades en stock: ${totalStock.toLocaleString('es-BO')}`, 14, ty + 5)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Total precio venta (stock x venta): Bs ${fmtMoney(totalPrice)}`, pageWidth - 14, ty + 12, { align: 'right' })
+    addFooter(doc, `Inventario — ${input.branchName} — Generado: ${fmtDateTime(now)}`)
+    savePdf(doc, `inventario_${input.branchName.replace(/\s+/g, '_')}`)
     return
   }
 

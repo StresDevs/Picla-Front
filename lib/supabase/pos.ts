@@ -87,6 +87,15 @@ export interface POSSaleRecord {
   items: POSSaleItem[]
 }
 
+export interface TopSellerRecord {
+  seller_id: string
+  seller_name: string
+  branch_id: string
+  branch_name: string
+  sales_count: number
+  total_amount: number
+}
+
 export interface POSReturnRecord {
   return_id: string
   sale_id: string
@@ -257,6 +266,22 @@ export const posService = {
 
     if (error) throw error
     return (data || []) as POSSaleRecord[]
+  },
+
+  async getTopSellers(input?: {
+    branch_id?: string | null
+    limit?: number
+    start_date?: string | null
+    end_date?: string | null
+  }) {
+    const { data, error } = await supabase.rpc('pos_get_top_sellers', {
+      p_branch_id: input?.branch_id ?? null,
+      p_limit: input?.limit ?? 10,
+      p_start_date: input?.start_date ?? null,
+      p_end_date: input?.end_date ?? null,
+    })
+    if (error) throw error
+    return (data || []) as TopSellerRecord[]
   },
 
   async getSaleReceiptNumber(saleId: string, branchId?: string | null) {

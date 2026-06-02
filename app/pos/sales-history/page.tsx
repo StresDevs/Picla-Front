@@ -922,7 +922,7 @@ export default function POSSalesHistoryPage() {
                             {resolveQueueNumber(q.queue_id) ?? 'Cola'}
                           </TableCell>
                           <TableCell className="text-sm">{q.customer_name ?? 'Mostrador'}</TableCell>
-                          <TableCell className="text-xs capitalize">{q.created_by_role}</TableCell>
+                          <TableCell className="text-xs">{q.created_by_role === 'admin' ? 'Administrador' : q.created_by_role === 'manager' ? 'Encargado' : q.created_by_role === 'employee' ? 'Empleado' : 'Solo lectura'}</TableCell>
                           <TableCell className="text-sm">{paymentLabels[q.payment_method] ?? q.payment_method}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={`text-xs ${qs.className}`}>
