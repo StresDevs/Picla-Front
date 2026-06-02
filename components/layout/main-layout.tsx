@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from './sidebar'
 import { TopSellerPopup } from './top-seller-popup'
+import { CreditPendingNotification } from './credit-notification'
 import { getCurrentAuthUser, getCurrentSession } from '@/lib/supabase/auth'
 import { supabase } from '@/lib/supabase/client'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
@@ -132,7 +133,8 @@ export function MainLayout({
       <main className="flex-1 overflow-y-auto pt-14 lg:pt-0 lg:pl-0">
         <div className="page-fade p-4 lg:p-8 xl:p-10 max-w-[120rem]">
           <div className="surface-panel p-4 md:p-6 lg:p-8 min-h-[calc(100svh-6rem)]">
-          {children}
+            <CreditPendingNotification />
+            {children}
           </div>
         </div>
       </main>
