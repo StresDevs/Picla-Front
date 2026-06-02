@@ -402,6 +402,8 @@ export default function InventoryProductsPage() {
   const [editForm, setEditForm] = useState<ProductFormData>(() => createEmptyProductForm(getActiveUserContext().branch_id))
 
   const canModify = activeRole === 'admin'
+  const canSeePurchasePrice = activeRole === 'admin'
+  const canSeeFullProductDetails = activeRole === 'admin' || activeRole === 'read_only'
 
   const normalizePartCode = (code: string) => code.trim().toLowerCase()
 
@@ -571,6 +573,7 @@ export default function InventoryProductsPage() {
   const openProductDetail = (part: Part) => {
     setSelectedProduct(part)
     setIsDetailOpen(true)
+    void ensureAvailabilityForCode(part.code)
   }
 
   const openEditProduct = (part: Part) => {
@@ -1426,36 +1429,68 @@ export default function InventoryProductsPage() {
 
             {selectedProduct ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <p><span className="font-medium">Categoría:</span> {selectedProduct.category}</p>
-                  <p><span className="font-medium">Stock disponible:</span> {selectedStock}</p>
-                  <p><span className="font-medium">Sucursal:</span> {branches.find((b) => b.id === selectedProduct.branch_id)?.name || selectedProduct.branch_id}</p>
-                  <p><span className="font-medium">Costo:</span> Bs {selectedProduct.cost.toFixed(2)}</p>
-                  <p><span className="font-medium">Precio de venta:</span> Bs {selectedProduct.price.toFixed(2)}</p>
-                  <p><span className="font-medium">Precio kit:</span> Bs {(selectedProduct.kit_price ?? selectedProduct.price).toFixed(2)}</p>
-                  <p><span className="font-medium">Seguimiento:</span> {getTrackingModeLabel(selectedProduct.tracking_mode)}</p>
-                  <p><span className="font-medium">Serialización:</span> {selectedProduct.requires_serialization ? 'sí' : 'no'}</p>
-                  <p><span className="font-medium">Cotización:</span> Bs {getQuotationRange(selectedProduct).max.toFixed(2)} - Bs {getQuotationRange(selectedProduct).min.toFixed(2)}</p>
-                </div>
+                {canSeeFullProductDetails ? (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      <p><span className="font-medium">Categoría:</span> {selectedProduct.category}</p>
+                      <p><span className="font-medium">Stock disponible:</span> {selectedStock}</p>
+                      <p><span className="font-medium">Sucursal:</span> {branches.find((b) => b.id === selectedProduct.branch_id)?.name || selectedProduct.branch_id}</p>
+                      {canSeePurchasePrice && (
+                        <p><span className="font-medium">Costo:</span> Bs {selectedProduct.cost.toFixed(2)}</p>
+                      )}
+                      <p><span className="font-medium">Precio de venta:</span> Bs {selectedProduct.price.toFixed(2)}</p>
+                      <p><span className="font-medium">Precio kit:</span> Bs {(selectedProduct.kit_price ?? selectedProduct.price).toFixed(2)}</p>
+                      <p><span className="font-medium">Seguimiento:</span> {getTrackingModeLabel(selectedProduct.tracking_mode)}</p>
+                      <p><span className="font-medium">Serialización:</span> {selectedProduct.requires_serialization ? 'sí' : 'no'}</p>
+                      <p><span className="font-medium">Cotización:</span> Bs {getQuotationRange(selectedProduct).max.toFixed(2)} - Bs {getQuotationRange(selectedProduct).min.toFixed(2)}</p>
+                    </div>
 
-                <div className="rounded-md border border-border/70 p-3">
-                  <p className="text-sm font-medium mb-2">Escalas de precio</p>
-                  <div className="space-y-1 text-sm">
-                    {[...(selectedProduct.price_tiers || [])].filter((tier) => tier.min_quantity > 1).length === 0 ? (
-                      <p className="text-muted-foreground">Sin precios por mayoreo configurados.</p>
-                    ) : (
-                      [...(selectedProduct.price_tiers || [])]
-                        .filter((tier) => tier.min_quantity > 1)
-                        .sort((a, b) => a.min_quantity - b.min_quantity)
-                        .map((tier) => (
-                          <div key={tier.id} className="flex items-center justify-between">
-                            <span>Desde {tier.min_quantity} und</span>
-                            <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
-                          </div>
-                        ))
-                    )}
+                    <div className="rounded-md border border-border/70 p-3">
+                      <p className="text-sm font-medium mb-2">Escalas de precio</p>
+                      <div className="space-y-1 text-sm">
+                        {[...(selectedProduct.price_tiers || [])].filter((tier) => tier.min_quantity > 1).length === 0 ? (
+                          <p className="text-muted-foreground">Sin precios por mayoreo configurados.</p>
+                        ) : (
+                          [...(selectedProduct.price_tiers || [])]
+                            .filter((tier) => tier.min_quantity > 1)
+                            .sort((a, b) => a.min_quantity - b.min_quantity)
+                            .map((tier) => (
+                              <div key={tier.id} className="flex items-center justify-between">
+                                <span>Desde {tier.min_quantity} und</span>
+                                <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
+                              </div>
+                            ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-md border border-border/70 bg-background/70 p-3">
+                    <p className="text-sm font-medium mb-2">Disponibilidad por sucursal</p>
+                    {(() => {
+                      const key = normalizePartCode(selectedProduct.code)
+                      const rows = availabilityByCode[key] || []
+                      const loading = availabilityLoadingByCode[key]
+                      if (loading) return <p className="text-xs text-muted-foreground">Cargando disponibilidad...</p>
+                      if (rows.length === 0) return <p className="text-xs text-muted-foreground">Sin datos de disponibilidad.</p>
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                          {rows.map((row) => (
+                            <div key={`${row.branch_id}-${row.part_id}`} className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1">
+                              <div className="min-w-0">
+                                <p className="font-medium truncate">{row.branch_name}</p>
+                                <p className="text-muted-foreground">Venta Bs {row.price.toFixed(2)}</p>
+                              </div>
+                              <span className={row.quantity <= 0 ? 'font-semibold text-red-500' : 'font-semibold text-foreground'}>
+                                {row.quantity}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
                   </div>
-                </div>
+                )}
 
                 <div className="flex justify-end gap-2">
                   {canModify ? (
@@ -1703,9 +1738,11 @@ export default function InventoryProductsPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Tags className="w-3 h-3" /> Costo Bs {part.cost.toFixed(2)}
-                      </div>
+                      {canSeePurchasePrice ? (
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Tags className="w-3 h-3" /> Costo Bs {part.cost.toFixed(2)}
+                        </div>
+                      ) : <span />}
                       <p className="text-lg font-bold text-primary">Bs {getEffectiveProductPrice(part).toFixed(2)}</p>
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -1748,7 +1785,7 @@ export default function InventoryProductsPage() {
                     <div className="mt-auto flex gap-1.5">
                       <Button className="flex-1" size="sm" variant="outline" onClick={() => openProductDetail(part)}>
                         <Boxes className="w-4 h-4 mr-2" />
-                        Ver detalle
+                        {canSeeFullProductDetails ? 'Ver detalle' : 'Ver disponibilidad'}
                       </Button>
                     </div>
                   </div>
@@ -1804,46 +1841,52 @@ export default function InventoryProductsPage() {
 
                   {isExpanded ? (
                     <div className="border-t border-border/70 px-4 py-3 space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                        <p><span className="font-medium">Sucursal:</span> {branchName}</p>
-                        <p><span className="font-medium">Stock disponible:</span> {stockValue}</p>
-                        <p><span className="font-medium">Costo:</span> Bs {part.cost.toFixed(2)}</p>
-                        <p><span className="font-medium">Precio kit:</span> Bs {(part.kit_price ?? part.price).toFixed(2)}</p>
-                        <p><span className="font-medium">Cotización:</span> Bs {getQuotationRange(part).max.toFixed(2)} - Bs {getQuotationRange(part).min.toFixed(2)}</p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1.5">
-                        {part.tracking_mode === 'serial' && (
-                          <span className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-400">
-                            Control por serie
-                          </span>
-                        )}
-                        {part.tracking_mode === 'lot' && (
-                          <span className="inline-flex items-center rounded-full border border-amber-400/50 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
-                            Control por lote
-                          </span>
-                        )}
-                        {part.tracking_mode === 'none' && (
-                          <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                            Sin seguimiento
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-[11px]">
-                        {tiers.length === 0 ? (
-                          <span className="text-muted-foreground">Sin escalas de mayoreo</span>
-                        ) : (
-                          <div className="space-y-1">
-                            {tiers.map((tier) => (
-                              <div key={tier.id} className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Desde {tier.min_quantity} und</span>
-                                <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
-                              </div>
-                            ))}
+                      {canSeeFullProductDetails && (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                            <p><span className="font-medium">Sucursal:</span> {branchName}</p>
+                            <p><span className="font-medium">Stock disponible:</span> {stockValue}</p>
+                            {canSeePurchasePrice && (
+                              <p><span className="font-medium">Costo:</span> Bs {part.cost.toFixed(2)}</p>
+                            )}
+                            <p><span className="font-medium">Precio kit:</span> Bs {(part.kit_price ?? part.price).toFixed(2)}</p>
+                            <p><span className="font-medium">Cotización:</span> Bs {getQuotationRange(part).max.toFixed(2)} - Bs {getQuotationRange(part).min.toFixed(2)}</p>
                           </div>
-                        )}
-                      </div>
+
+                          <div className="flex flex-wrap gap-1.5">
+                            {part.tracking_mode === 'serial' && (
+                              <span className="inline-flex items-center rounded-full border border-sky-400/50 bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-400">
+                                Control por serie
+                              </span>
+                            )}
+                            {part.tracking_mode === 'lot' && (
+                              <span className="inline-flex items-center rounded-full border border-amber-400/50 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                                Control por lote
+                              </span>
+                            )}
+                            {part.tracking_mode === 'none' && (
+                              <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                Sin seguimiento
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="rounded-md border border-border/70 bg-muted/20 p-2 text-[11px]">
+                            {tiers.length === 0 ? (
+                              <span className="text-muted-foreground">Sin escalas de mayoreo</span>
+                            ) : (
+                              <div className="space-y-1">
+                                {tiers.map((tier) => (
+                                  <div key={tier.id} className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Desde {tier.min_quantity} und</span>
+                                    <span className="font-medium">Bs {tier.price.toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
 
                       <div className="rounded-md border border-border/70 bg-background/70 p-3">
                         <p className="text-sm font-medium mb-2">Disponibilidad por sucursal</p>
@@ -1857,7 +1900,10 @@ export default function InventoryProductsPage() {
                               <div key={`${row.branch_id}-${row.part_id}`} className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1">
                                 <div className="min-w-0">
                                   <p className="font-medium truncate">{row.branch_name}</p>
-                                  <p className="text-muted-foreground">Costo Bs {row.cost.toFixed(2)} · Venta Bs {row.price.toFixed(2)}</p>
+                                  <p className="text-muted-foreground">
+                                    {canSeePurchasePrice && `Costo Bs ${row.cost.toFixed(2)} · `}
+                                    Venta Bs {row.price.toFixed(2)}
+                                  </p>
                                 </div>
                                 <span className={row.quantity <= 0 ? 'font-semibold text-red-500' : 'font-semibold text-foreground'}>
                                   {row.quantity}
@@ -1868,12 +1914,14 @@ export default function InventoryProductsPage() {
                         )}
                       </div>
 
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={() => openProductDetail(part)}>
-                          <Boxes className="w-4 h-4 mr-2" />
-                          Ver detalle
-                        </Button>
-                      </div>
+                      {canSeeFullProductDetails && (
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="outline" onClick={() => openProductDetail(part)}>
+                            <Boxes className="w-4 h-4 mr-2" />
+                            Ver detalle
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : null}
                 </div>

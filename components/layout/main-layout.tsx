@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from './sidebar'
+import { TopSellerPopup } from './top-seller-popup'
 import { getCurrentAuthUser, getCurrentSession } from '@/lib/supabase/auth'
 import { supabase } from '@/lib/supabase/client'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
@@ -19,48 +20,38 @@ export function MainLayout({
 
   useEffect(() => {
     const basicInventoryRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
-    const inventoryOpsRoutes = [
-      '/inventory/entries',
-      '/inventory/exits',
-      '/inventory/transfers',
-      '/inventory/catalog-import',
-      '/inventory/voids',
-      '/inventory/history',
-      '/inventory/stock-history',
-      '/inventory/control',
-    ]
+    const managerEmployeeRestrictedModules = ['/management', '/reports', '/audit', '/settings']
 
-    const isInventoryOpsRoute = (path: string) =>
-      inventoryOpsRoutes.some((route) => path === route || path.startsWith(`${route}/`))
-
-    const enforceInventoryReadOnlyRoutes = () => {
+    const enforceRouteAccess = () => {
       const context = getActiveUserContext()
-      const isInventoryRoute = pathname.startsWith('/inventory')
 
-      if (!isInventoryRoute) return
-
-      const canManageInventoryOps = context.role === 'admin' || context.role === 'manager'
-
-      if (!canManageInventoryOps && isInventoryOpsRoute(pathname)) {
-        router.replace('/inventory/products')
+      if (context.role === 'manager' || context.role === 'employee') {
+        if (managerEmployeeRestrictedModules.some((r) => pathname.startsWith(r))) {
+          router.replace('/dashboard')
+          return
+        }
+        if (pathname.startsWith('/inventory') && pathname !== '/inventory/products') {
+          router.replace('/inventory/products')
+          return
+        }
         return
       }
 
-      if (context.role !== 'read_only') return
-
-      if (!basicInventoryRoutes.has(pathname)) {
-        router.replace('/inventory/products')
+      if (context.role === 'read_only') {
+        if (!basicInventoryRoutes.has(pathname) && pathname.startsWith('/inventory')) {
+          router.replace('/inventory/products')
+        }
       }
     }
 
-    enforceInventoryReadOnlyRoutes()
+    enforceRouteAccess()
 
-    window.addEventListener(ACTIVE_ROLE_EVENT, enforceInventoryReadOnlyRoutes)
-    window.addEventListener('focus', enforceInventoryReadOnlyRoutes)
+    window.addEventListener(ACTIVE_ROLE_EVENT, enforceRouteAccess)
+    window.addEventListener('focus', enforceRouteAccess)
 
     return () => {
-      window.removeEventListener(ACTIVE_ROLE_EVENT, enforceInventoryReadOnlyRoutes)
-      window.removeEventListener('focus', enforceInventoryReadOnlyRoutes)
+      window.removeEventListener(ACTIVE_ROLE_EVENT, enforceRouteAccess)
+      window.removeEventListener('focus', enforceRouteAccess)
     }
   }, [pathname, router])
 
@@ -141,6 +132,7 @@ export function MainLayout({
           </div>
         </div>
       </main>
+      <TopSellerPopup />
     </div>
   )
 }

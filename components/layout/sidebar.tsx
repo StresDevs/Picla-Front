@@ -310,37 +310,24 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
       ]
     }
 
-    return menuItems.map((item) => {
-      if (item.label === 'Inventario') {
-        const canSeeInventoryOps = activeRole === 'admin' || activeRole === 'manager'
-        const filteredSubItems = (item.subItems || []).filter((subItem) => {
-          if (!canSeeInventoryOps) {
-            return inventoryBasicRoutes.has(subItem.href)
+    if (activeRole === 'manager' || activeRole === 'employee') {
+      const hiddenModules = new Set(['Gestión', 'Reportes', 'Auditoría', 'Configuración'])
+      return menuItems
+        .filter((item) => !hiddenModules.has(item.label))
+        .map((item) => {
+          if (item.label === 'Inventario') {
+            return {
+              ...item,
+              href: '/inventory/products',
+              subItems: [{ label: 'Productos', href: '/inventory/products' }],
+            }
           }
-
-          if (activeRole !== 'admin' && inventoryAdminRoutes.has(subItem.href)) {
-            return false
-          }
-
-          return true
+          return item
         })
+    }
 
-        return {
-          ...item,
-          href: canSeeInventoryOps ? item.href : '/inventory/products',
-          subItems: filteredSubItems,
-        }
-      }
-
-      if (item.label !== 'Gestión') return item
-
-      return {
-        ...item,
-        subItems: (item.subItems || []).filter((subItem) =>
-          subItem.href === '/management/payroll' ? activeRole === 'admin' : true,
-        ),
-      }
-    })
+    // admin only path
+    return menuItems
   }, [activeRole])
 
   useEffect(() => {

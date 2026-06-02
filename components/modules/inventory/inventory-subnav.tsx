@@ -51,8 +51,8 @@ export function InventorySubnav() {
       return items
     }
 
-    if (activeRole === 'manager') {
-      return items.filter((item) => !item.adminOnly)
+    if (activeRole === 'manager' || activeRole === 'employee') {
+      return items.filter((item) => item.href === '/inventory/products')
     }
 
     return items.filter((item) => basicInventoryItems.has(item.href) && !item.adminOnly)
