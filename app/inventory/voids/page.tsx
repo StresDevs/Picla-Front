@@ -176,11 +176,13 @@ export default function InventoryVoidsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Traspaso objetivo</Label>
                 <Select value={selectedTransferId || 'none'} onValueChange={(value) => setSelectedTransferId(value === 'none' ? '' : value)}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona traspaso" /></SelectTrigger>
+                  <SelectTrigger className="h-auto min-h-9 w-full min-w-0 items-start whitespace-normal *:data-[slot=select-value]:max-w-full *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:whitespace-normal *:data-[slot=select-value]:break-words *:data-[slot=select-value]:text-left">
+                    <SelectValue placeholder="Selecciona traspaso" />
+                  </SelectTrigger>
                   <SelectContent>
                     {actionableTransfers.length === 0 ? (
                       <SelectItem value="none" disabled>No hay traspasos disponibles</SelectItem>
@@ -195,25 +197,27 @@ export default function InventoryVoidsPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Operación</Label>
-                <Select value={actionType} onValueChange={(value: 'anulacion' | 'devolucion' | 'reposicion') => setActionType(value)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="anulacion">Anulación</SelectItem>
-                    <SelectItem value="devolucion">Devolución</SelectItem>
-                    <SelectItem value="reposicion">Reposición</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Operación</Label>
+                  <Select value={actionType} onValueChange={(value: 'anulacion' | 'devolucion' | 'reposicion') => setActionType(value)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="anulacion">Anulación</SelectItem>
+                      <SelectItem value="devolucion">Devolución</SelectItem>
+                      <SelectItem value="reposicion">Reposición</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Motivo</Label>
-                <Input
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder="Ej. Error de picking en bodega"
-                />
+                <div className="space-y-2">
+                  <Label>Motivo</Label>
+                  <Input
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    placeholder="Ej. Error de picking en bodega"
+                  />
+                </div>
               </div>
             </div>
 

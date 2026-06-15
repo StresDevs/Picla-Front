@@ -284,6 +284,36 @@ function toBulkRow(record: Record<string, unknown>, branchId: string): BulkProdu
   }
 }
 
+const BULK_TEMPLATE_HEADERS = [
+  'codigo',
+  'nombre',
+  'categoria',
+  'costo',
+  'precio',
+  'precio_kit',
+  'tracking_mode',
+  'requires_serialization',
+  'stock_inicial',
+  'stock_minimo',
+  'imagen_url',
+]
+
+function isBulkRowEmpty(row: BulkProductRow) {
+  return (
+    !row.code.trim() &&
+    !row.name.trim() &&
+    !row.category.trim() &&
+    !row.cost.trim() &&
+    !row.price.trim() &&
+    !row.kitPrice.trim() &&
+    !row.imageUrl.trim()
+  )
+}
+
+function isBulkRowComplete(row: BulkProductRow) {
+  return Boolean(row.name.trim() && row.category.trim() && row.cost.trim() && row.price.trim())
+}
+
 function getEffectiveProductPrice(part: Part) {
   const tiers = [...(part.price_tiers || [])].sort((a, b) => a.min_quantity - b.min_quantity)
   const base = tiers.find((tier) => tier.min_quantity === 1)
@@ -400,6 +430,7 @@ export default function InventoryProductsPage() {
   const [categoryBranchId, setCategoryBranchId] = useState(() => getActiveUserContext().branch_id)
   const [bulkRows, setBulkRows] = useState<BulkProductRow[]>(() => [createBulkRow(getActiveUserContext().branch_id)])
   const [bulkResults, setBulkResults] = useState<BulkResultRow[]>([])
+  const [bulkFileName, setBulkFileName] = useState<string | null>(null)
 
   const [productForm, setProductForm] = useState<ProductFormData>(() => createEmptyProductForm(getActiveUserContext().branch_id))
   const [editForm, setEditForm] = useState<ProductFormData>(() => createEmptyProductForm(getActiveUserContext().branch_id))
@@ -496,6 +527,8 @@ export default function InventoryProductsPage() {
     const fromProducts = parts.map((part) => part.category).filter(Boolean)
     return [...new Set([...fromRows, ...fromProducts])].sort((a, b) => a.localeCompare(b))
   }, [categories, parts])
+
+  const bulkValidCount = useMemo(() => bulkRows.filter(isBulkRowComplete).length, [bulkRows])
 
   const filteredParts = useMemo(() => {
     setProductsPage(1)
@@ -813,6 +846,9 @@ export default function InventoryProductsPage() {
   const onExcelSelected = async (file: File | null) => {
     if (!file) return
 
+    setBulkFileName(file.name)
+    setBulkResults([])
+
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'array' })
     const firstSheet = workbook.SheetNames[0]
@@ -828,6 +864,23 @@ export default function InventoryProductsPage() {
     }
 
     setBulkRows(json.map((row) => toBulkRow(row, activeBranchId)))
+  }
+
+  const downloadBulkTemplate = () => {
+    exportToExcel({
+      fileName: 'plantilla_carga_masiva_productos',
+      sheetName: 'Productos',
+      headers: BULK_TEMPLATE_HEADERS,
+      rows: [
+        ['', 'Bujia Iridium', 'Encendido', '120', '180', '', 'none', 'false', '10', '2', ''],
+      ],
+    })
+  }
+
+  const clearBulkRows = () => {
+    setBulkRows([createBulkRow(activeBranchId)])
+    setBulkResults([])
+    setBulkFileName(null)
   }
 
   const addBulkRow = () => {
@@ -986,80 +1039,124 @@ export default function InventoryProductsPage() {
                       Carga masiva
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-6xl">
+                  <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Carga masiva de productos</DialogTitle>
                       <DialogDescription>
-                        Puedes cargar un Excel y editar la tabla antes de guardar en base de datos.
+                        Sube un Excel o CSV, agrega filas manuales si lo necesitas y revisa los datos antes de guardarlos en el inventario.
                       </DialogDescription>
                     </DialogHeader>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Input
-                        type="file"
-                        accept=".xlsx,.xls,.csv"
-                        onChange={(event) => void onExcelSelected(event.target.files?.[0] || null)}
-                        className="max-w-sm"
-                      />
-                      <Button variant="outline" onClick={addBulkRow}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Fila manual
-                      </Button>
+                    <div className="grid grid-cols-1 gap-3 rounded-lg border border-dashed border-border/70 bg-muted/30 p-4 md:grid-cols-[1.3fr_1fr]">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <FileSpreadsheet className="h-4 w-4" />
+                          Archivo Excel o CSV
+                        </label>
+                        <Input
+                          type="file"
+                          accept=".xlsx,.xls,.csv"
+                          onChange={(event) => void onExcelSelected(event.target.files?.[0] || null)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {bulkFileName
+                            ? `Archivo cargado: ${bulkFileName} (${bulkRows.length} fila${bulkRows.length === 1 ? '' : 's'})`
+                            : 'Columnas esperadas: codigo, nombre, categoria, costo, precio, precio_kit, tracking_mode, requires_serialization, stock_inicial, stock_minimo, imagen_url.'}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-start justify-end gap-2 md:items-end">
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={downloadBulkTemplate}>
+                            <Download className="w-4 h-4 mr-2" />
+                            Descargar plantilla
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={addBulkRow}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Fila manual
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={clearBulkRows}>
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Limpiar
+                          </Button>
+                        </div>
+                      </div>
                     </div>
 
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Codigo</TableHead>
-                          <TableHead>Nombre</TableHead>
-                          <TableHead>Categoría</TableHead>
-                          <TableHead>Precio de compra</TableHead>
-                          <TableHead>Precio</TableHead>
-                          <TableHead>Precio kit</TableHead>
-                          <TableHead>Seguimiento</TableHead>
-                          <TableHead>Serializa</TableHead>
-                          <TableHead>Stock inicial</TableHead>
-                          <TableHead>Enlace de imagen</TableHead>
-                          <TableHead></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {bulkRows.map((row) => (
-                          <TableRow key={row.id}>
-                            <TableCell><Input value={row.code} onChange={(event) => updateBulkRow(row.id, { code: event.target.value })} /></TableCell>
-                            <TableCell><Input value={row.name} onChange={(event) => updateBulkRow(row.id, { name: event.target.value })} /></TableCell>
-                            <TableCell><Input value={row.category} onChange={(event) => updateBulkRow(row.id, { category: event.target.value })} /></TableCell>
-                            <TableCell><Input type="number" value={row.cost} onChange={(event) => updateBulkRow(row.id, { cost: event.target.value })} /></TableCell>
-                            <TableCell><Input type="number" value={row.price} onChange={(event) => updateBulkRow(row.id, { price: event.target.value })} /></TableCell>
-                            <TableCell><Input type="number" value={row.kitPrice} onChange={(event) => updateBulkRow(row.id, { kitPrice: event.target.value })} /></TableCell>
-                            <TableCell>
-                              <Select value={row.trackingMode} onValueChange={(value: 'none' | 'serial' | 'lot') => updateBulkRow(row.id, { trackingMode: value })}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">Sin seguimiento</SelectItem>
-                                  <SelectItem value="serial">Serie</SelectItem>
-                                  <SelectItem value="lot">Lote</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              <input
-                                type="checkbox"
-                                checked={row.requiresSerialization}
-                                onChange={(event) => updateBulkRow(row.id, { requiresSerialization: event.target.checked })}
-                              />
-                            </TableCell>
-                            <TableCell><Input type="number" value={row.initialQuantity} onChange={(event) => updateBulkRow(row.id, { initialQuantity: event.target.value })} /></TableCell>
-                            <TableCell><Input value={row.imageUrl} onChange={(event) => updateBulkRow(row.id, { imageUrl: event.target.value })} /></TableCell>
-                            <TableCell>
-                              <Button variant="destructive" size="sm" onClick={() => removeBulkRow(row.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                    <div className="rounded-lg border border-border/70">
+                      <div className="max-h-[360px] overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 z-10 bg-background">
+                            <TableRow>
+                              <TableHead className="whitespace-nowrap">Codigo</TableHead>
+                              <TableHead className="whitespace-nowrap">Nombre</TableHead>
+                              <TableHead className="whitespace-nowrap">Categoría</TableHead>
+                              <TableHead className="whitespace-nowrap">Precio de compra</TableHead>
+                              <TableHead className="whitespace-nowrap">Precio</TableHead>
+                              <TableHead className="whitespace-nowrap">Precio kit</TableHead>
+                              <TableHead className="whitespace-nowrap">Seguimiento</TableHead>
+                              <TableHead className="whitespace-nowrap">Serializa</TableHead>
+                              <TableHead className="whitespace-nowrap">Stock inicial</TableHead>
+                              <TableHead className="whitespace-nowrap">Enlace de imagen</TableHead>
+                              <TableHead></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {bulkRows.map((row) => {
+                              const incomplete = !isBulkRowEmpty(row) && !isBulkRowComplete(row)
+                              return (
+                                <TableRow key={row.id} className={incomplete ? 'bg-amber-500/10' : undefined}>
+                                  <TableCell><Input className="min-w-[100px]" value={row.code} onChange={(event) => updateBulkRow(row.id, { code: event.target.value })} placeholder="Auto" /></TableCell>
+                                  <TableCell><Input className="min-w-[160px]" value={row.name} onChange={(event) => updateBulkRow(row.id, { name: event.target.value })} placeholder="Nombre*" /></TableCell>
+                                  <TableCell>
+                                    <Input
+                                      className="min-w-[140px]"
+                                      value={row.category}
+                                      onChange={(event) => updateBulkRow(row.id, { category: event.target.value })}
+                                      placeholder="Categoría*"
+                                      list="bulk-category-options"
+                                    />
+                                  </TableCell>
+                                  <TableCell><Input className="min-w-[110px]" type="number" value={row.cost} onChange={(event) => updateBulkRow(row.id, { cost: event.target.value })} placeholder="0.00*" /></TableCell>
+                                  <TableCell><Input className="min-w-[110px]" type="number" value={row.price} onChange={(event) => updateBulkRow(row.id, { price: event.target.value })} placeholder="0.00*" /></TableCell>
+                                  <TableCell><Input className="min-w-[110px]" type="number" value={row.kitPrice} onChange={(event) => updateBulkRow(row.id, { kitPrice: event.target.value })} placeholder="= Precio" /></TableCell>
+                                  <TableCell>
+                                    <Select value={row.trackingMode} onValueChange={(value: 'none' | 'serial' | 'lot') => updateBulkRow(row.id, { trackingMode: value })}>
+                                      <SelectTrigger className="min-w-[140px]"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">Sin seguimiento</SelectItem>
+                                        <SelectItem value="serial">Serie</SelectItem>
+                                        <SelectItem value="lot">Lote</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <input
+                                      type="checkbox"
+                                      className="h-4 w-4"
+                                      checked={row.requiresSerialization}
+                                      onChange={(event) => updateBulkRow(row.id, { requiresSerialization: event.target.checked })}
+                                    />
+                                  </TableCell>
+                                  <TableCell><Input className="min-w-[100px]" type="number" value={row.initialQuantity} onChange={(event) => updateBulkRow(row.id, { initialQuantity: event.target.value })} /></TableCell>
+                                  <TableCell><Input className="min-w-[160px]" value={row.imageUrl} onChange={(event) => updateBulkRow(row.id, { imageUrl: event.target.value })} placeholder="https://..." /></TableCell>
+                                  <TableCell>
+                                    <Button variant="destructive" size="sm" onClick={() => removeBulkRow(row.id)}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+
+                    <datalist id="bulk-category-options">
+                      {categoryOptions.map((category) => (
+                        <option key={category} value={category} />
+                      ))}
+                    </datalist>
 
                     {bulkResults.length > 0 ? (
                       <div className="rounded-lg border border-border/70 p-3 text-sm space-y-1">
@@ -1071,10 +1168,14 @@ export default function InventoryProductsPage() {
                       </div>
                     ) : null}
 
-                    <div className="flex justify-end">
-                      <Button onClick={() => void saveBulkProducts()} disabled={isSaving}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        {bulkRows.length} fila{bulkRows.length === 1 ? '' : 's'} · {bulkValidCount} lista{bulkValidCount === 1 ? '' : 's'} para subir
+                        {bulkValidCount < bulkRows.length ? ' (faltan nombre, categoría, costo o precio en algunas filas)' : ''}
+                      </p>
+                      <Button onClick={() => void saveBulkProducts()} disabled={isSaving || bulkValidCount === 0}>
                         <Upload className="w-4 h-4 mr-2" />
-                        {isSaving ? 'Procesando...' : 'Subir productos'}
+                        {isSaving ? 'Procesando...' : `Subir ${bulkValidCount} producto${bulkValidCount === 1 ? '' : 's'}`}
                       </Button>
                     </div>
                   </DialogContent>

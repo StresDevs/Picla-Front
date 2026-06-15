@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { kitsService, partsService } from '@/lib/supabase/inventory'
+import { branchesService, kitsService, partsService } from '@/lib/supabase/inventory'
 import {
   ACTIVE_ROLE_EVENT,
   getActiveUserContext,
@@ -77,6 +77,7 @@ function emptyKitForm(branchId: string, products: Part[]): KitForm {
 export default function InventoryKitsPage() {
   const [kits, setKits] = useState<ProductKit[]>([])
   const [products, setProducts] = useState<Part[]>([])
+  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
   const [isOpen, setIsOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -137,6 +138,10 @@ export default function InventoryKitsPage() {
       window.removeEventListener(ACTIVE_ROLE_EVENT, syncRole)
       window.removeEventListener('focus', syncRole)
     }
+  }, [])
+
+  useEffect(() => {
+    void branchesService.getAll().then(setBranches).catch(() => setBranches([]))
   }, [])
 
   useEffect(() => {
@@ -290,7 +295,11 @@ export default function InventoryKitsPage() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-base font-medium text-foreground">Sucursal</label>
-                      <Input className="h-11 text-base" value={form.branch_id} disabled />
+                      <Input
+                        className="h-11 text-base"
+                        value={branches.find((branch) => branch.id === form.branch_id)?.name || form.branch_id}
+                        disabled
+                      />
                     </div>
                   </div>
 
@@ -304,13 +313,6 @@ export default function InventoryKitsPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-sm text-muted-foreground">
-                        <div className="md:col-span-1">#</div>
-                        <div className="md:col-span-5">Producto</div>
-                        <div className="md:col-span-2">Cantidad</div>
-                        <div className="md:col-span-3">Precio</div>
-                        <div className="md:col-span-1 text-right">Accion</div>
-                      </div>
                       {form.items.map((item, index) => {
                         const selected = products.find((product) => product.id === item.part_id)
                         const salePrice = Number(selected?.price || 0)
@@ -320,34 +322,44 @@ export default function InventoryKitsPage() {
                         const discountPct = salePrice > 0 ? (diff / salePrice) * 100 : 0
 
                         return (
-                        <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/70 p-3">
-                          <div className="md:col-span-1 flex items-center text-base font-semibold text-muted-foreground">
-                            {index + 1}
+                        <div key={item.id} className="space-y-2 rounded-lg border border-border/70 p-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center text-base font-semibold text-muted-foreground w-6 shrink-0">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <Select
+                                value={item.part_id || 'none'}
+                                onValueChange={(value) => {
+                                  const part = products.find((p) => p.id === value)
+                                  updateItem(item.id, {
+                                    part_id: value === 'none' ? '' : value,
+                                    kit_price: String(part?.kit_price ?? part?.price ?? ''),
+                                  })
+                                }}
+                              >
+                                <SelectTrigger className="h-11 text-base w-full min-w-0 overflow-hidden *:data-[slot=select-value]:max-w-full *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:overflow-hidden *:data-[slot=select-value]:text-ellipsis *:data-[slot=select-value]:whitespace-nowrap">
+                                  <SelectValue placeholder="Producto" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none" disabled>Selecciona producto</SelectItem>
+                                  {products.map((product) => (
+                                    <SelectItem key={product.id} value={product.id}>{product.name} ({product.code})</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button variant="destructive" size="sm" className="shrink-0" onClick={() => removeItem(item.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                          <div className="md:col-span-5">
-                            <Select
-                              value={item.part_id || 'none'}
-                              onValueChange={(value) => {
-                                const part = products.find((p) => p.id === value)
-                                updateItem(item.id, {
-                                  part_id: value === 'none' ? '' : value,
-                                  kit_price: String(part?.kit_price ?? part?.price ?? ''),
-                                })
-                              }}
-                            >
-                              <SelectTrigger className="h-11 text-base"><SelectValue placeholder="Producto" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none" disabled>Selecciona producto</SelectItem>
-                                {products.map((product) => (
-                                  <SelectItem key={product.id} value={product.id}>{product.name} ({product.code})</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="md:col-span-2">
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:pl-8">
+                          <div className="md:col-span-3">
+                            <label className="text-sm text-muted-foreground md:hidden">Cantidad</label>
                             <Input className="h-11 text-base" type="number" min={1} value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Cant" />
                           </div>
-                          <div className="md:col-span-3">
+                          <div className="md:col-span-9">
+                            <label className="text-sm text-muted-foreground md:hidden">Precio kit</label>
                             <Input className="h-11 text-base" type="number" step="0.01" value={item.kit_price} onChange={(event) => updateItem(item.id, { kit_price: event.target.value })} placeholder="Precio kit" />
                             {selected ? (
                               <div className="mt-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
@@ -363,10 +375,6 @@ export default function InventoryKitsPage() {
                               </div>
                             ) : null}
                           </div>
-                          <div className="md:col-span-1 flex justify-end">
-                            <Button variant="destructive" size="sm" onClick={() => removeItem(item.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
                           </div>
                         </div>
                       )})}

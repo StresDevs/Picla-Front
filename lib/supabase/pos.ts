@@ -234,6 +234,7 @@ export const posService = {
       p_advance_amount: input.advance_amount ?? 0,
       p_items: input.items,
       p_metadata: input.metadata ?? {},
+      p_sold_by_override: null,
     })
 
     if (error) throw error

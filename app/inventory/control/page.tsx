@@ -248,53 +248,55 @@ export default function InventoryControlPage() {
           <CardHeader>
             <CardTitle className="text-zinc-100 text-base">Registrar control</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3">
-            <Select value={branchId} onValueChange={setBranchId}>
-              <SelectTrigger><SelectValue placeholder="Sucursal" /></SelectTrigger>
-              <SelectContent>
-                {branches.map((branch) => (
-                  <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <CardContent className="space-y-3">
             <Select value={partId} onValueChange={setPartId}>
-              <SelectTrigger><SelectValue placeholder="Producto" /></SelectTrigger>
+              <SelectTrigger className="h-auto min-h-9 w-full min-w-0 items-start whitespace-normal *:data-[slot=select-value]:max-w-full *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:whitespace-normal *:data-[slot=select-value]:break-words *:data-[slot=select-value]:text-left">
+                <SelectValue placeholder="Producto" />
+              </SelectTrigger>
               <SelectContent>
                 {products.map((part) => (
                   <SelectItem key={part.id} value={part.id}>{part.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              type="number"
-              min="0"
-              step="1"
-              placeholder="Cantidad contada"
-              value={countedQuantity}
-              onChange={(event) => setCountedQuantity(event.target.value)}
-            />
-            <Input
-              placeholder="Motivo de control"
-              value={controlReason}
-              onChange={(event) => setControlReason(event.target.value)}
-            />
-            <Select value={applyAdjustment} onValueChange={(value: 'yes' | 'no') => setApplyAdjustment(value)}>
-              <SelectTrigger><SelectValue placeholder="Aplicar ajuste" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="no">Sin ajuste</SelectItem>
-                <SelectItem value="yes">Aplicar ajuste</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={() => void registerControl()} disabled={isSaving}>Registrar</Button>
-            <div className="md:col-span-3 xl:col-span-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-3">
+              <Select value={branchId} onValueChange={setBranchId}>
+                <SelectTrigger><SelectValue placeholder="Sucursal" /></SelectTrigger>
+                <SelectContent>
+                  {branches.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
-                placeholder="Notas adicionales"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Cantidad contada"
+                value={countedQuantity}
+                onChange={(event) => setCountedQuantity(event.target.value)}
               />
+              <Input
+                placeholder="Motivo de control"
+                value={controlReason}
+                onChange={(event) => setControlReason(event.target.value)}
+              />
+              <Select value={applyAdjustment} onValueChange={(value: 'yes' | 'no') => setApplyAdjustment(value)}>
+                <SelectTrigger><SelectValue placeholder="Aplicar ajuste" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no">Sin ajuste</SelectItem>
+                  <SelectItem value="yes">Aplicar ajuste</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={() => void registerControl()} disabled={isSaving}>Registrar</Button>
             </div>
-            {feedback ? <p className="md:col-span-3 xl:col-span-6 text-sm text-emerald-300">{feedback}</p> : null}
-            <p className="md:col-span-3 xl:col-span-6 text-xs text-zinc-500">Sucursal activa: {activeBranchId || 'No disponible'}</p>
+            <Input
+              placeholder="Notas adicionales"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
+            {feedback ? <p className="text-sm text-emerald-300">{feedback}</p> : null}
+            <p className="text-xs text-zinc-500">Sucursal activa: {branches.find((branch) => branch.id === activeBranchId)?.name || activeBranchId || 'No disponible'}</p>
           </CardContent>
         </Card>
 

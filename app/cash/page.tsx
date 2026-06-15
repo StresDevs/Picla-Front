@@ -18,6 +18,7 @@ import {
   type CurrentCashSession,
 } from '@/lib/supabase/cash'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
+import { branchesService } from '@/lib/supabase/inventory'
 import { ErrorAlertModal, parseErrorDetails, type ErrorAlertDetails } from '@/components/common/error-alert-modal'
 import {
   Wallet,
@@ -108,6 +109,7 @@ function toLocalDateKey(value: string) {
 
 export default function CashPage() {
   const [profile, setProfile] = useState<CurrentProfile | null>(null)
+  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
   const [activeBranchId, setActiveBranchId] = useState<string>(() => getActiveUserContext().branch_id)
   const [session, setSession] = useState<CurrentCashSession | null>(null)
   const [movements, setMovements] = useState<CashMovement[]>([])
@@ -237,6 +239,10 @@ export default function CashPage() {
   }
 
   useEffect(() => {
+    void branchesService.getAll().then(setBranches).catch(() => setBranches([]))
+  }, [])
+
+  useEffect(() => {
     void loadCashData()
 
     const onActiveContextChanged = () => {
@@ -334,9 +340,11 @@ export default function CashPage() {
 
   const displayedBranchLabel = useMemo(() => {
     if (session?.branch_name) return session.branch_name
-    if (isAdmin) return 'Sucursal sin nombre'
-    return profile?.branch_name || 'Sin sucursal'
-  }, [activeBranchId, isAdmin, profile?.branch_name, session?.branch_name])
+    if (profile?.branch_name) return profile.branch_name
+    const activeBranchName = branches.find((branch) => branch.id === activeBranchId)?.name
+    if (activeBranchName) return activeBranchName
+    return isAdmin ? 'Sucursal sin nombre' : 'Sin sucursal'
+  }, [activeBranchId, branches, isAdmin, profile?.branch_name, session?.branch_name])
 
   const openRegister = async () => {
     if (!canOpenClose) {
