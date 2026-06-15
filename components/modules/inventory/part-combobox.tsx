@@ -45,6 +45,19 @@ export function PartCombobox({
   const [open, setOpen] = React.useState(false)
   const selected = parts.find((p) => p.id === value)
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (open || parts.length === 0) return
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+
+    event.preventDefault()
+    const currentIndex = parts.findIndex((p) => p.id === value)
+    const delta = event.key === 'ArrowDown' ? 1 : -1
+    const nextIndex = currentIndex === -1
+      ? 0
+      : (currentIndex + delta + parts.length) % parts.length
+    onValueChange(parts[nextIndex].id)
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -52,13 +65,14 @@ export function PartCombobox({
           type="button"
           variant="outline"
           disabled={disabled || parts.length === 0}
+          onKeyDown={handleKeyDown}
           className={cn(
-            'h-auto min-h-9 w-max min-w-full justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
+            'h-auto min-h-9 w-full justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
             !selected && 'text-slate-400 dark:text-muted-foreground',
             className,
           )}
         >
-          <span className="text-left whitespace-nowrap leading-snug">
+          <span className="text-left whitespace-normal break-words leading-snug">
             {selected
               ? `${selected.name} (${selected.code})`
               : parts.length === 0
@@ -130,6 +144,19 @@ export function SearchableStringPick({
   const [open, setOpen] = React.useState(false)
   const selected = options.find((o) => o.value === value)
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (open || options.length === 0) return
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+
+    event.preventDefault()
+    const currentIndex = options.findIndex((o) => o.value === value)
+    const delta = event.key === 'ArrowDown' ? 1 : -1
+    const nextIndex = currentIndex === -1
+      ? 0
+      : (currentIndex + delta + options.length) % options.length
+    onValueChange(options[nextIndex].value)
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -137,13 +164,14 @@ export function SearchableStringPick({
           type="button"
           variant="outline"
           disabled={disabled || options.length === 0}
+          onKeyDown={handleKeyDown}
           className={cn(
-            'h-auto min-h-9 w-max min-w-full justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
+            'h-auto min-h-9 w-full justify-between border-slate-300 bg-white px-3 py-2 font-normal text-sm text-slate-900 shadow-xs hover:bg-slate-50 dark:bg-input/30 dark:border-input dark:text-foreground dark:hover:bg-input/50',
             !selected && 'text-slate-400 dark:text-muted-foreground',
             className,
           )}
         >
-          <span className="text-left whitespace-nowrap leading-snug">{selected?.label ?? placeholder}</span>
+          <span className="text-left whitespace-normal break-words leading-snug">{selected?.label ?? placeholder}</span>
           <ChevronDownIcon className="size-4 shrink-0 opacity-50 ml-1" />
         </Button>
       </PopoverTrigger>

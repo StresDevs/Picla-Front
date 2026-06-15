@@ -9,18 +9,64 @@ import { DataTable } from '@/components/common/data-table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { mockBranches } from '@/lib/mock/data'
-import { getDeviceSessions, type DeviceSessionRecord } from '@/lib/mock/runtime-store'
+import { getSupabaseClient } from '@/lib/supabase/client'
+import type { DeviceSessionRecord } from '@/lib/supabase/devices'
+
+interface BranchOption {
+  id: string
+  name: string
+}
 
 export default function ManagementDevicesPage() {
-  const [sessions, setSessions] = useState<DeviceSessionRecord[]>(getDeviceSessions())
+  const [sessions, setSessions] = useState<DeviceSessionRecord[]>([])
+  const [branches, setBranches] = useState<BranchOption[]>([])
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [branchFilter, setBranchFilter] = useState('all')
   const [emailFilter, setEmailFilter] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [feedback, setFeedback] = useState<string | null>(null)
+
+  const branchMap = useMemo(() => new Map(branches.map((branch) => [branch.id, branch.name])), [branches])
+
+  const loadSessions = async () => {
+    setIsLoading(true)
+    setFeedback(null)
+
+    const supabase = getSupabaseClient()
+    const { data: sessionData } = await supabase.auth.getSession()
+    const token = sessionData.session?.access_token
+
+    if (!token) {
+      setFeedback('Sesión inválida. Vuelve a iniciar sesión.')
+      setIsLoading(false)
+      return
+    }
+
+    const response = await fetch('/api/devices/sessions', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (!response.ok) {
+      setFeedback('No se pudo cargar el registro de dispositivos.')
+      setIsLoading(false)
+      return
+    }
+
+    const data = (await response.json()) as DeviceSessionRecord[]
+    setSessions(data)
+    setIsLoading(false)
+  }
 
   useEffect(() => {
-    setSessions(getDeviceSessions())
+    const loadBranches = async () => {
+      const supabase = getSupabaseClient()
+      const { data } = await supabase.from('branches').select('id, name').order('name', { ascending: true })
+      setBranches((data as BranchOption[]) || [])
+    }
+
+    void loadBranches()
+    void loadSessions()
   }, [])
 
   const filtered = useMemo(() => {
@@ -43,7 +89,7 @@ export default function ManagementDevicesPage() {
       <div className="space-y-6">
         <PageHeader
           title="Gestión - Dispositivos"
-          description="Control mock de dispositivos donde los trabajadores iniciaron sesión (pendiente backend)"
+          description="Registro de dispositivos donde los trabajadores iniciaron sesión"
         />
         <ManagementSubnav />
 
@@ -84,7 +130,7 @@ export default function ManagementDevicesPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  {mockBranches.map((branch) => (
+                  {branches.map((branch) => (
                     <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -111,6 +157,12 @@ export default function ManagementDevicesPage() {
           </CardContent>
         </Card>
 
+        {feedback ? (
+          <div className="rounded-lg border border-red-400/50 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            {feedback}
+          </div>
+        ) : null}
+
         <Card>
           <CardHeader>
             <CardTitle>Registro de inicios de sesión por dispositivo</CardTitle>
@@ -122,10 +174,15 @@ export default function ManagementDevicesPage() {
                 { key: 'user_name', label: 'Trabajador', render: (value) => String(value) },
                 { key: 'user_email', label: 'Correo', render: (value) => String(value) },
                 { key: 'role', label: 'Rol', render: (value) => <Badge className="bg-primary/15 text-primary">{String(value)}</Badge> },
-                { key: 'device_name', label: 'Dispositivo', render: (value) => String(value) },
-                { key: 'browser', label: 'Navegador', render: (value) => String(value) },
-                { key: 'os', label: 'SO', render: (value) => String(value) },
-                { key: 'ip_address', label: 'IP', render: (value) => String(value) },
+                {
+                  key: 'branch_id',
+                  label: 'Sucursal',
+                  render: (value) => (value ? branchMap.get(String(value)) || String(value) : '—'),
+                },
+                { key: 'device_name', label: 'Dispositivo', render: (value) => value ? String(value) : '—' },
+                { key: 'browser', label: 'Navegador', render: (value) => value ? String(value) : '—' },
+                { key: 'os', label: 'SO', render: (value) => value ? String(value) : '—' },
+                { key: 'ip_address', label: 'IP', render: (value) => value ? String(value) : '—' },
                 {
                   key: 'status',
                   label: 'Estado',
@@ -136,7 +193,7 @@ export default function ManagementDevicesPage() {
                 },
               ]}
               data={filtered}
-              emptyMessage="No hay sesiones para los filtros aplicados"
+              emptyMessage={isLoading ? 'Cargando sesiones...' : 'No hay sesiones para los filtros aplicados'}
             />
           </CardContent>
         </Card>

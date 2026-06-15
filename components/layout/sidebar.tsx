@@ -134,6 +134,7 @@ const menuItems: MenuItem[] = [
       { label: 'Capital', href: '/reports/capital' },
       { label: 'Productos más vendidos', href: '/reports/top-products' },
       { label: 'Cuentas por Cobrar', href: '/reports/aging' },
+      { label: 'Sueldos', href: '/reports/payroll' },
     ],
   },
   {
@@ -364,6 +365,31 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
   }
 
   const handleLogout = async () => {
+    const deviceSessionId = window.sessionStorage.getItem('device_session_id')
+
+    if (deviceSessionId) {
+      try {
+        const supabase = getSupabaseClient()
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData.session?.access_token
+
+        if (token) {
+          await fetch('/api/devices/sessions/close', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ id: deviceSessionId }),
+          })
+        }
+      } catch {
+        // El cierre del registro de dispositivo no debe bloquear el cierre de sesión
+      }
+
+      window.sessionStorage.removeItem('device_session_id')
+    }
+
     await signOutEmployee()
     setIsOpen(false)
     router.replace('/login')

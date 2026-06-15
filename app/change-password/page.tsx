@@ -69,22 +69,32 @@ export default function ChangePasswordPage() {
 
   if (hasSession === false) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="w-full max-w-md space-y-4 rounded-2xl border border-white/10 bg-slate-950/70 p-6 text-center text-white">
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(1200px_circle_at_12%_-10%,hsl(var(--primary)/0.33),transparent_60%),radial-gradient(1000px_circle_at_110%_120%,hsl(0_0%_70%/0.12),transparent_60%),linear-gradient(180deg,hsl(222_47%_7%),hsl(224_57%_5%))] px-4 py-8">
+        <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(hsl(var(--primary)/0.12)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary)/0.12)_1px,transparent_1px)] [background-size:34px_34px]" />
+        <div className="relative z-10 w-full max-w-md space-y-4 rounded-3xl border border-white/10 bg-slate-950/75 p-7 text-center text-white shadow-[0_32px_90px_-30px_hsl(var(--primary)/0.5)] backdrop-blur-xl">
+          <img src="/piclapictures/logo1.jpeg" alt="PICLA" className="mx-auto h-20 w-20 rounded-2xl object-cover ring-1 ring-white/10" />
           <h1 className="text-xl font-semibold">Actualizar contraseña</h1>
           <p className="text-sm text-white/70">
             Abre el enlace de recuperación desde tu correo o inicia sesión nuevamente.
           </p>
-          <Button onClick={() => router.replace('/login')}>Volver a iniciar sesión</Button>
+          <Button
+            className="w-full font-semibold text-white shadow-[0_14px_30px_-14px_hsl(var(--primary)/0.9)] hover:brightness-110"
+            onClick={() => router.replace('/login')}
+          >
+            Volver a iniciar sesión
+          </Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(1200px_circle_at_12%_-10%,hsl(var(--primary)/0.33),transparent_60%),radial-gradient(1000px_circle_at_110%_120%,hsl(162_92%_45%/0.18),transparent_60%),linear-gradient(180deg,hsl(222_47%_7%),hsl(224_57%_5%))] px-4 py-8">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(1200px_circle_at_12%_-10%,hsl(var(--primary)/0.33),transparent_60%),radial-gradient(1000px_circle_at_110%_120%,hsl(0_0%_70%/0.12),transparent_60%),linear-gradient(180deg,hsl(222_47%_7%),hsl(224_57%_5%))] px-4 py-8">
+      <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(hsl(var(--primary)/0.12)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary)/0.12)_1px,transparent_1px)] [background-size:34px_34px]" />
+
       <section className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-slate-950/75 p-7 shadow-[0_32px_90px_-30px_hsl(var(--primary)/0.5)] backdrop-blur-xl">
-        <div className="mb-6 text-white">
+        <div className="mb-6 flex flex-col items-center text-center text-white">
+          <img src="/piclapictures/logo1.jpeg" alt="PICLA" className="mb-4 h-20 w-20 rounded-2xl object-cover ring-1 ring-white/10" />
           <h2 className="text-2xl font-bold">Nueva contraseña</h2>
           <p className="mt-1 text-sm text-white/70">
             Define una contraseña nueva para continuar.

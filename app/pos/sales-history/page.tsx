@@ -15,7 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { posService, type POSQueuedSale, type POSSaleRecord, type POSSaleItem } from '@/lib/supabase/pos'
-import { ShoppingCart, ChevronDown, FileSearch, Download, FileSpreadsheet, Truck, Pencil, AlertTriangle, HandCoins } from 'lucide-react'
+import { ShoppingCart, ChevronDown, FileSearch, Download, FileSpreadsheet, Truck, Pencil, AlertTriangle, HandCoins, CheckCircle2 } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
 
 interface SaleCreditInfo {
   credit_id: string
@@ -101,6 +102,10 @@ export default function POSSalesHistoryPage() {
   const [editVoidReason, setEditVoidReason] = useState('')
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false)
   const [editFeedback, setEditFeedback] = useState<string | null>(null)
+
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false)
+
+  const canApproveQueue = activeRole === 'admin' || activeRole === 'manager' || activeRole === 'employee'
 
   const loadData = async (branchId?: string) => {
     setIsLoading(true)
@@ -275,6 +280,56 @@ export default function POSSalesHistoryPage() {
 
   const resolveSaleNumber = (saleId: string) => saleNumberMap.get(saleId) ?? null
   const resolveQueueNumber = (queueId: string) => queueNumberMap.get(queueId) ?? null
+
+  const approveQueuedSale = async (queueId: string) => {
+    setIsProcessingQueue(true)
+
+    try {
+      const result = await posService.approveQueuedSale({ queue_id: queueId })
+      await loadData(branchFilter !== 'all' ? branchFilter : activeBranchId)
+      let saleNumber = 'N0'
+      if (result?.sale_id) {
+        try {
+          saleNumber = await posService.getSaleReceiptNumber(result.sale_id, activeBranchId)
+        } catch {
+          saleNumber = 'N0'
+        }
+      }
+      toast({
+        title: 'Venta aprobada',
+        description: `Venta en cola aprobada. Venta creada: ${saleNumber}`,
+      })
+    } catch (approveError) {
+      toast({
+        title: 'No se pudo aprobar la venta',
+        description: approveError instanceof Error ? approveError.message : 'No se pudo aprobar la venta en cola',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsProcessingQueue(false)
+    }
+  }
+
+  const rejectQueuedSale = async (queueId: string) => {
+    setIsProcessingQueue(true)
+
+    try {
+      await posService.rejectQueuedSale({ queue_id: queueId, reason: 'Rechazada desde historial' })
+      await loadData(branchFilter !== 'all' ? branchFilter : activeBranchId)
+      toast({
+        title: 'Venta rechazada',
+        description: 'Venta en cola rechazada correctamente.',
+      })
+    } catch (rejectError) {
+      toast({
+        title: 'No se pudo rechazar la venta',
+        description: rejectError instanceof Error ? rejectError.message : 'No se pudo rechazar la venta en cola',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsProcessingQueue(false)
+    }
+  }
 
   const openDeliveryDialog = (sale: POSSaleRecord) => {
     const pendingItems = (sale.items || []).filter(
@@ -908,6 +963,7 @@ export default function POSSalesHistoryPage() {
                       <TableHead className="text-xs font-medium">Método</TableHead>
                       <TableHead className="text-xs font-medium">Estado</TableHead>
                       <TableHead className="text-xs font-medium text-right">Total (Bs)</TableHead>
+                      {canApproveQueue && <TableHead className="text-xs font-medium text-right">Acciones</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -932,6 +988,32 @@ export default function POSSalesHistoryPage() {
                           <TableCell className="text-right font-semibold text-sm">
                             Bs {Number(q.total_amount_bob || 0).toFixed(2)}
                           </TableCell>
+                          {canApproveQueue && (
+                            <TableCell className="text-right">
+                              {q.status === 'queued' ? (
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="success"
+                                    size="sm"
+                                    onClick={() => approveQueuedSale(q.queue_id)}
+                                    disabled={isProcessingQueue}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-2" /> Convertir en venta
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => rejectQueuedSale(q.queue_id)}
+                                    disabled={isProcessingQueue}
+                                  >
+                                    Rechazar
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          )}
                         </TableRow>
                       )
                     })}

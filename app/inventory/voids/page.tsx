@@ -10,6 +10,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { branchesService, transferService, type TransferRequestDetail } from '@/lib/supabase/inventory'
 
 function transferStatusLabel(status: string) {
@@ -64,6 +72,7 @@ export default function InventoryVoidsPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
 
   const loadData = async () => {
     const [transferRows, branchRows] = await Promise.all([
@@ -101,12 +110,33 @@ export default function InventoryVoidsPage() {
     }
   }, [actionableTransfers, selectedTransferId])
 
-  const applyAction = async () => {
+  const selectedTransfer = useMemo(
+    () => transfers.find((item) => item.id === selectedTransferId) ?? null,
+    [transfers, selectedTransferId]
+  )
+
+  const confirmationMessage = useMemo(() => {
+    if (!selectedTransfer) return ''
+    const fromName = branches.find((branch) => branch.id === selectedTransfer.from_branch_id)?.name ?? selectedTransfer.from_branch_id
+    const toName = branches.find((branch) => branch.id === selectedTransfer.to_branch_id)?.name ?? selectedTransfer.to_branch_id
+
+    if (actionType === 'reposicion') {
+      return `Se descontará el stock de la sucursal de origen (${fromName}) y se reenviará a la sucursal destino (${toName}).`
+    }
+    return `Se devolverá el stock a la sucursal de origen (${fromName}) y se descontará de la sucursal de destino (${toName}).`
+  }, [selectedTransfer, branches, actionType])
+
+  const requestApplyAction = () => {
     if (!selectedTransferId || !reason.trim()) {
       setFeedback('Debes seleccionar un traspaso y registrar un motivo.')
       return
     }
 
+    setIsConfirmOpen(true)
+  }
+
+  const applyAction = async () => {
+    setIsConfirmOpen(false)
     setIsSaving(true)
     setError(null)
     setFeedback(null)
@@ -194,12 +224,29 @@ export default function InventoryVoidsPage() {
             ) : null}
 
             <div className="flex justify-end">
-              <Button onClick={() => void applyAction()} disabled={!selectedTransferId || !reason.trim() || isSaving}>
+              <Button onClick={requestApplyAction} disabled={!selectedTransferId || !reason.trim() || isSaving}>
                 Registrar operación
               </Button>
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmar operación</DialogTitle>
+              <DialogDescription>{confirmationMessage}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsConfirmOpen(false)} disabled={isSaving}>
+                Cancelar
+              </Button>
+              <Button onClick={() => void applyAction()} disabled={isSaving}>
+                Confirmar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Card>
           <CardHeader>

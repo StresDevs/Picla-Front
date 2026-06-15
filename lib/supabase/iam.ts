@@ -37,7 +37,7 @@ export const iamService = {
     const supabase = createSupabaseAdminClient()
     const { data, error } = await supabase
       .from('users')
-      .select('*, role:roles(*), branch:branches(*)')
+      .select('*, role:roles!users_role_id_fkey(*), branch:branches(*)')
       .order('created_at', { ascending: false })
 
     if (error) throw error

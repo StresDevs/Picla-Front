@@ -29,6 +29,13 @@ function toIsoEnd(date: string) {
   return new Date(`${date}T23:59:59.999`).toISOString()
 }
 
+function getQuotationRange(part: Part) {
+  const referencePrice = Number(part.price || 0)
+  const min = part.quotation_min_price ?? Number((referencePrice * 0.9).toFixed(2))
+  const max = part.quotation_max_price ?? Number((referencePrice * 1.2).toFixed(2))
+  return { min, max }
+}
+
 export default function InventoryEntriesPage() {
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
   const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
@@ -71,6 +78,7 @@ export default function InventoryEntriesPage() {
   } | null>(null)
 
   const canRegister = activeRole === 'admin'
+  const canSeePurchasePrice = activeRole === 'admin'
 
   const loadEntries = async (scopeBranchId?: string) => {
     const branchScope = scopeBranchId ?? (branchFilter === 'all' ? null : branchFilter)
@@ -336,11 +344,11 @@ export default function InventoryEntriesPage() {
                 <Input type="number" min="0" step="0.01" placeholder="0.00" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Precio minimo cotizacion</Label>
+                <Label>Precio mínimo</Label>
                 <Input type="number" min="0" step="0.01" placeholder="0.00" value={quotationMinPrice} onChange={(event) => setQuotationMinPrice(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Precio maximo cotizacion</Label>
+                <Label>Precio máximo</Label>
                 <Input type="number" min="0" step="0.01" placeholder="0.00" value={quotationMaxPrice} onChange={(event) => setQuotationMaxPrice(event.target.value)} />
               </div>
               <div className="space-y-2">
@@ -427,18 +435,37 @@ export default function InventoryEntriesPage() {
                       : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
                     exportToExcel({
                       fileName: `ingresos_${branchName.replace(/\s+/g, '_')}`,
-                      headers: ['#', 'Fecha', 'Codigo', 'Producto', 'Cant.', 'Costo', 'Precio', 'Proveedor', 'Motivo'],
-                      rows: entries.map((e, index) => [
-                        index + 1,
-                        new Date(e.created_at).toLocaleString('es-BO'),
-                        e.part_code || '-',
-                        e.part_name,
-                        Number(e.quantity),
-                        e.unit_cost ?? 0,
-                        e.unit_price ?? 0,
-                        e.supplier_name || '-',
-                        e.reason || '-',
-                      ]),
+                      headers: canSeePurchasePrice
+                        ? ['#', 'Fecha', 'Codigo', 'Producto', 'Cant.', 'Precio de compra', 'Precio', 'Proveedor', 'Motivo']
+                        : ['#', 'Fecha', 'Codigo', 'Producto', 'Cant.', 'Precio mínimo', 'Precio máximo', 'Precio', 'Proveedor', 'Motivo'],
+                      rows: entries.map((e, index) => {
+                        const product = products.find((p) => p.id === e.part_id)
+                        const range = product ? getQuotationRange(product) : { min: 0, max: 0 }
+                        return canSeePurchasePrice
+                          ? [
+                            index + 1,
+                            new Date(e.created_at).toLocaleString('es-BO'),
+                            e.part_code || '-',
+                            e.part_name,
+                            Number(e.quantity),
+                            e.unit_cost ?? 0,
+                            e.unit_price ?? 0,
+                            e.supplier_name || '-',
+                            e.reason || '-',
+                          ]
+                          : [
+                            index + 1,
+                            new Date(e.created_at).toLocaleString('es-BO'),
+                            e.part_code || '-',
+                            e.part_name,
+                            Number(e.quantity),
+                            range.min,
+                            range.max,
+                            e.unit_price ?? 0,
+                            e.supplier_name || '-',
+                            e.reason || '-',
+                          ]
+                      }),
                     })
                   }}
                 >
@@ -496,7 +523,18 @@ export default function InventoryEntriesPage() {
                         {entry.exchange_rate ? ` | TC: ${entry.exchange_rate}` : ''}
                       </p>
                       <p className="text-zinc-400">
-                        Costo: {entry.unit_cost ?? '-'} | Precio: {entry.unit_price ?? '-'}
+                        {canSeePurchasePrice ? (
+                          <>Precio de compra: {entry.unit_cost ?? '-'} | Precio: {entry.unit_price ?? '-'}</>
+                        ) : (() => {
+                          const product = products.find((p) => p.id === entry.part_id)
+                          const range = product ? getQuotationRange(product) : null
+                          return (
+                            <>
+                              Precio: {entry.unit_price ?? '-'}
+                              {range ? ` | Cotización: Bs ${range.min.toFixed(2)} - Bs ${range.max.toFixed(2)}` : ''}
+                            </>
+                          )
+                        })()}
                       </p>
                       <p className="text-zinc-400">Motivo: {entry.reason}</p>
                       <p className="text-zinc-400">Proveedor: {entry.supplier_name || 'No disponible'} | Referencia: {entry.source_reference || 'No disponible'}</p>

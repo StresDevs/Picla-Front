@@ -11,18 +11,26 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 import { branchesService, exitsService, inventoryService, partsService, type InventoryExitView } from '@/lib/supabase/inventory'
 import type { Part } from '@/types/database'
 import { generateExitsPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
 import { Download, FileSpreadsheet } from 'lucide-react'
 
+function getQuotationRange(part: Part) {
+  const referencePrice = Number(part.price || 0)
+  const min = part.quotation_min_price ?? Number((referencePrice * 0.9).toFixed(2))
+  const max = part.quotation_max_price ?? Number((referencePrice * 1.2).toFixed(2))
+  return { min, max }
+}
+
 export default function InventoryExitsPage() {
   const [products, setProducts] = useState<Part[]>([])
   const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
   const [records, setRecords] = useState<InventoryExitView[]>([])
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
+  const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
   const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -50,6 +58,7 @@ export default function InventoryExitsPage() {
   useEffect(() => {
     const syncContext = () => {
       const context = getActiveUserContext()
+      setActiveRole(context.role)
       setActiveBranchId(context.branch_id)
       setBranchId(context.branch_id)
       setBranchFilter(context.branch_id)
@@ -139,6 +148,8 @@ export default function InventoryExitsPage() {
     () => stockByPartId[productId] ?? 0,
     [stockByPartId, productId]
   )
+
+  const canSeePurchasePrice = activeRole === 'admin'
 
   const productFilterPickOptions = useMemo(() => {
     const names = [...new Set(records.map((record) => record.part_name))]
@@ -352,16 +363,34 @@ export default function InventoryExitsPage() {
                       : branches.find((b) => b.id === branchFilter)?.name || 'Sucursal'
                     exportToExcel({
                       fileName: `salidas_${branchName.replace(/\s+/g, '_')}`,
-                      headers: ['#', 'Codigo', 'Producto', 'Cantidad', 'Costo', 'Motivo', 'Sucursal'],
-                      rows: filtered.map((r, index) => [
-                        index + 1,
-                        r.part_code || '-',
-                        r.part_name,
-                        Number(r.quantity),
-                        Number(r.cost ?? 0),
-                        r.reason || '-',
-                        r.branch_name || branchName,
-                      ]),
+                      headers: canSeePurchasePrice
+                        ? ['#', 'Codigo', 'Producto', 'Cantidad', 'Precio de compra', 'Motivo', 'Sucursal']
+                        : ['#', 'Codigo', 'Producto', 'Cantidad', 'Precio mínimo', 'Precio máximo', 'Motivo', 'Sucursal'],
+                      rows: filtered.map((r, index) => {
+                        if (canSeePurchasePrice) {
+                          return [
+                            index + 1,
+                            r.part_code || '-',
+                            r.part_name,
+                            Number(r.quantity),
+                            Number(r.cost ?? 0),
+                            r.reason || '-',
+                            r.branch_name || branchName,
+                          ]
+                        }
+                        const product = products.find((p) => p.id === r.part_id)
+                        const range = product ? getQuotationRange(product) : { min: 0, max: 0 }
+                        return [
+                          index + 1,
+                          r.part_code || '-',
+                          r.part_name,
+                          Number(r.quantity),
+                          range.min,
+                          range.max,
+                          r.reason || '-',
+                          r.branch_name || branchName,
+                        ]
+                      }),
                     })
                   }}
                 >

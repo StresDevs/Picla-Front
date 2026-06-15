@@ -118,9 +118,10 @@ export interface InventoryReportRow {
   name: string
   stock: number
   branch?: string
-  category?: string
   cost?: number
   price?: number
+  quotationMinPrice?: number
+  quotationMaxPrice?: number
 }
 
 export function generateInventoryPdf(input: {
@@ -169,15 +170,15 @@ export function generateInventoryPdf(input: {
   if (variant === 'sale-price') {
     const body: RowData[] = input.rows.map((r, i) => (
       showBranchColumn
-        ? [i + 1, r.branch || input.branchName, r.code, r.stock, r.name, r.category || '-', `Bs ${fmtMoney(r.price)}`]
-        : [i + 1, r.code, r.stock, r.name, r.category || '-', `Bs ${fmtMoney(r.price)}`]
+        ? [i + 1, r.branch || input.branchName, r.code, r.stock, r.name, `Bs ${fmtMoney(r.price)}`, `Bs ${fmtMoney(r.quotationMinPrice)}`, `Bs ${fmtMoney(r.quotationMaxPrice)}`]
+        : [i + 1, r.code, r.stock, r.name, `Bs ${fmtMoney(r.price)}`, `Bs ${fmtMoney(r.quotationMinPrice)}`, `Bs ${fmtMoney(r.quotationMaxPrice)}`]
     ))
     autoTable(doc, {
       startY: 34,
       head: [
         showBranchColumn
-          ? ['#', 'Sucursal', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio venta']
-          : ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio venta'],
+          ? ['#', 'Sucursal', 'Codigo', 'Stock', 'Producto', 'Precio venta', 'Precio mínimo', 'Precio máximo']
+          : ['#', 'Codigo', 'Stock', 'Producto', 'Precio venta', 'Precio mínimo', 'Precio máximo'],
       ],
       body,
       styles: { fontSize: 8, cellPadding: 2 },
@@ -208,18 +209,20 @@ export function generateInventoryPdf(input: {
         r.code,
         r.stock,
         r.name,
-        r.category || '-',
         `Bs ${fmtMoney(r.cost)}`,
         `Bs ${fmtMoney(r.price)}`,
+        `Bs ${fmtMoney(r.quotationMinPrice)}`,
+        `Bs ${fmtMoney(r.quotationMaxPrice)}`,
       ]
       : [
         i + 1,
         r.code,
         r.stock,
         r.name,
-        r.category || '-',
         `Bs ${fmtMoney(r.cost)}`,
         `Bs ${fmtMoney(r.price)}`,
+        `Bs ${fmtMoney(r.quotationMinPrice)}`,
+        `Bs ${fmtMoney(r.quotationMaxPrice)}`,
       ]
   ))
 
@@ -227,8 +230,8 @@ export function generateInventoryPdf(input: {
     startY: 34,
     head: [
       showBranchColumn
-        ? ['#', 'Sucursal', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta']
-        : ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta'],
+        ? ['#', 'Sucursal', 'Codigo', 'Stock', 'Producto', 'Precio compra', 'Precio venta', 'Precio mínimo', 'Precio máximo']
+        : ['#', 'Codigo', 'Stock', 'Producto', 'Precio compra', 'Precio venta', 'Precio mínimo', 'Precio máximo'],
     ],
     body,
     styles: { fontSize: 8, cellPadding: 2 },
@@ -451,7 +454,7 @@ export function generateTransferPdf(input: {
   }
 
   addFooter(doc, `Traspaso ${input.transferNumber} — ${fmtDateTime(input.date)}`)
-  savePdf(doc, `traspaso_${input.transferNumber.slice(0, 8)}`)
+  savePdf(doc, `traspaso_${input.transferNumber}`)
 }
 
 // -------------------------------------------------------------------

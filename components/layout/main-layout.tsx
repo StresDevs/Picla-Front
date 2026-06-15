@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from './sidebar'
 import { TopSellerPopup } from './top-seller-popup'
 import { CreditPendingNotification } from './credit-notification'
+import { QueuedSaleNotification } from './queued-sale-notification'
+import { PayrollAlertNotification } from './payroll-alert-notification'
 import { getCurrentAuthUser, getCurrentSession } from '@/lib/supabase/auth'
 import { supabase } from '@/lib/supabase/client'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
@@ -134,6 +136,8 @@ export function MainLayout({
         <div className="page-fade p-4 lg:p-8 xl:p-10 max-w-[120rem]">
           <div className="surface-panel p-4 md:p-6 lg:p-8 min-h-[calc(100svh-6rem)]">
             <CreditPendingNotification />
+            <QueuedSaleNotification />
+            <PayrollAlertNotification />
             {children}
           </div>
         </div>

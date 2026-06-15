@@ -1013,7 +1013,7 @@ export default function InventoryProductsPage() {
                           <TableHead>Codigo</TableHead>
                           <TableHead>Nombre</TableHead>
                           <TableHead>Categoría</TableHead>
-                          <TableHead>Costo</TableHead>
+                          <TableHead>Precio de compra</TableHead>
                           <TableHead>Precio</TableHead>
                           <TableHead>Precio kit</TableHead>
                           <TableHead>Seguimiento</TableHead>
@@ -1166,7 +1166,7 @@ export default function InventoryProductsPage() {
                         <Input type="number" step="0.01" value={productForm.kitPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, kitPrice: event.target.value }))} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Cotización máxima (%)</label>
+                        <label className="text-sm font-medium text-foreground">Precio máximo (%)</label>
                         <Input
                           type="number"
                           min={100}
@@ -1182,7 +1182,7 @@ export default function InventoryProductsPage() {
                         </p>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Cotización mínima</label>
+                        <label className="text-sm font-medium text-foreground">Precio mínimo</label>
                         <Input
                           type="number"
                           step="0.01"
@@ -1306,9 +1306,10 @@ export default function InventoryProductsPage() {
                   stock: stockByPartId[p.id] ?? 0,
                   name: p.name,
                   branch: branchName,
-                  category: p.category || '-',
                   cost: p.cost,
                   price: p.price,
+                  quotationMinPrice: getQuotationRange(p).min,
+                  quotationMaxPrice: getQuotationRange(p).max,
                 })),
               })
             }}
@@ -1326,9 +1327,10 @@ export default function InventoryProductsPage() {
                 stock: stockByPartId[p.id] ?? 0,
                 name: p.name,
                 branch: branchName,
-                category: p.category || '-',
                 cost: p.cost,
                 price: p.price,
+                quotationMinPrice: getQuotationRange(p).min,
+                quotationMaxPrice: getQuotationRange(p).max,
               }))
               if (inventoryReportVariant === 'stock-check') {
                 exportToExcel({
@@ -1341,29 +1343,31 @@ export default function InventoryProductsPage() {
               if (inventoryReportVariant === 'sale-price') {
                 exportToExcel({
                   fileName: `inventario_${branchName.replace(/\s+/g, '_')}`,
-                  headers: ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio venta'],
+                  headers: ['#', 'Codigo', 'Stock', 'Producto', 'Precio venta', 'Precio mínimo', 'Precio máximo'],
                   rows: rows.map((r, index) => [
                     index + 1,
                     r.code,
                     r.stock,
                     r.name,
-                    r.category || '-',
                     r.price ?? 0,
+                    r.quotationMinPrice,
+                    r.quotationMaxPrice,
                   ]),
                 })
                 return
               }
               exportToExcel({
                 fileName: `inventario_${branchName.replace(/\s+/g, '_')}`,
-                headers: ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta'],
+                headers: ['#', 'Codigo', 'Stock', 'Producto', 'Precio compra', 'Precio venta', 'Precio mínimo', 'Precio máximo'],
                 rows: rows.map((r, index) => [
                   index + 1,
                   r.code,
                   r.stock,
                   r.name,
-                  r.category || '-',
                   r.cost ?? 0,
                   r.price ?? 0,
+                  r.quotationMinPrice,
+                  r.quotationMaxPrice,
                 ]),
               })
             }}
@@ -1457,7 +1461,7 @@ export default function InventoryProductsPage() {
                       <p><span className="font-medium">Stock disponible:</span> {selectedStock}</p>
                       <p><span className="font-medium">Sucursal:</span> {branches.find((b) => b.id === selectedProduct.branch_id)?.name || selectedProduct.branch_id}</p>
                       {canSeePurchasePrice && (
-                        <p><span className="font-medium">Costo:</span> Bs {selectedProduct.cost.toFixed(2)}</p>
+                        <p><span className="font-medium">Precio de compra:</span> Bs {selectedProduct.cost.toFixed(2)}</p>
                       )}
                       <p><span className="font-medium">Precio de venta:</span> Bs {selectedProduct.price.toFixed(2)}</p>
                       <p><span className="font-medium">Precio kit:</span> Bs {(selectedProduct.kit_price ?? selectedProduct.price).toFixed(2)}</p>
@@ -1600,7 +1604,7 @@ export default function InventoryProductsPage() {
                 <Input value={editForm.imageUrl} onChange={(event) => setEditForm((prev) => ({ ...prev, imageUrl: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Costo</label>
+                <label className="text-sm font-medium text-foreground">Precio de compra</label>
                 <Input type="number" step="0.01" value={editForm.cost} onChange={(event) => setEditForm((prev) => ({ ...prev, cost: event.target.value }))} />
               </div>
               <div className="space-y-2">
@@ -1612,7 +1616,7 @@ export default function InventoryProductsPage() {
                 <Input type="number" step="0.01" value={editForm.kitPrice} onChange={(event) => setEditForm((prev) => ({ ...prev, kitPrice: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Cotización máxima (%)</label>
+                <label className="text-sm font-medium text-foreground">Precio máximo (%)</label>
                 <Input
                   type="number"
                   min={100}
@@ -1628,7 +1632,7 @@ export default function InventoryProductsPage() {
                 </p>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Cotización mínima</label>
+                <label className="text-sm font-medium text-foreground">Precio mínimo</label>
                 <Input
                   type="number"
                   step="0.01"
@@ -1761,7 +1765,7 @@ export default function InventoryProductsPage() {
                     <div className="flex items-center justify-between">
                       {canSeePurchasePrice ? (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Tags className="w-3 h-3" /> Costo Bs {part.cost.toFixed(2)}
+                          <Tags className="w-3 h-3" /> Precio de compra Bs {part.cost.toFixed(2)}
                         </div>
                       ) : <span />}
                       <p className="text-lg font-bold text-primary">Bs {getEffectiveProductPrice(part).toFixed(2)}</p>
@@ -1868,7 +1872,7 @@ export default function InventoryProductsPage() {
                             <p><span className="font-medium">Sucursal:</span> {branchName}</p>
                             <p><span className="font-medium">Stock disponible:</span> {stockValue}</p>
                             {canSeePurchasePrice && (
-                              <p><span className="font-medium">Costo:</span> Bs {part.cost.toFixed(2)}</p>
+                              <p><span className="font-medium">Precio de compra:</span> Bs {part.cost.toFixed(2)}</p>
                             )}
                             <p><span className="font-medium">Precio kit:</span> Bs {(part.kit_price ?? part.price).toFixed(2)}</p>
                             <p><span className="font-medium">Cotización:</span> Bs {getQuotationRange(part).max.toFixed(2)} - Bs {getQuotationRange(part).min.toFixed(2)}</p>
@@ -1922,7 +1926,7 @@ export default function InventoryProductsPage() {
                                 <div className="min-w-0">
                                   <p className="font-medium truncate">{row.branch_name}</p>
                                   <p className="text-muted-foreground">
-                                    {canSeePurchasePrice && `Costo Bs ${row.cost.toFixed(2)} · `}
+                                    {canSeePurchasePrice && `Precio de compra Bs ${row.cost.toFixed(2)} · `}
                                     Venta Bs {row.price.toFixed(2)}
                                   </p>
                                 </div>

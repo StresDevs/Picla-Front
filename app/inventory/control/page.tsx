@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 import {
   branchesService,
   inventoryControlService,
@@ -23,12 +23,20 @@ import { generateInventoryPdf, type InventoryReportRow } from '@/lib/pdf/generat
 import { exportToExcel } from '@/lib/excel/export'
 import { Download, FileSpreadsheet } from 'lucide-react'
 
+function getQuotationRange(part: Part) {
+  const referencePrice = Number(part.price || 0)
+  const min = part.quotation_min_price ?? Number((referencePrice * 0.9).toFixed(2))
+  const max = part.quotation_max_price ?? Number((referencePrice * 1.2).toFixed(2))
+  return { min, max }
+}
+
 export default function InventoryControlPage() {
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
   const [branchSummaries, setBranchSummaries] = useState<InventoryBranchSummary[]>([])
   const [records, setRecords] = useState<InventoryControlView[]>([])
   const [products, setProducts] = useState<Part[]>([])
   const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
+  const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
 
   const [branchId, setBranchId] = useState('')
   const [partId, setPartId] = useState('')
@@ -47,7 +55,11 @@ export default function InventoryControlPage() {
   const [productFilter, setProductFilter] = useState('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [reportVariant, setReportVariant] = useState<'detailed' | 'stock-check'>('detailed')
+  const [reportVariant, setReportVariant] = useState<'detailed' | 'stock-check'>(() =>
+    getActiveUserContext().role === 'admin' ? 'detailed' : 'stock-check'
+  )
+
+  const canSeePurchasePrice = activeRole === 'admin'
 
   const loadReportData = async (branchScope: string | null) => {
     const [summaryRows, recordRows] = await Promise.all([
@@ -72,8 +84,12 @@ export default function InventoryControlPage() {
     const syncContext = () => {
       const context = getActiveUserContext()
       setActiveBranchId(context.branch_id)
+      setActiveRole(context.role)
       setBranchId(context.branch_id)
       setBranchFilter(context.branch_id)
+      if (context.role !== 'admin') {
+        setReportVariant('stock-check')
+      }
     }
 
     const initialize = async () => {
@@ -301,7 +317,9 @@ export default function InventoryControlPage() {
           <Select value={reportVariant} onValueChange={(value: 'detailed' | 'stock-check') => setReportVariant(value)}>
             <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="detailed">Reporte con precios</SelectItem>
+              {canSeePurchasePrice && (
+                <SelectItem value="detailed">Reporte con precios</SelectItem>
+              )}
               <SelectItem value="stock-check">Reporte control (sin precios)</SelectItem>
             </SelectContent>
           </Select>
@@ -310,15 +328,20 @@ export default function InventoryControlPage() {
             size="sm"
             onClick={() => {
               const branchName = branches.find((b) => b.id === branchFilter)?.name || 'Todas'
-              const reportRows: InventoryReportRow[] = filteredLogs.map((r) => ({
-                code: r.part_code,
-                name: r.part_name,
-                stock: Number(r.system_quantity),
-                branch: r.branch_name || branchName,
-                category: '',
-                cost: 0,
-                price: 0,
-              }))
+              const reportRows: InventoryReportRow[] = filteredLogs.map((r) => {
+                const product = products.find((p) => p.id === r.part_id)
+                const range = product ? getQuotationRange(product) : null
+                return {
+                  code: r.part_code,
+                  name: r.part_name,
+                  stock: Number(r.system_quantity),
+                  branch: r.branch_name || branchName,
+                  cost: product?.cost ?? 0,
+                  price: product?.price ?? 0,
+                  quotationMinPrice: range?.min ?? 0,
+                  quotationMaxPrice: range?.max ?? 0,
+                }
+              })
               const uniqueMap = new Map<string, InventoryReportRow>()
               for (const row of reportRows) {
                 if (!uniqueMap.has(row.code)) uniqueMap.set(row.code, row)
@@ -333,21 +356,26 @@ export default function InventoryControlPage() {
             size="sm"
             onClick={() => {
               const branchName = branches.find((b) => b.id === branchFilter)?.name || 'Todas'
-              const reportRows: InventoryReportRow[] = filteredLogs.map((r) => ({
-                code: r.part_code,
-                name: r.part_name,
-                stock: Number(r.system_quantity),
-                branch: r.branch_name || branchName,
-                category: '',
-                cost: 0,
-                price: 0,
-              }))
+              const reportRows: InventoryReportRow[] = filteredLogs.map((r) => {
+                const product = products.find((p) => p.id === r.part_id)
+                const range = product ? getQuotationRange(product) : null
+                return {
+                  code: r.part_code,
+                  name: r.part_name,
+                  stock: Number(r.system_quantity),
+                  branch: r.branch_name || branchName,
+                  cost: product?.cost ?? 0,
+                  price: product?.price ?? 0,
+                  quotationMinPrice: range?.min ?? 0,
+                  quotationMaxPrice: range?.max ?? 0,
+                }
+              })
               const uniqueMap = new Map<string, InventoryReportRow>()
               for (const row of reportRows) {
                 if (!uniqueMap.has(row.code)) uniqueMap.set(row.code, row)
               }
               const rows = Array.from(uniqueMap.values())
-              if (reportVariant === 'stock-check') {
+              if (reportVariant === 'stock-check' || !canSeePurchasePrice) {
                 exportToExcel({
                   fileName: `inventario_control_${branchName.replace(/\s+/g, '_')}`,
                   headers: ['Sucursal', 'Codigo producto', 'Nombre producto', 'Stock'],
@@ -357,15 +385,16 @@ export default function InventoryControlPage() {
               }
               exportToExcel({
                 fileName: `inventario_${branchName.replace(/\s+/g, '_')}`,
-                headers: ['#', 'Codigo', 'Stock', 'Producto', 'Categoria', 'Precio compra', 'Precio venta'],
+                headers: ['#', 'Codigo', 'Stock', 'Producto', 'Precio compra', 'Precio venta', 'Precio mínimo', 'Precio máximo'],
                 rows: rows.map((r, index) => [
                   index + 1,
                   r.code,
                   r.stock,
                   r.name,
-                  r.category || '-',
                   r.cost ?? 0,
                   r.price ?? 0,
+                  r.quotationMinPrice ?? 0,
+                  r.quotationMaxPrice ?? 0,
                 ]),
               })
             }}

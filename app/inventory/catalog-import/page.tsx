@@ -510,7 +510,7 @@ export default function InventoryCatalogImportPage() {
                   </div>
 
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs">Cotización máxima (%)</label>
+                    <label className="text-xs">Precio máximo (%)</label>
                     <Input
                       type="number"
                       min={100}
@@ -527,7 +527,7 @@ export default function InventoryCatalogImportPage() {
                   </div>
 
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs">Cotización mínima</label>
+                    <label className="text-xs">Precio mínimo</label>
                     <Input type="number" step="0.01" value={row.quotationMinPrice} onChange={(event) => updateImportRow(row.id, { quotationMinPrice: event.target.value })} />
                   </div>
 

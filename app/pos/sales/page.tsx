@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins, ChevronRight, Truck } from 'lucide-react'
 import {
   ACTIVE_ROLE_EVENT,
@@ -41,6 +42,8 @@ interface CartItem {
   quantity: number
   unit_price: number
   base_price: number
+  min_price: number
+  max_price: number
 }
 
 interface NewCustomerForm {
@@ -118,6 +121,7 @@ export default function POSSalesPage() {
   const [catalog, setCatalog] = useState<POSCatalogItem[]>([])
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
   const [queuedSales, setQueuedSales] = useState<POSQueuedSale[]>([])
+  const [queuePage, setQueuePage] = useState(1)
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPayment, setSelectedPayment] = useState<'cash' | 'card' | 'qr' | 'credit'>('cash')
@@ -209,6 +213,17 @@ export default function POSSalesPage() {
 
     return map
   }, [queuedSales])
+
+  const QUEUE_PER_PAGE = 5
+  const totalQueuePages = Math.max(1, Math.ceil(queuedSales.length / QUEUE_PER_PAGE))
+  const paginatedQueue = useMemo(() => {
+    const start = (queuePage - 1) * QUEUE_PER_PAGE
+    return queuedSales.slice(start, start + QUEUE_PER_PAGE)
+  }, [queuedSales, queuePage])
+
+  useEffect(() => {
+    setQueuePage(1)
+  }, [queuedSales.length])
 
   const reloadPOSData = async (branchId?: string | null) => {
     const targetBranch = normalizeBranchId(branchId) ?? normalizeBranchId(getActiveUserContext().branch_id)
@@ -333,6 +348,10 @@ export default function POSSalesPage() {
         )
       }
 
+      const basePrice = Number(product.price || 0)
+      const minPrice = product.quotation_min_price ?? Number((basePrice * 0.9).toFixed(2))
+      const maxPrice = product.quotation_max_price ?? Number((basePrice * 1.2).toFixed(2))
+
       return [
         ...prev,
         {
@@ -341,8 +360,10 @@ export default function POSSalesPage() {
           code: product.code,
           name: product.name,
           quantity: 1,
-          unit_price: Number(product.price || 0),
-          base_price: Number(product.price || 0),
+          unit_price: basePrice,
+          base_price: basePrice,
+          min_price: minPrice,
+          max_price: maxPrice,
         },
       ]
     })
@@ -365,7 +386,6 @@ export default function POSSalesPage() {
   }
 
   const updateCartPrice = (partId: string, value: string) => {
-    if (!canCompleteSale) return
     const price = Number(value)
     if (!Number.isFinite(price) || price < 0) return
 
@@ -373,10 +393,7 @@ export default function POSSalesPage() {
       prev.map((item) => {
         if (item.part_id !== partId) return item
         let resolvedPrice = Number(price.toFixed(2))
-        if (activeRole === 'manager') {
-          const floor = Number((item.base_price * 0.9).toFixed(2))
-          if (resolvedPrice < floor) resolvedPrice = floor
-        }
+        resolvedPrice = Math.min(Math.max(resolvedPrice, item.min_price), item.max_price)
         return { ...item, unit_price: resolvedPrice }
       }),
     )
@@ -609,12 +626,13 @@ export default function POSSalesPage() {
           customer_nit_ci: selectedCustomer?.nit_ci ?? null,
           customer_is_anonymous: anonymousSale,
           payment_type: isCreditSale ? 'credit' : selectedPayment,
-          ...(cart.some((item) => item.unit_price < item.base_price) && {
+          ...(cart.some((item) => item.unit_price !== item.base_price) && {
             price_discounts: cart
-              .filter((item) => item.unit_price < item.base_price)
+              .filter((item) => item.unit_price !== item.base_price)
               .map((item) => {
-                const pct = (((item.base_price - item.unit_price) / item.base_price) * 100).toFixed(1)
-                return `${item.name}: Bs ${item.base_price.toFixed(2)} → Bs ${item.unit_price.toFixed(2)} (-${pct}%)`
+                const pct = (((item.unit_price - item.base_price) / item.base_price) * 100).toFixed(1)
+                const sign = item.unit_price > item.base_price ? '+' : ''
+                return `${item.name}: Bs ${item.base_price.toFixed(2)} → Bs ${item.unit_price.toFixed(2)} (${sign}${pct}%)`
               })
               .join('; '),
           }),
@@ -813,6 +831,89 @@ export default function POSSalesPage() {
             </div>
           </CardContent>
         </Card>
+
+        {canApproveQueue ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Ventas en cola</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {queuedSales.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay ventas pendientes de aprobación.</p>
+              ) : (
+                <>
+                  {paginatedQueue.map((queue) => (
+                    <div key={queue.queue_id} className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold">{queueNumberMap.get(queue.queue_id) ?? 'Cola de venta'}</p>
+                          <p className="text-xs text-muted-foreground">Creada por rol {queue.created_by_role}</p>
+                          <p className="text-xs text-muted-foreground">Cliente: {queue.customer_name || 'Mostrador'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-primary">Bs {Number(queue.total_amount_bob || 0).toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground">{queue.payment_method.toUpperCase()}</p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border border-border/60 bg-background/40 p-2 space-y-1">
+                        {queue.lines.map((line) => (
+                          <div key={line.id} className="flex items-center justify-between text-xs">
+                            <span>{line.part_name} x {Number(line.quantity || 0)}</span>
+                            <span>Bs {Number(line.line_total || 0).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button variant="success" size="sm" onClick={() => approveQueuedSale(queue.queue_id)} disabled={isSubmitting}>
+                          <CheckCircle2 className="h-4 w-4 mr-2" /> Aprobar
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => rejectQueuedSale(queue.queue_id)} disabled={isSubmitting}>
+                          Rechazar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {totalQueuePages > 1 && (
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); setQueuePage((p) => Math.max(1, p - 1)) }}
+                            aria-disabled={queuePage === 1}
+                            className={queuePage === 1 ? 'pointer-events-none opacity-50' : ''}
+                          />
+                        </PaginationItem>
+                        {Array.from({ length: totalQueuePages }, (_, i) => i + 1).map((page) => (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              href="#"
+                              isActive={page === queuePage}
+                              onClick={(e) => { e.preventDefault(); setQueuePage(page) }}
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); setQueuePage((p) => Math.min(totalQueuePages, p + 1)) }}
+                            aria-disabled={queuePage === totalQueuePages}
+                            className={queuePage === totalQueuePages ? 'pointer-events-none opacity-50' : ''}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
           <DialogContent className="!w-[min(99vw,1600px)] !max-w-none sm:!max-w-none p-0 overflow-hidden max-h-[95vh]">
@@ -1502,22 +1603,19 @@ export default function POSSalesPage() {
                             <div>
                               <p className="text-xs text-muted-foreground">
                                 Precio unitario
-                                {activeRole === 'manager' && (
-                                  <span className="ml-1 text-muted-foreground">(mín Bs {(item.base_price * 0.9).toFixed(2)})</span>
-                                )}
+                                <span className="ml-1 text-muted-foreground">
+                                  (rango Bs {item.min_price.toFixed(2)} - Bs {item.max_price.toFixed(2)})
+                                </span>
                               </p>
-                              {canCompleteSale ? (
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min={activeRole === 'manager' ? item.base_price * 0.9 : 0}
-                                  value={item.unit_price}
-                                  onChange={(event) => updateCartPrice(item.part_id, event.target.value)}
-                                  onBlur={(event) => updateCartPrice(item.part_id, event.target.value)}
-                                />
-                              ) : (
-                                <div className="h-10 rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-sm">Bs {item.unit_price.toFixed(2)}</div>
-                              )}
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min={item.min_price}
+                                max={item.max_price}
+                                value={item.unit_price}
+                                onChange={(event) => updateCartPrice(item.part_id, event.target.value)}
+                                onBlur={(event) => updateCartPrice(item.part_id, event.target.value)}
+                              />
                             </div>
                             <div className="col-span-2 flex items-center justify-between rounded-xl bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                               <span>Producto: {item.code}</span>
@@ -1526,6 +1624,11 @@ export default function POSSalesPage() {
                             {item.unit_price < item.base_price && (
                               <div className="col-span-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400">
                                 Rebaja aplicada: -{(((item.base_price - item.unit_price) / item.base_price) * 100).toFixed(1)}% — se registrará en la observación de la venta
+                              </div>
+                            )}
+                            {item.unit_price > item.base_price && (
+                              <div className="col-span-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                                Aumento aplicado: +{(((item.unit_price - item.base_price) / item.base_price) * 100).toFixed(1)}% — se registrará en la observación de la venta
                               </div>
                             )}
                           </div>
@@ -1573,52 +1676,6 @@ export default function POSSalesPage() {
           </aside>
         </div>
 
-        {canApproveQueue ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Ventas en cola</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {queuedSales.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hay ventas pendientes de aprobación.</p>
-              ) : (
-                queuedSales.map((queue) => (
-                  <div key={queue.queue_id} className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold">{queueNumberMap.get(queue.queue_id) ?? 'Cola de venta'}</p>
-                        <p className="text-xs text-muted-foreground">Creada por rol {queue.created_by_role}</p>
-                        <p className="text-xs text-muted-foreground">Cliente: {queue.customer_name || 'Mostrador'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-primary">Bs {Number(queue.total_amount_bob || 0).toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">{queue.payment_method.toUpperCase()}</p>
-                      </div>
-                    </div>
-
-                    <div className="rounded-md border border-border/60 bg-background/40 p-2 space-y-1">
-                      {queue.lines.map((line) => (
-                        <div key={line.id} className="flex items-center justify-between text-xs">
-                          <span>{line.part_name} x {Number(line.quantity || 0)}</span>
-                          <span>Bs {Number(line.line_total || 0).toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button variant="success" size="sm" onClick={() => approveQueuedSale(queue.queue_id)} disabled={isSubmitting}>
-                        <CheckCircle2 className="h-4 w-4 mr-2" /> Aprobar
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => rejectQueuedSale(queue.queue_id)} disabled={isSubmitting}>
-                        Rechazar
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
       </div>
     </MainLayout>
   )

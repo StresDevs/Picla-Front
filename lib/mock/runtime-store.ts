@@ -234,31 +234,6 @@ export interface TemporaryKitAuditRecord {
   created_at: string
 }
 
-export interface PayrollConfigRecord {
-  id: string
-  role: AppUserRole
-  branch_id: string
-  amount: number
-  periodicity: 'monthly' | 'biweekly' | 'weekly'
-  active: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface PayrollPaymentRecord {
-  id: string
-  user_id: string
-  user_name: string
-  role: AppUserRole
-  branch_id: string
-  amount: number
-  period_label: string
-  status: 'pending' | 'confirmed'
-  created_at: string
-  confirmed_at?: string
-  confirmed_by?: string
-}
-
 interface CustomerRecord {
   id: string
   full_name: string
@@ -313,8 +288,6 @@ const KEYS = {
   inventoryExits: 'mock_inventory_exits_v1',
   inventoryCrudLogs: 'mock_inventory_crud_logs_v1',
   temporaryKitsAudit: 'mock_temporary_kits_audit_v1',
-  payrollConfigs: 'mock_payroll_configs_v1',
-  payrollPayments: 'mock_payroll_payments_v1',
 }
 
 export const ADMIN_MODE_EVENT = 'mock-admin-mode-changed'
@@ -833,80 +806,6 @@ function seedTemporaryKitsAuditIfNeeded() {
   const existing = readJSON<TemporaryKitAuditRecord[] | null>(KEYS.temporaryKitsAudit, null)
   if (existing) return
   writeJSON(KEYS.temporaryKitsAudit, [])
-}
-
-function seedPayrollConfigsIfNeeded() {
-  const existing = readJSON<PayrollConfigRecord[] | null>(KEYS.payrollConfigs, null)
-  if (existing && existing.length > 0) return
-
-  const now = new Date().toISOString()
-  const seed: PayrollConfigRecord[] = [
-    {
-      id: 'paycfg-001',
-      role: 'manager',
-      branch_id: 'branch-1',
-      amount: 4200,
-      periodicity: 'monthly',
-      active: true,
-      created_at: now,
-      updated_at: now,
-    },
-    {
-      id: 'paycfg-002',
-      role: 'employee',
-      branch_id: 'branch-1',
-      amount: 3200,
-      periodicity: 'monthly',
-      active: true,
-      created_at: now,
-      updated_at: now,
-    },
-  ]
-
-  writeJSON(KEYS.payrollConfigs, seed)
-}
-
-function seedPayrollPaymentsIfNeeded() {
-  const existing = readJSON<PayrollPaymentRecord[] | null>(KEYS.payrollPayments, null)
-  if (existing && existing.length > 0) return
-
-  const users = getUsers()
-  const manager = users.find((item) => item.role === 'manager')
-  const employee = users.find((item) => item.role === 'employee')
-
-  const seed: PayrollPaymentRecord[] = []
-
-  if (manager) {
-    seed.push({
-      id: 'payroll-001',
-      user_id: manager.id,
-      user_name: manager.full_name,
-      role: manager.role,
-      branch_id: manager.branch_id,
-      amount: 4200,
-      period_label: 'Marzo 2026',
-      status: 'confirmed',
-      created_at: '2026-03-25T09:00:00.000Z',
-      confirmed_at: '2026-03-26T09:15:00.000Z',
-      confirmed_by: 'Administrador Principal',
-    })
-  }
-
-  if (employee) {
-    seed.push({
-      id: 'payroll-002',
-      user_id: employee.id,
-      user_name: employee.full_name,
-      role: employee.role,
-      branch_id: employee.branch_id,
-      amount: 3200,
-      period_label: 'Marzo 2026',
-      status: 'pending',
-      created_at: '2026-03-27T10:20:00.000Z',
-    })
-  }
-
-  writeJSON(KEYS.payrollPayments, seed)
 }
 
 function toTransferRecord(input: NewTransferInput): ProductTransferRecord {
@@ -2026,122 +1925,6 @@ export function linkTemporaryKitToSale(params: { temp_kit_id: string; sale_id: s
     item.id === params.temp_kit_id ? { ...item, related_sale_id: params.sale_id } : item,
   )
   writeJSON(KEYS.temporaryKitsAudit, next)
-}
-
-export function getPayrollConfigs() {
-  seedPayrollConfigsIfNeeded()
-  return readJSON<PayrollConfigRecord[]>(KEYS.payrollConfigs, [])
-}
-
-export function savePayrollConfigs(configs: PayrollConfigRecord[]) {
-  writeJSON(KEYS.payrollConfigs, configs)
-}
-
-export function upsertPayrollConfig(input: Omit<PayrollConfigRecord, 'id' | 'created_at' | 'updated_at'> & { id?: string }) {
-  const now = new Date().toISOString()
-  const current = getPayrollConfigs()
-
-  if (input.id) {
-    const next = current.map((item) =>
-      item.id === input.id
-        ? {
-            ...item,
-            role: input.role,
-            branch_id: input.branch_id,
-            amount: Number(input.amount.toFixed(2)),
-            periodicity: input.periodicity,
-            active: input.active,
-            updated_at: now,
-          }
-        : item,
-    )
-    savePayrollConfigs(next)
-    return next.find((item) => item.id === input.id) || null
-  }
-
-  const created: PayrollConfigRecord = {
-    id: `paycfg-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
-    role: input.role,
-    branch_id: input.branch_id,
-    amount: Number(input.amount.toFixed(2)),
-    periodicity: input.periodicity,
-    active: input.active,
-    created_at: now,
-    updated_at: now,
-  }
-
-  savePayrollConfigs([created, ...current])
-  return created
-}
-
-export function getPayrollPayments() {
-  seedPayrollPaymentsIfNeeded()
-  return readJSON<PayrollPaymentRecord[]>(KEYS.payrollPayments, [])
-}
-
-export function createPayrollPayment(input: Omit<PayrollPaymentRecord, 'id' | 'status' | 'created_at'>) {
-  const current = getPayrollPayments()
-  const created: PayrollPaymentRecord = {
-    ...input,
-    id: `payroll-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
-    status: 'pending',
-    created_at: new Date().toISOString(),
-  }
-
-  writeJSON(KEYS.payrollPayments, [created, ...current])
-  return created
-}
-
-export function confirmPayrollPayment(input: {
-  payroll_payment_id: string
-  confirmed_by: string
-  confirmed_by_role: AppUserRole
-}) {
-  if (input.confirmed_by_role !== 'admin') {
-    return { ok: false as const, error: 'Solo admin puede confirmar pagos de sueldos.' }
-  }
-
-  const current = getPayrollPayments()
-  const index = current.findIndex((item) => item.id === input.payroll_payment_id)
-  if (index < 0) {
-    return { ok: false as const, error: 'Pago de sueldo no encontrado.' }
-  }
-
-  if (current[index].status === 'confirmed') {
-    return { ok: false as const, error: 'Este pago ya fue confirmado.' }
-  }
-
-  const next = [...current]
-  next[index] = {
-    ...next[index],
-    status: 'confirmed',
-    confirmed_at: new Date().toISOString(),
-    confirmed_by: input.confirmed_by,
-  }
-
-  writeJSON(KEYS.payrollPayments, next)
-  return { ok: true as const, payment: next[index] }
-}
-
-export function getConfirmedPayrollTotal(params?: {
-  startDate?: string
-  endDate?: string
-  branchId?: string
-}) {
-  const payments = getPayrollPayments().filter((item) => item.status === 'confirmed')
-  const start = params?.startDate ? new Date(`${params.startDate}T00:00:00`) : null
-  const end = params?.endDate ? new Date(`${params.endDate}T23:59:59.999`) : null
-
-  return payments
-    .filter((payment) => {
-      const confirmedAt = payment.confirmed_at ? new Date(payment.confirmed_at) : null
-      const byDate =
-        (!start || (confirmedAt && confirmedAt.getTime() >= start.getTime())) &&
-        (!end || (confirmedAt && confirmedAt.getTime() <= end.getTime()))
-      const byBranch = !params?.branchId || payment.branch_id === params.branchId
-      return byDate && byBranch
-    })
-    .reduce((sum, payment) => sum + payment.amount, 0)
 }
 
 export function getTransferFilterOptions() {

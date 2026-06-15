@@ -8,6 +8,8 @@ export interface POSCatalogItem {
   image_url: string | null
   price: number
   kit_price: number
+  quotation_min_price: number | null
+  quotation_max_price: number | null
   stock: number
   tracking_mode: 'none' | 'serial' | 'lot'
   requires_serialization: boolean

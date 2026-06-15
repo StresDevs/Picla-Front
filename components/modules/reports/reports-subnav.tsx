@@ -8,6 +8,7 @@ const items = [
   { label: 'Capital', href: '/reports/capital' },
   { label: 'Productos más vendidos', href: '/reports/top-products' },
   { label: 'Cuentas por Cobrar', href: '/reports/aging' },
+  { label: 'Sueldos', href: '/reports/payroll' },
 ]
 
 const capitalSubItems = [

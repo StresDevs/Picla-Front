@@ -300,6 +300,15 @@ export default function InventoryTransfersPage() {
     })
   }
 
+  const getTransferNumeral = async (transferId: string) => {
+    const requests = await transferService.getRequests(null)
+    const sorted = [...requests].sort(
+      (a, b) => new Date(a.requested_at).getTime() - new Date(b.requested_at).getTime(),
+    )
+    const index = sorted.findIndex((r) => r.id === transferId)
+    return index === -1 ? 'N/A' : String(index + 1)
+  }
+
   const registerSingleTransfer = async () => {
     const qty = Number(quantity)
     if (!selectedPart || !qty || qty <= 0 || fromBranch === toBranch) return
@@ -324,8 +333,9 @@ export default function InventoryTransfersPage() {
         priceOrigin: Number(selectedPart.price || 0),
         priceDestination: unitPrice ? Number(unitPrice) : Number(selectedPart.price || 0),
       }]
+      const transferNumber = typeof transferId === 'string' ? await getTransferNumeral(transferId) : 'N/A'
       generateTransferPdf({
-        transferNumber: typeof transferId === 'string' ? transferId : 'N/A',
+        transferNumber,
         date: new Date(),
         exchangeRate: getAppSettings().usd_to_bob_rate,
         fromBranchName: fromName,
@@ -384,8 +394,9 @@ export default function InventoryTransfersPage() {
         priceOrigin: Number(row.product!.price || 0),
         priceDestination: row.unitPrice ? Number(row.unitPrice) : Number(row.product!.price || 0),
       }))
+      const transferNumber = typeof transferId === 'string' ? await getTransferNumeral(transferId) : 'N/A'
       generateTransferPdf({
-        transferNumber: typeof transferId === 'string' ? transferId : 'N/A',
+        transferNumber,
         date: new Date(),
         exchangeRate: getAppSettings().usd_to_bob_rate,
         fromBranchName: fromName,

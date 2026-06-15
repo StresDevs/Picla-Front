@@ -1,12 +1,24 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { CreditCard, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { CreditCard } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { creditsService } from '@/lib/supabase/credits'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 
-const SESSION_KEY = 'credits_pending_notification_dismissed'
+const LAST_SHOWN_KEY = 'credits_pending_popup_last_shown'
+const CHECK_INTERVAL_MS = 60 * 1000
+const POPUP_INTERVAL_MS = 60 * 60 * 1000
 
 interface CreditSummary {
   active: number
@@ -14,10 +26,11 @@ interface CreditSummary {
 }
 
 export function CreditPendingNotification() {
+  const router = useRouter()
   const [activeRole, setActiveRole] = useState(() => getActiveUserContext().role)
   const [summary, setSummary] = useState<CreditSummary | null>(null)
-  const [dismissed, setDismissed] = useState(false)
-  const [loaded, setLoaded] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+  const summaryRef = useRef<CreditSummary | null>(null)
 
   useEffect(() => {
     const syncRole = () => setActiveRole(getActiveUserContext().role)
@@ -34,74 +47,64 @@ export function CreditPendingNotification() {
 
   useEffect(() => {
     if (!hasCreditsAccess) return
-    if (typeof window !== 'undefined' && sessionStorage.getItem(SESSION_KEY)) {
-      setLoaded(true)
-      return
-    }
 
     const fetchPending = async () => {
       try {
         const portfolio = await creditsService.getPortfolio()
         const active = portfolio.filter((c) => c.status === 'active').length
         const overdue = portfolio.filter((c) => c.status === 'overdue').length
-        if (active + overdue > 0) {
-          setSummary({ active, overdue })
-        }
+        const next = active + overdue > 0 ? { active, overdue } : null
+        summaryRef.current = next
+        setSummary(next)
+        return next
       } catch {
-        // silently fail — never block the UI for a notification
-      } finally {
-        setLoaded(true)
+        return summaryRef.current
       }
     }
 
-    void fetchPending()
+    const maybeShowPopup = (current: CreditSummary | null) => {
+      if (!current) return
+      const lastShown = Number(sessionStorage.getItem(LAST_SHOWN_KEY) || '0')
+      if (Date.now() - lastShown >= POPUP_INTERVAL_MS) {
+        sessionStorage.setItem(LAST_SHOWN_KEY, String(Date.now()))
+        setIsOpen(true)
+      }
+    }
+
+    void fetchPending().then(maybeShowPopup)
+
+    const interval = setInterval(() => {
+      void fetchPending().then(maybeShowPopup)
+    }, CHECK_INTERVAL_MS)
+
+    return () => clearInterval(interval)
   }, [hasCreditsAccess])
 
-  const handleDismiss = () => {
-    if (typeof window !== 'undefined') sessionStorage.setItem(SESSION_KEY, '1')
-    setDismissed(true)
-  }
-
-  if (!hasCreditsAccess || !loaded || !summary || dismissed) return null
+  if (!hasCreditsAccess || !summary) return null
 
   const total = summary.active + summary.overdue
   const hasOverdue = summary.overdue > 0
 
   return (
-    <div
-      className={`flex items-center justify-between gap-4 rounded-xl border px-4 py-3 text-sm mb-4 ${
-        hasOverdue
-          ? 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300'
-          : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-      }`}
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        <CreditCard className="h-4 w-4 shrink-0" />
-        <p className="font-medium leading-snug">
-          Tienes{' '}
-          <span className="font-bold">{total}</span>{' '}
-          crédito{total !== 1 ? 's' : ''} pendiente{total !== 1 ? 's' : ''}
-          {hasOverdue && (
-            <span className="ml-1 font-normal opacity-80">
-              — {summary.overdue} vencido{summary.overdue !== 1 ? 's' : ''}
-            </span>
-          )}
-        </p>
-        <Link
-          href="/credits/portfolio"
-          onClick={handleDismiss}
-          className="shrink-0 underline underline-offset-2 hover:opacity-80 font-semibold whitespace-nowrap"
-        >
-          Ver cartera
-        </Link>
-      </div>
-      <button
-        onClick={handleDismiss}
-        className="shrink-0 opacity-60 hover:opacity-100 transition-opacity rounded"
-        aria-label="Cerrar notificación"
-      >
-        <X className="h-4 w-4" />
-      </button>
-    </div>
+    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Créditos pendientes
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Tienes {total} crédito{total !== 1 ? 's' : ''} pendiente{total !== 1 ? 's' : ''}
+            {hasOverdue && ` — ${summary.overdue} vencido${summary.overdue !== 1 ? 's' : ''}`}.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cerrar</AlertDialogCancel>
+          <AlertDialogAction onClick={() => router.push('/credits/portfolio')}>
+            Ver cartera
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

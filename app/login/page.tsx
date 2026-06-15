@@ -6,9 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { signInEmployee, getCurrentSession, sendPasswordResetEmail } from '@/lib/supabase/auth'
-import { addDeviceSession, setActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
+import { setActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 import { getSupabaseClient } from '@/lib/supabase/client'
-import { CarFront, KeyRound, Mail, ShieldCheck } from 'lucide-react'
+import { KeyRound, Mail } from 'lucide-react'
 
 type CurrentUserProfile = {
   role_name?: string | null
@@ -143,17 +143,35 @@ export default function LoginPage() {
       })
 
       const metadata = inferDeviceMetadata()
-      addDeviceSession({
-        user_email: resolvedEmail,
-        user_name: resolvedUserName,
-        role: resolvedRole,
-        branch_id: resolvedBranchId,
-        browser: metadata.browser,
-        os: metadata.os,
-        device_name: metadata.device_name,
-        ip_address: 'Pendiente backend',
-        status: 'active',
-      })
+      const accessToken = signInData.session?.access_token
+
+      if (accessToken) {
+        try {
+          const response = await fetch('/api/devices/sessions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              user_email: resolvedEmail,
+              user_name: resolvedUserName,
+              role: resolvedRole,
+              branch_id: typedProfile?.branch_id || null,
+              browser: metadata.browser,
+              os: metadata.os,
+              device_name: metadata.device_name,
+            }),
+          })
+
+          if (response.ok) {
+            const session = await response.json()
+            window.sessionStorage.setItem('device_session_id', session.id)
+          }
+        } catch {
+          // El registro de la sesión de dispositivo no debe bloquear el inicio de sesión
+        }
+      }
 
       router.replace('/dashboard')
     } catch {
@@ -217,17 +235,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(1200px_circle_at_12%_-10%,hsl(var(--primary)/0.33),transparent_60%),radial-gradient(1000px_circle_at_110%_120%,hsl(162_92%_45%/0.18),transparent_60%),linear-gradient(180deg,hsl(222_47%_7%),hsl(224_57%_5%))] px-4 py-8">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(1200px_circle_at_12%_-10%,hsl(var(--primary)/0.33),transparent_60%),radial-gradient(1000px_circle_at_110%_120%,hsl(0_0%_70%/0.12),transparent_60%),linear-gradient(180deg,hsl(222_47%_7%),hsl(224_57%_5%))] px-4 py-8">
       <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(hsl(var(--primary)/0.12)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary)/0.12)_1px,transparent_1px)] [background-size:34px_34px]" />
 
       <section className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-slate-950/75 shadow-[0_32px_90px_-30px_hsl(var(--primary)/0.5)] backdrop-blur-xl">
         <div className="grid md:grid-cols-2">
           <div className="relative p-7 sm:p-10 md:p-12">
-            <div className="absolute -right-16 top-0 hidden h-full w-28 rotate-[20deg] bg-gradient-to-b from-primary/35 via-primary/20 to-emerald-400/25 blur-sm md:block" />
+            <div className="absolute -right-16 top-0 hidden h-full w-28 rotate-[20deg] bg-gradient-to-b from-primary/35 via-primary/20 to-white/10 blur-sm md:block" />
 
-            <div className="mb-8 flex items-center gap-3 text-white">
-            </div>
-            <div className="mb-8 flex items-center gap-3 text-white">
+            <div className="mb-6 flex items-center justify-center md:hidden">
+              <img src="/piclapictures/logo1.jpeg" alt="PICLA" className="h-20 w-20 rounded-2xl object-cover ring-1 ring-white/10" />
             </div>
 
             <div className="mb-6">
@@ -303,15 +320,36 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <div className="relative hidden md:flex min-h-[560px] items-center justify-center overflow-hidden bg-gradient-to-br from-primary/95 via-blue-600 to-emerald-400/80 p-10 text-white">
-            <div className="absolute left-[-160px] top-[-120px] h-80 w-80 rounded-full bg-white/20 blur-3xl" />
-            <div className="absolute bottom-[-140px] right-[-120px] h-80 w-80 rounded-full bg-slate-950/30 blur-3xl" />
+          <div className="relative hidden md:flex min-h-[560px] flex-col items-center justify-center overflow-hidden bg-black p-10 text-white">
+            <div className="absolute left-[-160px] top-[-120px] h-80 w-80 rounded-full bg-primary/30 blur-3xl" />
+            <div className="absolute bottom-[-140px] right-[-120px] h-80 w-80 rounded-full bg-slate-700/30 blur-3xl" />
 
-            <div className="relative max-w-sm text-center">
-              <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 ring-1 ring-white/40">
-                <ShieldCheck className="h-7 w-7" />
+            <div className="relative flex flex-col items-center text-center">
+              <img src="/piclapictures/logo1.jpeg" alt="PICLA" className="mb-8 w-64 rounded-2xl object-contain shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]" />
+
+              <div className="w-full max-w-sm space-y-4 text-left">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-1 rounded-full bg-primary" />
+                  <div>
+                    <p className="text-base font-medium text-white">Sistemas Hidráulicos</p>
+                    <p className="text-sm text-white/60">Importación de cilindros y repuestos</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-1 rounded-full bg-primary" />
+                  <div>
+                    <p className="text-base font-medium text-white">Sistemas de Suspensión</p>
+                    <p className="text-sm text-white/60">Repuestos para camiones y maquinaria pesada</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-1 rounded-full bg-primary" />
+                  <div>
+                    <p className="text-base font-medium text-white">Control integral</p>
+                    <p className="text-sm text-white/60">Inventario, ventas y traspasos entre sucursales</p>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-4xl font-extrabold leading-tight tracking-tight">BIENVENIDO A PICLA</h3>
             </div>
           </div>
         </div>
