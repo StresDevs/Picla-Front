@@ -328,11 +328,11 @@ export default function CreditsPaymentsPage() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Crédito</Label>
               <Select value={creditId} onValueChange={setCreditId}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecciona un crédito" />
                 </SelectTrigger>
                 <SelectContent>
@@ -348,25 +348,28 @@ export default function CreditsPaymentsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Monto pago</Label>
-              <Input type="number" min="0" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" />
-            </div>
-            <div className="space-y-2">
-              <Label>Método</Label>
-              <Input value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} placeholder="Efectivo / QR / Transferencia" />
-            </div>
-            <div className="space-y-2">
-              <Label>Fecha pago</Label>
-              <Input type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Notas</Label>
-              <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalle opcional" />
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="space-y-2">
+                <Label>Monto pago</Label>
+                <Input type="number" min="0" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" />
+              </div>
+              <div className="space-y-2">
+                <Label>Método</Label>
+                <Input value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} placeholder="Efectivo / QR / Transferencia" />
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha pago</Label>
+                <Input type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalle opcional" />
+              </div>
             </div>
 
             <Button
-              className="md:col-span-5"
+              className="w-full"
               onClick={handleRegisterPayment}
               disabled={!canInteract || isSaving}
               variant={isAdmin ? 'default' : 'outline'}
