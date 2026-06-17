@@ -590,9 +590,9 @@ export function generateSaleInvoicePdf(input: {
   doc.text(`Fecha: ${fmtDateTime(input.date)}`, 14, y); y += 5
   doc.text(`Cliente: ${input.customer}`, 14, y); y += 5
   doc.text(`Método de pago: ${input.paymentMethod}`, 14, y); y += 5
-  doc.text(`Sucursal: ${input.branchName}`, 14, y)
-  if (input.cashier) doc.text(`Cajero: ${input.cashier}`, 130, y)
-  y += 8
+  doc.text(`Sucursal: ${input.branchName}`, 14, y); y += 5
+  if (input.cashier) { doc.text(`Funcionario: ${input.cashier}`, 14, y); y += 5 }
+  y += 3
 
   const body: RowData[] = input.items.map((item, i) => [
     i + 1,

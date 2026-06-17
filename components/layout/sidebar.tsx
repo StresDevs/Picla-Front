@@ -38,6 +38,20 @@ import {
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
 
+const SIDEBAR_LOGO = typeof window !== 'undefined'
+  ? (Math.random() < 0.5 ? '/piclapictures/logo1.jpeg' : '/piclapictures/logo2.jpeg')
+  : '/piclapictures/logo1.jpeg'
+
+function SidebarLogo() {
+  return (
+    <img
+      src={SIDEBAR_LOGO}
+      alt="Picla"
+      className="h-20 w-full object-cover"
+    />
+  )
+}
+
 interface MenuItem {
   label: string
   href?: string
@@ -460,14 +474,8 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
             ) : (
               <>
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0 rounded-md border border-sidebar-border/70 bg-gradient-to-br from-red-950/45 via-orange-950/25 to-zinc-900/40 p-4 shadow-[0_12px_28px_-16px_hsl(0_70%_5%/0.8)]">
-                    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-sidebar-foreground/70">
-                      <Wrench className="h-3.5 w-3.5 text-orange-400" />
-                      Repuestos Mecánicos
-                    </div>
-                    <h1 className="mt-2 text-[1.6rem] font-extrabold leading-tight tracking-[0.04em] text-transparent bg-clip-text bg-gradient-to-r from-white via-orange-100 to-orange-400">
-                      Picla
-                    </h1>
+                  <div className="flex-1 min-w-0 rounded-md border border-sidebar-border/70 bg-zinc-900/60 overflow-hidden">
+                    <SidebarLogo />
                   </div>
                   {onDesktopToggle ? (
                     <Button

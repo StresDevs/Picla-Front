@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto'
 import { NextResponse } from 'next/server'
+import nodemailer from 'nodemailer'
 import { createSupabaseAdminClient, createSupabaseServerClient } from '@/lib/supabase/server'
 
 type CreateUserBody = {
@@ -215,16 +216,45 @@ export async function POST(request: Request) {
     }
 
     let emailSent = false
-    if (shouldSendResetEmail) {
-      const origin = request.headers.get('origin')
-      const redirectTo = origin ? `${origin}/change-password` : undefined
+    if (shouldSendResetEmail && process.env.SMTP_HOST) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: Number(process.env.SMTP_PORT || 587),
+          secure: process.env.SMTP_SECURE === 'true',
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        })
 
-      const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo,
-      })
-
-      if (!resetError) {
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: email,
+          subject: 'Tus credenciales de acceso — Picla',
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px">
+              <h2 style="color:#9f1239;margin-bottom:16px">Bienvenido/a a Picla</h2>
+              <p style="margin-bottom:20px">Hola <strong>${fullName}</strong>, tu cuenta ha sido creada. Aquí están tus credenciales de acceso:</p>
+              <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+                <tr>
+                  <td style="padding:10px 12px;background:#f9fafb;border:1px solid #e5e7eb;font-weight:600;width:40%">Usuario</td>
+                  <td style="padding:10px 12px;border:1px solid #e5e7eb;font-family:monospace">${username}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 12px;background:#f9fafb;border:1px solid #e5e7eb;font-weight:600">Contraseña</td>
+                  <td style="padding:10px 12px;border:1px solid #e5e7eb;font-family:monospace">${tempPassword}</td>
+                </tr>
+              </table>
+              ${mustChangePassword ? '<p style="color:#6b7280;font-size:13px">Se te pedirá cambiar tu contraseña al iniciar sesión por primera vez.</p>' : ''}
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0"/>
+              <p style="color:#9ca3af;font-size:12px">Picla POS — Sistema de gestión</p>
+            </div>
+          `,
+        })
         emailSent = true
+      } catch {
+        // email failure is non-fatal
       }
     }
 

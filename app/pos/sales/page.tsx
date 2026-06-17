@@ -707,6 +707,7 @@ export default function POSSalesPage() {
           currency: paymentCurrency,
           total: amountToCharge,
           lines: cart.map((item) => ({
+            code: item.code,
             name: item.name,
             quantity: item.quantity,
             unitPrice: item.unit_price,
@@ -1462,11 +1463,22 @@ export default function POSSalesPage() {
 
                             <div className="mt-auto space-y-2 border-t border-border/50 pt-2.5">
                               <div className="flex items-end justify-between gap-2">
-                                <div>
-                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Precio</p>
-                                  <p className="text-lg font-bold leading-none text-primary">
+                                <div className="space-y-0.5">
+                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Precio de compra</p>
+                                  <p className="text-lg font-extrabold leading-none text-primary">
                                     Bs {Number(product.price || 0).toFixed(2)}
                                   </p>
+                                  {(product.quotation_min_price != null || product.quotation_max_price != null) && (
+                                    <div className="flex items-center gap-1.5 text-[11px] tabular-nums">
+                                      <span className="text-muted-foreground">
+                                        Mín: <span className="font-semibold text-foreground">Bs {(product.quotation_min_price ?? Number(product.price || 0) * 0.9).toFixed(2)}</span>
+                                      </span>
+                                      <span className="text-border">·</span>
+                                      <span className="text-muted-foreground">
+                                        Máx: <span className="font-semibold text-foreground">Bs {(product.quotation_max_price ?? Number(product.price || 0) * 1.2).toFixed(2)}</span>
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="text-right">
                                   <p className="text-[11px] text-muted-foreground">Stock</p>

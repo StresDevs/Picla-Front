@@ -212,6 +212,7 @@ export default function QuotationsHistoryPage() {
           currency: paymentCurrency,
           total: amountToPay,
           lines: selectedQuotation.items.map((item) => ({
+            code: item.part_code,
             name: item.part_name,
             quantity: item.quantity,
             unitPrice: item.unit_price,

@@ -1,4 +1,5 @@
 interface InvoiceLine {
+  code?: string
   name: string
   quantity: number
   unitPrice: number
@@ -44,6 +45,7 @@ export function printMockInvoice(params: PrintInvoiceParams) {
       return `
         <tr>
           <td class="center">${index + 1}</td>
+          <td class="center">${line.code || '-'}</td>
           <td>${line.name}</td>
           <td class="center">${line.quantity}</td>
           <td class="right">${formatCurrency(line.unitPrice, params.currency)}</td>
@@ -227,7 +229,7 @@ export function printMockInvoice(params: PrintInvoiceParams) {
       <span class="meta-value">${params.customerName}</span>
     </div>
     <div class="meta-row">
-      <span class="meta-label">Vendedor:</span>
+      <span class="meta-label">Funcionario:</span>
       <span class="meta-value">${params.cashierName}</span>
     </div>
     <div class="meta-row">
@@ -244,6 +246,7 @@ export function printMockInvoice(params: PrintInvoiceParams) {
     <thead>
       <tr>
         <th class="center" style="width:40px">#</th>
+        <th class="center" style="width:80px">Código</th>
         <th>Producto</th>
         <th class="center" style="width:70px">Cant.</th>
         <th class="right" style="width:120px">P. Unitario</th>
