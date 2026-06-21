@@ -5,115 +5,120 @@
 
 :root {
   /* ═══════════════════════════════════════════
-     LIGHT MODE — Industrial Warm Gray
-     Inspired by nismo.com / ERP modern
+     LIGHT MODE — Vibrant Warm
+     Palette: orange-red (dominant), blue, green, yellow, red
      ═══════════════════════════════════════════ */
-  --background: 220 14% 96%;
-  --foreground: 220 20% 16%;
+  --background: 30 55% 97%;
+  --foreground: 22 30% 14%;
   --card: 0 0% 100%;
-  --card-foreground: 220 20% 16%;
+  --card-foreground: 22 30% 14%;
   --popover: 0 0% 100%;
-  --popover-foreground: 220 20% 16%;
+  --popover-foreground: 22 30% 14%;
 
-  /* Primary = Racing Red */
-  --primary: 0 85% 50%;
+  /* Primary = vibrant orange-red (dominant) */
+  --primary: 14 92% 52%;
   --primary-foreground: 0 0% 100%;
 
-  /* Secondary = neutral industrial surface (orange used deliberately, not as default) */
-  --secondary: 220 13% 90%;
-  --secondary-foreground: 220 22% 20%;
+  /* Secondary = sky blue tint */
+  --secondary: 210 75% 94%;
+  --secondary-foreground: 210 60% 28%;
 
-  /* Muted = Industrial Gray */
-  --muted: 220 12% 91%;
-  --muted-foreground: 220 10% 46%;
+  /* Muted = warm peachy surface */
+  --muted: 28 35% 92%;
+  --muted-foreground: 25 18% 44%;
 
-  /* Accent = subtle warm hover surface */
-  --accent: 30 22% 91%;
-  --accent-foreground: 220 22% 18%;
+  /* Accent = amber / yellow-orange */
+  --accent: 38 95% 55%;
+  --accent-foreground: 22 30% 14%;
 
-  --destructive: 0 84% 55%;
+  --destructive: 0 85% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 220 13% 87%;
-  --input: 220 14% 94%;
-  --ring: 0 85% 50%;
+  --border: 25 25% 85%;
+  --input: 28 30% 95%;
+  --ring: 14 92% 52%;
 
-  --chart-1: 0 80% 52%;
-  --chart-2: 24 88% 52%;
-  --chart-3: 38 92% 55%;
-  --chart-4: 142 60% 42%;
-  --chart-5: 220 14% 50%;
+  /* Charts: red → orange → yellow → green → blue */
+  --chart-1: 0 82% 52%;
+  --chart-2: 22 95% 54%;
+  --chart-3: 45 97% 52%;
+  --chart-4: 142 62% 40%;
+  --chart-5: 210 85% 52%;
 
   --radius: 0.1875rem;
 
-  /* Sidebar — ALWAYS dark regardless of theme */
-  --sidebar: 220 22% 12%;
-  --sidebar-foreground: 220 10% 82%;
-  --sidebar-primary: 0 85% 55%;
+  /* Sidebar — warm dark regardless of theme */
+  --sidebar: 18 40% 11%;
+  --sidebar-foreground: 28 12% 82%;
+  --sidebar-primary: 14 90% 56%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 18% 18%;
-  --sidebar-accent-foreground: 220 10% 90%;
-  --sidebar-border: 220 16% 20%;
-  --sidebar-ring: 0 85% 55%;
+  --sidebar-accent: 18 32% 18%;
+  --sidebar-accent-foreground: 28 12% 90%;
+  --sidebar-border: 18 28% 20%;
+  --sidebar-ring: 14 90% 56%;
 
   /* KPI tokens */
-  --kpi-positive: 142 60% 42%;
-  --kpi-negative: 0 84% 55%;
+  --kpi-positive: 142 62% 40%;
+  --kpi-negative: 0 85% 50%;
 
   /* Table stripe */
-  --surface-stripe: 220 14% 97%;
+  --surface-stripe: 28 35% 97%;
 }
 
 .dark {
   /* ═══════════════════════════════════════════
-     DARK MODE — Carbon Anthracite
+     DARK MODE — Warm Carbon
+     Palette: orange-red (dominant), blue, green, yellow, red
      ═══════════════════════════════════════════ */
-  --background: 220 18% 10%;
-  --foreground: 220 10% 92%;
-  --card: 220 16% 14%;
-  --card-foreground: 220 10% 92%;
-  --popover: 220 16% 14%;
-  --popover-foreground: 220 10% 92%;
+  --background: 22 22% 9%;
+  --foreground: 28 12% 92%;
+  --card: 22 18% 13%;
+  --card-foreground: 28 12% 92%;
+  --popover: 22 18% 13%;
+  --popover-foreground: 28 12% 92%;
 
-  --primary: 0 82% 58%;
+  --primary: 14 88% 58%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 14% 22%;
-  --secondary-foreground: 220 10% 90%;
+  /* Secondary = muted blue surface */
+  --secondary: 210 35% 22%;
+  --secondary-foreground: 210 60% 85%;
 
-  --muted: 220 14% 20%;
-  --muted-foreground: 220 10% 60%;
+  --muted: 22 16% 19%;
+  --muted-foreground: 25 10% 58%;
 
-  --accent: 220 16% 24%;
-  --accent-foreground: 220 10% 90%;
+  /* Accent = amber */
+  --accent: 38 85% 52%;
+  --accent-foreground: 22 30% 10%;
 
   --destructive: 0 80% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 220 14% 22%;
-  --input: 220 16% 16%;
-  --ring: 0 82% 58%;
+  --border: 22 16% 22%;
+  --input: 22 18% 15%;
+  --ring: 14 88% 58%;
 
+  /* Charts: red → orange → yellow → green → blue */
   --chart-1: 0 80% 58%;
-  --chart-2: 24 85% 55%;
-  --chart-3: 38 88% 55%;
-  --chart-4: 142 55% 48%;
-  --chart-5: 220 14% 55%;
+  --chart-2: 22 90% 56%;
+  --chart-3: 45 95% 56%;
+  --chart-4: 142 58% 48%;
+  --chart-5: 210 80% 60%;
 
-  /* Sidebar — even darker in dark mode */
-  --sidebar: 220 24% 7%;
-  --sidebar-foreground: 220 10% 80%;
-  --sidebar-primary: 0 80% 58%;
+  /* Sidebar — deeper warm dark */
+  --sidebar: 20 42% 6%;
+  --sidebar-foreground: 28 10% 80%;
+  --sidebar-primary: 14 88% 58%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 20% 13%;
-  --sidebar-accent-foreground: 220 10% 88%;
-  --sidebar-border: 220 18% 14%;
-  --sidebar-ring: 0 80% 58%;
+  --sidebar-accent: 20 35% 12%;
+  --sidebar-accent-foreground: 28 10% 88%;
+  --sidebar-border: 20 30% 14%;
+  --sidebar-ring: 14 88% 58%;
 
-  --kpi-positive: 142 55% 48%;
+  --kpi-positive: 142 58% 48%;
   --kpi-negative: 0 80% 60%;
 
-  --surface-stripe: 220 16% 12%;
+  --surface-stripe: 22 18% 11%;
 }
 
 @theme inline {
@@ -178,35 +183,35 @@
 
   body {
     @apply bg-background text-foreground;
-    /* Industrial technical surface — subtle blueprint grid over a warm gray wash */
+    /* Warm vibrant surface — subtle warm-orange grid over cream */
     background-image:
-      linear-gradient(to right, hsl(220 14% 50% / 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(220 14% 50% / 0.05) 1px, transparent 1px),
-      linear-gradient(180deg, hsl(220 14% 97%) 0%, hsl(220 12% 93%) 100%);
+      linear-gradient(to right, hsl(22 80% 55% / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(22 80% 55% / 0.05) 1px, transparent 1px),
+      linear-gradient(180deg, hsl(30 55% 97%) 0%, hsl(28 40% 95%) 100%);
     background-size: 28px 28px, 28px 28px, 100% 100%;
     background-attachment: fixed;
   }
 
   .dark body {
     background-image:
-      linear-gradient(to right, hsl(220 30% 60% / 0.04) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(220 30% 60% / 0.04) 1px, transparent 1px),
-      linear-gradient(180deg, hsl(220 18% 10%) 0%, hsl(220 22% 7%) 100%);
+      linear-gradient(to right, hsl(22 60% 55% / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(22 60% 55% / 0.05) 1px, transparent 1px),
+      linear-gradient(180deg, hsl(22 22% 9%) 0%, hsl(20 26% 7%) 100%);
     background-size: 28px 28px, 28px 28px, 100% 100%;
   }
 
-  /* ── Card Styling — flat industrial panel, crisp border + thin top hairline ── */
+  /* ── Card Styling — vibrant panel, warm shadow ── */
   [data-slot='card'] {
     border-radius: var(--radius-md);
     box-shadow:
-      0 1px 2px hsl(220 20% 10% / 0.05),
-      0 2px 6px hsl(220 20% 10% / 0.03);
+      0 1px 2px hsl(22 20% 10% / 0.06),
+      0 2px 6px hsl(22 20% 10% / 0.04);
   }
 
   .dark [data-slot='card'] {
     box-shadow:
-      0 1px 2px hsl(220 30% 4% / 0.35),
-      0 3px 10px hsl(220 30% 4% / 0.2);
+      0 1px 2px hsl(22 30% 4% / 0.38),
+      0 3px 10px hsl(22 30% 4% / 0.22);
   }
 
   /* ── Table Styling — Odoo-inspired ── */
@@ -247,12 +252,12 @@
   .surface-panel {
     @apply rounded-lg border border-border/70;
     background: hsl(var(--card) / 0.92);
-    box-shadow: 0 2px 8px hsl(220 20% 10% / 0.04);
+    box-shadow: 0 2px 8px hsl(22 20% 10% / 0.05);
   }
 
   .dark .surface-panel {
     background: hsl(var(--card) / 0.9);
-    box-shadow: 0 2px 12px hsl(220 30% 3% / 0.3);
+    box-shadow: 0 2px 12px hsl(22 30% 3% / 0.32);
   }
 
   /* ── Page Fade ── */
