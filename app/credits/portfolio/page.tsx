@@ -108,7 +108,7 @@ export default function CreditsPortfolioPage() {
         <PageHeader title="Cartera de Créditos" description="Vista global y por cliente de deudas por cobrar" />
         <CreditsSubnav />
 
-        <Card>
+        <Card className="card-info">
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6">
             <div className="space-y-2">
               <Label>Filtrar por cliente</Label>
@@ -138,35 +138,35 @@ export default function CreditsPortfolioPage() {
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
+          <Card className="kpi-blue border-l-4 border-l-blue-500">
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">Activos</p>
-              <p className="text-3xl font-semibold mt-2">{summary.active}</p>
+              <p className="text-3xl font-semibold mt-2 text-blue-600 dark:text-blue-400">{summary.active}</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="kpi-yellow border-l-4 border-l-amber-500">
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">Saldo por cobrar</p>
-              <p className="text-3xl text-primary font-semibold mt-2">Bs {summary.balance.toFixed(2)}</p>
+              <p className="text-3xl text-amber-600 dark:text-amber-400 font-semibold mt-2">Bs {summary.balance.toFixed(2)}</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="kpi-red border-l-4 border-l-red-500">
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">Vencidos</p>
-              <p className="text-3xl text-destructive font-semibold mt-2">{summary.overdue}</p>
+              <p className="text-3xl text-red-600 dark:text-red-400 font-semibold mt-2">{summary.overdue}</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="kpi-green border-l-4 border-l-emerald-500">
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">Pagados</p>
-              <p className="text-3xl text-secondary font-semibold mt-2">{summary.paid}</p>
+              <p className="text-3xl text-emerald-600 dark:text-emerald-400 font-semibold mt-2">{summary.paid}</p>
             </CardContent>
           </Card>
         </div>
 
-        <Card>
+        <Card className="card-financial">
           <CardHeader>
-            <CardTitle>Créditos registrados</CardTitle>
+            <CardTitle className="text-amber-700 dark:text-amber-300">💳 Créditos registrados</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {isLoading ? (

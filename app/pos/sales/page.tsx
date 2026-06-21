@@ -812,7 +812,7 @@ export default function POSSalesPage() {
         />
         <PageHeader title="Punto de Venta" description="Ventas por sucursal con validación de caja abierta y cola para solo lectura" />
 
-        <Card>
+        <Card className="card-info">
           <CardContent className="pt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="flex items-center gap-3">
               <ShieldCheck className={`h-5 w-5 ${canCompleteSale ? 'text-emerald-500' : canQueueSale ? 'text-amber-500' : 'text-muted-foreground'}`} />
@@ -834,9 +834,9 @@ export default function POSSalesPage() {
         </Card>
 
         {canApproveQueue ? (
-          <Card>
+          <Card className="card-financial">
             <CardHeader>
-              <CardTitle>Ventas en cola</CardTitle>
+              <CardTitle className="text-amber-700 dark:text-amber-300">📦 Ventas en cola</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {queuedSales.length === 0 ? (
@@ -844,7 +844,7 @@ export default function POSSalesPage() {
               ) : (
                 <>
                   {paginatedQueue.map((queue) => (
-                    <div key={queue.queue_id} className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-3">
+                    <div key={queue.queue_id} className="rounded-lg border border-amber-300/40 bg-amber-50/60 dark:bg-amber-900/20 dark:border-amber-700/40 p-3 space-y-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
                           <p className="font-semibold">{queueNumberMap.get(queue.queue_id) ?? 'Cola de venta'}</p>
@@ -1387,9 +1387,9 @@ export default function POSSalesPage() {
 
         <div className="flex flex-col gap-6 items-start lg:flex-row">
           <section className="w-full flex-1 space-y-4 min-w-0">
-            <Card>
+            <Card className="card-products">
               <CardHeader>
-                <CardTitle>Productos de la sucursal</CardTitle>
+                <CardTitle className="text-green-700 dark:text-green-300">📦 Productos de la sucursal</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative max-w-xl">
@@ -1419,7 +1419,11 @@ export default function POSSalesPage() {
                       return (
                         <article
                           key={product.part_id}
-                          className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm"
+                          className={`flex h-full min-w-0 flex-col overflow-hidden rounded-xl border shadow-sm ${
+                            outOfStock
+                              ? 'border-red-200 dark:border-red-900/50 bg-red-50/60 dark:bg-red-950/20 opacity-75'
+                              : 'border-green-200 dark:border-green-800/40 bg-green-50/60 dark:bg-green-950/20'
+                          }`}
                         >
                           <div className="relative aspect-[5/4] shrink-0 overflow-hidden border-b border-border/60 bg-muted/25">
                             <img
@@ -1517,10 +1521,10 @@ export default function POSSalesPage() {
             }`}
           >
             <div className="w-full lg:w-[400px] xl:w-[440px] 2xl:w-[500px] 2xl:sticky 2xl:top-6">
-            <Card className="flex max-h-none flex-col overflow-visible border-border/70 bg-card shadow-lg shadow-black/10 2xl:max-h-[calc(100svh-3rem)] 2xl:overflow-hidden">
+            <Card className="flex max-h-none flex-col overflow-visible card-sales shadow-lg shadow-black/10 2xl:max-h-[calc(100svh-3rem)] 2xl:overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-                <CardTitle className="flex items-center gap-2">
-                  <ShoppingCart className="h-5 w-5 text-primary" />
+                <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
+                  <ShoppingCart className="h-5 w-5" />
                   Carrito
                   {cart.length > 0 ? (
                     <Badge variant="secondary" className="font-normal">

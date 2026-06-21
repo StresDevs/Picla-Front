@@ -260,6 +260,97 @@
     box-shadow: 0 2px 12px hsl(22 30% 3% / 0.32);
   }
 
+  /* ══════════════════════════════════════════════════════
+     SEMANTIC SURFACE COLORS — sección por tipo de contenido
+     Cada tipo de div/card tiene su propio color de fondo y borde izquierdo.
+     ══════════════════════════════════════════════════════ */
+
+  /* 🔵 Información general / resumen */
+  .card-info {
+    background: hsl(210 75% 94% / 0.85);
+    border-left: 3px solid hsl(210 85% 52%);
+  }
+  .dark .card-info {
+    background: hsl(210 35% 18% / 0.85);
+    border-left: 3px solid hsl(210 80% 60%);
+  }
+
+  /* 🟢 Productos / inventario */
+  .card-products {
+    background: hsl(142 60% 92% / 0.85);
+    border-left: 3px solid hsl(142 62% 40%);
+  }
+  .dark .card-products {
+    background: hsl(142 28% 16% / 0.85);
+    border-left: 3px solid hsl(142 58% 48%);
+  }
+
+  /* 🟠 Ventas / punto de venta */
+  .card-sales {
+    background: hsl(22 90% 94% / 0.85);
+    border-left: 3px solid hsl(14 92% 52%);
+  }
+  .dark .card-sales {
+    background: hsl(22 30% 16% / 0.85);
+    border-left: 3px solid hsl(14 88% 58%);
+  }
+
+  /* 🔴 Alertas / errores / créditos vencidos */
+  .card-alert {
+    background: hsl(0 80% 94% / 0.85);
+    border-left: 3px solid hsl(0 85% 50%);
+  }
+  .dark .card-alert {
+    background: hsl(0 30% 14% / 0.85);
+    border-left: 3px solid hsl(0 80% 60%);
+  }
+
+  /* 🟡 Finanzas / caja / créditos */
+  .card-financial {
+    background: hsl(45 97% 92% / 0.85);
+    border-left: 3px solid hsl(38 95% 55%);
+  }
+  .dark .card-financial {
+    background: hsl(38 25% 14% / 0.85);
+    border-left: 3px solid hsl(38 85% 52%);
+  }
+
+  /* 🟣 Reportes / auditoría */
+  .card-reports {
+    background: hsl(270 60% 94% / 0.85);
+    border-left: 3px solid hsl(270 60% 55%);
+  }
+  .dark .card-reports {
+    background: hsl(270 25% 16% / 0.85);
+    border-left: 3px solid hsl(270 55% 62%);
+  }
+
+  /* ── KPI card accent backgrounds (dashboard stats) ── */
+  .kpi-blue   { background: hsl(210 75% 94%); }
+  .kpi-green  { background: hsl(142 60% 92%); }
+  .kpi-orange { background: hsl(22 90% 94%); }
+  .kpi-red    { background: hsl(0 80% 94%); }
+  .kpi-yellow { background: hsl(45 97% 92%); }
+
+  .dark .kpi-blue   { background: hsl(210 35% 18%); }
+  .dark .kpi-green  { background: hsl(142 28% 16%); }
+  .dark .kpi-orange { background: hsl(22 30% 16%); }
+  .dark .kpi-red    { background: hsl(0 30% 14%); }
+  .dark .kpi-yellow { background: hsl(38 25% 14%); }
+
+  /* ── Section header badges by module ── */
+  .badge-inventory  { @apply bg-green-100  text-green-800  border-green-300; }
+  .badge-sales      { @apply bg-orange-100 text-orange-800 border-orange-300; }
+  .badge-credits    { @apply bg-yellow-100 text-yellow-800 border-yellow-300; }
+  .badge-reports    { @apply bg-purple-100 text-purple-800 border-purple-300; }
+  .badge-alerts     { @apply bg-red-100    text-red-800    border-red-300; }
+
+  .dark .badge-inventory  { @apply bg-green-900/40  text-green-300  border-green-700; }
+  .dark .badge-sales      { @apply bg-orange-900/40 text-orange-300 border-orange-700; }
+  .dark .badge-credits    { @apply bg-yellow-900/40 text-yellow-300 border-yellow-700; }
+  .dark .badge-reports    { @apply bg-purple-900/40 text-purple-300 border-purple-700; }
+  .dark .badge-alerts     { @apply bg-red-900/40    text-red-300    border-red-700; }
+
   /* ── Page Fade ── */
   .page-fade {
     animation: page-fade-in 200ms ease-out;

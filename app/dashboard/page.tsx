@@ -72,20 +72,27 @@ interface StatCardProps {
 
 function StatCard({ label, value, subtext, icon: Icon, color = 'default', loading }: StatCardProps) {
   const colorMap = {
-    default: 'text-primary',
-    green: 'text-emerald-500',
-    red: 'text-rose-500',
-    amber: 'text-amber-500',
+    default: 'text-blue-600 dark:text-blue-400',
+    green: 'text-emerald-600 dark:text-emerald-400',
+    red: 'text-rose-600 dark:text-rose-400',
+    amber: 'text-amber-600 dark:text-amber-400',
   }
-  const accentMap = {
-    default: 'border-l-primary',
+  // Each color variant gets a distinct colored background
+  const bgMap = {
+    default: 'kpi-blue',
+    green: 'kpi-green',
+    red: 'kpi-red',
+    amber: 'kpi-yellow',
+  }
+  const borderMap = {
+    default: 'border-l-blue-500',
     green: 'border-l-emerald-500',
     red: 'border-l-rose-500',
     amber: 'border-l-amber-500',
   }
 
   return (
-    <Card className={`bg-card border-l-[3px] ${accentMap[color]}`}>
+    <Card className={`border-l-[3px] ${borderMap[color]} ${bgMap[color]}`}>
       <CardContent className="pt-5">
         <div className="flex items-start justify-between gap-2 mb-2">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</p>
@@ -244,9 +251,9 @@ export default function DashboardPage() {
         {/* Gráficas */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Ventas últimos 7 días */}
-          <Card className="lg:col-span-2 bg-card/95">
+          <Card className="lg:col-span-2 card-sales">
             <CardHeader>
-              <CardTitle>Ventas últimos 7 días</CardTitle>
+              <CardTitle className="text-orange-700 dark:text-orange-300">📈 Ventas últimos 7 días</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -283,9 +290,9 @@ export default function DashboardPage() {
           </Card>
 
           {/* Por método de pago */}
-          <Card className="bg-card/95">
+          <Card className="card-financial">
             <CardHeader>
-              <CardTitle>Por método de pago</CardTitle>
+              <CardTitle className="text-amber-700 dark:text-amber-300">💳 Por método de pago</CardTitle>
               <p className="text-sm text-muted-foreground">Últimos 7 días</p>
             </CardHeader>
             <CardContent>
@@ -322,10 +329,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Top productos de la semana */}
-        <Card className="bg-card/95">
+        <Card className="card-products">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Top productos esta semana</CardTitle>
+              <CardTitle className="text-green-700 dark:text-green-300">📦 Top productos esta semana</CardTitle>
               <Badge variant="outline">{topProductsData.length} productos</Badge>
             </div>
           </CardHeader>

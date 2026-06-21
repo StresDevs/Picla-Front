@@ -1367,7 +1367,7 @@ export default function InventoryProductsPage() {
         />
 
         {!canModify ? (
-          <Card className="border-amber-500/40 bg-amber-500/5">
+          <Card className="card-financial">
             <CardContent className="pt-6 text-sm text-amber-700 dark:text-amber-300">
               Solo el rol admin puede crear o modificar inventario. Tu rol actual es: {activeRole}.
             </CardContent>
@@ -1375,7 +1375,7 @@ export default function InventoryProductsPage() {
         ) : null}
 
         {error ? (
-          <Card className="border-red-500/40 bg-red-500/5">
+          <Card className="card-alert">
             <CardContent className="pt-6 text-sm text-red-700 dark:text-red-300">{error}</CardContent>
           </Card>
         ) : null}
@@ -1477,10 +1477,10 @@ export default function InventoryProductsPage() {
           </Button>
         </div>
 
-        <Card>
+        <Card className="card-info">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+              <SlidersHorizontal className="w-4 h-4" />
               Filtros de catálogo
             </CardTitle>
             <CardDescription>Búsqueda por nombre, código, categoría y rango de precio</CardDescription>
@@ -1838,7 +1838,11 @@ export default function InventoryProductsPage() {
               const stockValue = stockByPartId[part.id] ?? 0
 
               return (
-                <article key={part.id} className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 transition-colors duration-150 hover:border-primary/60 hover:bg-card">
+                <article key={part.id} className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-colors duration-150 ${
+                  stockValue <= 0
+                    ? 'border-red-300/60 dark:border-red-800/50 bg-red-50/70 dark:bg-red-950/20 hover:border-red-400/70'
+                    : 'border-green-200/70 dark:border-green-800/40 bg-green-50/70 dark:bg-green-950/20 hover:border-green-400/60'
+                }`}>
                   <div className="relative aspect-[3/4] overflow-hidden">
                     <img src={part.image_url || '/placeholder.svg'} alt={part.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/placeholder.svg' }} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />

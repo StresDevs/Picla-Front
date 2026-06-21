@@ -153,7 +153,7 @@ export default function ReportsProfitPage() {
         <ReportsSubnav />
 
         {/* Filtros */}
-        <Card className="bg-card/95">
+        <Card className="card-info">
           <CardHeader>
             <CardTitle className="flex items-center justify-between gap-3">
               <span>Filtros</span>
@@ -227,17 +227,17 @@ export default function ReportsProfitPage() {
         </Card>
 
         {error && (
-          <Card className="border-red-500/40 bg-red-500/8">
+          <Card className="card-alert">
             <CardContent className="pt-4 pb-4 text-sm text-red-300">{error}</CardContent>
           </Card>
         )}
 
         {/* KPIs — Ventas, Costos, Ganancia, Transacciones */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="bg-card/95">
+          <Card className="kpi-blue border-l-4 border-l-sky-500">
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-4 w-4 text-sky-400" />
+                <TrendingUp className="h-4 w-4 text-sky-600 dark:text-sky-400" />
                 <p className="text-sm text-muted-foreground">Total ventas (ingresos)</p>
               </div>
               {isLoading ? (
@@ -248,10 +248,10 @@ export default function ReportsProfitPage() {
               <p className="text-xs text-muted-foreground mt-1">{totalCount} transacciones</p>
             </CardContent>
           </Card>
-          <Card className="bg-card/95">
+          <Card className="kpi-red border-l-4 border-l-rose-500">
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 mb-2">
-                <TrendingDown className="h-4 w-4 text-rose-400" />
+                <TrendingDown className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                 <p className="text-sm text-muted-foreground">Total costos (compra)</p>
               </div>
               {isLoading ? (
@@ -261,11 +261,11 @@ export default function ReportsProfitPage() {
               )}
             </CardContent>
           </Card>
-          <Card className="bg-card/95 border-emerald-500/30">
+          <Card className="kpi-green border-l-4 border-l-emerald-500">
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 mb-2">
-                <BarChart3 className="h-4 w-4 text-emerald-400" />
-                <p className="text-sm font-semibold text-emerald-300">Ganancia neta</p>
+                <BarChart3 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Ganancia neta</p>
               </div>
               {isLoading ? (
                 <div className="h-8 w-28 animate-pulse rounded bg-muted/50" />
@@ -281,7 +281,7 @@ export default function ReportsProfitPage() {
               )}
             </CardContent>
           </Card>
-          <Card className="bg-card/95">
+          <Card className="kpi-yellow border-l-4 border-l-amber-500">
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground mb-2">Sucursales con movimiento</p>
               {isLoading ? (
@@ -295,8 +295,8 @@ export default function ReportsProfitPage() {
 
         {/* Por método de pago + Por sucursal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="bg-card/95">
-            <CardHeader><CardTitle>Por método de pago</CardTitle></CardHeader>
+          <Card className="card-financial">
+            <CardHeader><CardTitle className="text-amber-700 dark:text-amber-300">💳 Por método de pago</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
@@ -306,15 +306,15 @@ export default function ReportsProfitPage() {
                 <p className="text-sm text-muted-foreground">Sin datos para el filtro actual.</p>
               ) : (
                 byMethod.map(({ method, revenue, cost, profit }) => (
-                  <div key={method} className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between">
+                  <div key={method} className="rounded-xl border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/50 dark:bg-amber-900/10 px-4 py-3 flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold">{PAYMENT_LABELS[method] ?? method}</p>
                       <div className="flex gap-3 mt-1">
-                        <span className="text-[10px] text-sky-400">Venta: {formatBs(revenue)}</span>
-                        <span className="text-[10px] text-rose-400">Costo: {formatBs(cost)}</span>
+                        <span className="text-[10px] text-sky-600 dark:text-sky-400">Venta: {formatBs(revenue)}</span>
+                        <span className="text-[10px] text-rose-600 dark:text-rose-400">Costo: {formatBs(cost)}</span>
                       </div>
                     </div>
-                    <p className={`font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBs(profit)}</p>
+                    <p className={`font-bold ${profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{formatBs(profit)}</p>
                   </div>
                 ))
               )}
@@ -322,8 +322,8 @@ export default function ReportsProfitPage() {
           </Card>
 
           {/* Por sucursal */}
-          <Card className="bg-card/95">
-            <CardHeader><CardTitle>Por sucursal</CardTitle></CardHeader>
+          <Card className="card-info">
+            <CardHeader><CardTitle className="text-blue-700 dark:text-blue-300">🏢 Por sucursal</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
@@ -351,8 +351,8 @@ export default function ReportsProfitPage() {
         </div>
 
         {/* Tabla detallada */}
-        <Card className="bg-card/95">
-          <CardHeader><CardTitle>Detalle por día y sucursal</CardTitle></CardHeader>
+        <Card className="card-reports">
+          <CardHeader><CardTitle className="text-purple-700 dark:text-purple-300">📋 Detalle por día y sucursal</CardTitle></CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="space-y-2">
