@@ -153,7 +153,7 @@ export default function ReportsProfitPage() {
         <ReportsSubnav />
 
         {/* Filtros */}
-        <Card className="card-info">
+        <Card className="card-filter">
           <CardHeader>
             <CardTitle className="flex items-center justify-between gap-3">
               <span>Filtros</span>

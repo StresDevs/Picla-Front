@@ -93,9 +93,9 @@ export default function ManagementDevicesPage() {
         />
         <ManagementSubnav />
 
-        <Card className="border-primary/35 bg-gradient-to-r from-sky-950/40 via-slate-950/50 to-emerald-950/40">
+        <Card className="card-filter">
           <CardHeader>
-            <CardTitle>Filtros y resumen</CardTitle>
+            <CardTitle className="text-orange-900 dark:text-orange-300">Filtros y resumen</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="space-y-2">

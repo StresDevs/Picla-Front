@@ -426,7 +426,7 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
   return (
     <>
       {/* Mobile Menu Button */}
-      <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-14 px-4 bg-sidebar/95 backdrop-blur-md border-b border-sidebar-border lg:hidden">
+      <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-14 px-4 bg-gradient-to-r from-[hsl(14_65%_18%)] to-[hsl(20_38%_10%)] backdrop-blur-md border-b border-sidebar-border lg:hidden">
         <div className="flex items-center gap-2.5">
           <BrandMark />
           <span className="font-extrabold text-lg text-sidebar-foreground tracking-tight">Picla</span>
@@ -443,7 +443,7 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
 
       {/* Sidebar - Persistente en desktop (riel/colapsable) */}
       <aside
-        className={`fixed inset-y-14 left-0 z-50 w-[88vw] max-w-[22rem] shrink-0 bg-sidebar border-r border-sidebar-border transform transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-y-auto overflow-x-hidden h-[calc(100svh-56px)] backdrop-blur-xl lg:relative lg:inset-y-0 lg:left-auto lg:h-svh ${
+        className={`fixed inset-y-14 left-0 z-50 w-[88vw] max-w-[22rem] shrink-0 bg-sidebar sidebar-warm border-r border-sidebar-border transform transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-y-auto overflow-x-hidden h-[calc(100svh-56px)] backdrop-blur-xl lg:relative lg:inset-y-0 lg:left-auto lg:h-svh ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${
           collapsed

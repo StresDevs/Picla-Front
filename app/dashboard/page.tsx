@@ -72,12 +72,11 @@ interface StatCardProps {
 
 function StatCard({ label, value, subtext, icon: Icon, color = 'default', loading }: StatCardProps) {
   const colorMap = {
-    default: 'text-blue-600 dark:text-blue-400',
-    green: 'text-emerald-600 dark:text-emerald-400',
-    red: 'text-rose-600 dark:text-rose-400',
-    amber: 'text-amber-600 dark:text-amber-400',
+    default: 'text-blue-900 dark:text-blue-300',
+    green: 'text-emerald-900 dark:text-emerald-300',
+    red: 'text-rose-900 dark:text-rose-300',
+    amber: 'text-amber-900 dark:text-amber-300',
   }
-  // Each color variant gets a distinct colored background
   const bgMap = {
     default: 'kpi-blue',
     green: 'kpi-green',
@@ -85,17 +84,17 @@ function StatCard({ label, value, subtext, icon: Icon, color = 'default', loadin
     amber: 'kpi-yellow',
   }
   const borderMap = {
-    default: 'border-l-blue-500',
-    green: 'border-l-emerald-500',
-    red: 'border-l-rose-500',
-    amber: 'border-l-amber-500',
+    default: 'border-l-blue-900',
+    green: 'border-l-emerald-900',
+    red: 'border-l-rose-900',
+    amber: 'border-l-amber-900',
   }
 
   return (
     <Card className={`border-l-[3px] ${borderMap[color]} ${bgMap[color]}`}>
       <CardContent className="pt-5">
         <div className="flex items-start justify-between gap-2 mb-2">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</p>
+          <p className="text-[11px] uppercase tracking-wider text-foreground/70 dark:text-muted-foreground font-semibold">{label}</p>
           <Icon className={`h-5 w-5 shrink-0 ${colorMap[color]}`} />
         </div>
         {loading ? (
@@ -103,7 +102,7 @@ function StatCard({ label, value, subtext, icon: Icon, color = 'default', loadin
         ) : (
           <p className={`text-3xl font-bold tabular-nums ${colorMap[color]}`}>{value}</p>
         )}
-        {subtext && <p className="text-xs text-muted-foreground mt-2">{subtext}</p>}
+        {subtext && <p className="text-xs text-foreground/65 dark:text-muted-foreground mt-2">{subtext}</p>}
       </CardContent>
     </Card>
   )
@@ -164,6 +163,9 @@ export default function DashboardPage() {
         <PageHeader
           title="Panel Principal"
           description="Vista general en tiempo real del sistema de gestión"
+          className="-mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-6 bg-gradient-to-r from-red-700 via-orange-500 to-amber-400 border-none rounded-lg mb-6"
+          titleClassName="text-white"
+          descriptionClassName="text-white/85"
           action={
             <Button variant="outline" onClick={() => void loadData()} disabled={isLoading}>
               <RotateCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
@@ -253,7 +255,7 @@ export default function DashboardPage() {
           {/* Ventas últimos 7 días */}
           <Card className="lg:col-span-2 card-sales">
             <CardHeader>
-              <CardTitle className="text-orange-700 dark:text-orange-300">📈 Ventas últimos 7 días</CardTitle>
+              <CardTitle className="text-orange-900 dark:text-orange-300">📈 Ventas últimos 7 días</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (

@@ -374,10 +374,10 @@ export default function InventoryCategoriesPage() {
         <InventorySubnav />
 
         {/* Filters */}
-        <Card>
+        <Card className="card-filter">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FolderOpen className="w-4 h-4 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-orange-900 dark:text-orange-300">
+              <FolderOpen className="w-4 h-4" />
               Filtros
             </CardTitle>
             <CardDescription>Busca y filtra categorías por nombre o estado</CardDescription>

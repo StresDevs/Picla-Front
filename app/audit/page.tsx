@@ -401,7 +401,7 @@ export default function AuditPage() {
         )}
 
         {/* Filtros */}
-        <Card className="bg-white border-slate-200 dark:bg-zinc-950/70 dark:border-zinc-800">
+        <Card className="card-filter">
           <CardContent className="pt-6 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="space-y-2 md:col-span-2">

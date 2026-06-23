@@ -104,11 +104,11 @@ export default function CapitalProductsPage() {
         <ReportsSubnav />
 
         {/* Filters */}
-        <Card className="bg-card/95">
+        <Card className="card-filter">
           <CardHeader>
             <CardTitle className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2">
-                <PackageSearch className="h-5 w-5 text-emerald-400" />
+              <span className="flex items-center gap-2 text-orange-900 dark:text-orange-300">
+                <PackageSearch className="h-5 w-5" />
                 Filtros
               </span>
               <Button size="sm" onClick={() => void loadData()} disabled={isLoading}>

@@ -120,9 +120,9 @@ export default function InventoryHistoryPage() {
           </Card>
         ) : null}
 
-        <Card>
+        <Card className="card-filter">
           <CardHeader>
-            <CardTitle>Filtros de historial</CardTitle>
+            <CardTitle className="text-orange-900 dark:text-orange-300">Filtros de historial</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="space-y-2">

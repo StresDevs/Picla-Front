@@ -278,9 +278,9 @@ export default function InventoryExitsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-zinc-950/70">
+        <Card className="card-filter">
           <CardHeader>
-            <CardTitle className="text-zinc-100">Filtros de historial de salidas</CardTitle>
+            <CardTitle className="text-orange-900 dark:text-orange-300">Filtros de historial de salidas</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="space-y-2">

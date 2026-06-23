@@ -465,9 +465,9 @@ export default function POSSalesHistoryPage() {
         ) : null}
 
         {/* Filters */}
-        <Card className="border-border/60">
+        <Card className="card-filter">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Filtros</CardTitle>
+            <CardTitle className="text-sm font-medium text-orange-900 dark:text-orange-300 uppercase tracking-wide">Filtros</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             <div className="space-y-1 xl:col-span-2">

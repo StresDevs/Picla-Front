@@ -184,9 +184,9 @@ export default function InventoryStockHistoryPage() {
           </Card>
         ) : null}
 
-        <Card className="bg-gradient-to-r from-sky-950/70 via-slate-950/70 to-emerald-950/70 border-primary/30">
+        <Card className="card-filter">
           <CardHeader>
-            <CardTitle className="text-base">Filtros de snapshots</CardTitle>
+            <CardTitle className="text-base text-orange-900 dark:text-orange-300">Filtros de snapshots</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
             <div className="space-y-2">

@@ -267,76 +267,86 @@
 
   /* 🔵 Información general / resumen */
   .card-info {
-    background: hsl(210 75% 94% / 0.85);
-    border-left: 3px solid hsl(210 85% 52%);
+    background: hsl(210 85% 73%);
+    border-left: 3px solid hsl(210 90% 38%);
   }
   .dark .card-info {
-    background: hsl(210 35% 18% / 0.85);
+    background: hsl(210 55% 27%);
     border-left: 3px solid hsl(210 80% 60%);
   }
 
   /* 🟢 Productos / inventario */
   .card-products {
-    background: hsl(142 60% 92% / 0.85);
-    border-left: 3px solid hsl(142 62% 40%);
+    background: hsl(142 72% 68%);
+    border-left: 3px solid hsl(142 78% 28%);
   }
   .dark .card-products {
-    background: hsl(142 28% 16% / 0.85);
+    background: hsl(142 52% 25%);
     border-left: 3px solid hsl(142 58% 48%);
   }
 
   /* 🟠 Ventas / punto de venta */
   .card-sales {
-    background: hsl(22 90% 94% / 0.85);
-    border-left: 3px solid hsl(14 92% 52%);
+    background: hsl(22 92% 73%);
+    border-left: 3px solid hsl(14 96% 38%);
   }
   .dark .card-sales {
-    background: hsl(22 30% 16% / 0.85);
+    background: hsl(22 55% 27%);
     border-left: 3px solid hsl(14 88% 58%);
   }
 
   /* 🔴 Alertas / errores / créditos vencidos */
   .card-alert {
-    background: hsl(0 80% 94% / 0.85);
-    border-left: 3px solid hsl(0 85% 50%);
+    background: hsl(0 86% 73%);
+    border-left: 3px solid hsl(0 90% 36%);
   }
   .dark .card-alert {
-    background: hsl(0 30% 14% / 0.85);
+    background: hsl(0 55% 25%);
     border-left: 3px solid hsl(0 80% 60%);
   }
 
   /* 🟡 Finanzas / caja / créditos */
   .card-financial {
-    background: hsl(45 97% 92% / 0.85);
-    border-left: 3px solid hsl(38 95% 55%);
+    background: hsl(45 92% 68%);
+    border-left: 3px solid hsl(38 98% 36%);
   }
   .dark .card-financial {
-    background: hsl(38 25% 14% / 0.85);
+    background: hsl(38 55% 27%);
     border-left: 3px solid hsl(38 85% 52%);
   }
 
   /* 🟣 Reportes / auditoría */
   .card-reports {
-    background: hsl(270 60% 94% / 0.85);
-    border-left: 3px solid hsl(270 60% 55%);
+    background: hsl(270 68% 74%);
+    border-left: 3px solid hsl(270 70% 38%);
   }
   .dark .card-reports {
-    background: hsl(270 25% 16% / 0.85);
+    background: hsl(270 50% 29%);
     border-left: 3px solid hsl(270 55% 62%);
   }
 
-  /* ── KPI card accent backgrounds (dashboard stats) ── */
-  .kpi-blue   { background: hsl(210 75% 94%); }
-  .kpi-green  { background: hsl(142 60% 92%); }
-  .kpi-orange { background: hsl(22 90% 94%); }
-  .kpi-red    { background: hsl(0 80% 94%); }
-  .kpi-yellow { background: hsl(45 97% 92%); }
+  /* 🔴🟠 Filtros — degradé cálido rojo→naranja */
+  .card-filter {
+    background: linear-gradient(135deg, hsl(14 90% 72%) 0%, hsl(38 93% 75%) 100%);
+    border-left: 3px solid hsl(14 96% 38%);
+  }
+  .dark .card-filter {
+    background: linear-gradient(135deg, hsl(14 68% 29%) 0%, hsl(30 60% 26%) 100%);
+    border-left: 3px solid hsl(14 88% 58%);
+  }
 
-  .dark .kpi-blue   { background: hsl(210 35% 18%); }
-  .dark .kpi-green  { background: hsl(142 28% 16%); }
-  .dark .kpi-orange { background: hsl(22 30% 16%); }
-  .dark .kpi-red    { background: hsl(0 30% 14%); }
-  .dark .kpi-yellow { background: hsl(38 25% 14%); }
+  /* ── KPI card accent backgrounds (dashboard stats) ── */
+  .kpi-blue   { background: hsl(210 85% 73%); }
+  .kpi-green  { background: hsl(142 72% 68%); }
+  .kpi-orange { background: hsl(22 92% 73%); }
+  .kpi-red    { background: hsl(0 86% 73%); }
+  .kpi-yellow { background: hsl(45 92% 68%); }
+
+  .dark .kpi-blue   { background: hsl(210 55% 27%); }
+  .dark .kpi-green  { background: hsl(142 52% 25%); }
+  .dark .kpi-orange { background: hsl(22 55% 27%); }
+  .dark .kpi-red    { background: hsl(0 55% 25%); }
+  .dark .kpi-yellow { background: hsl(38 55% 27%); }
 
   /* ── Section header badges by module ── */
   .badge-inventory  { @apply bg-green-100  text-green-800  border-green-300; }
@@ -480,6 +490,24 @@
     border-radius: 0 2px 2px 0;
     background: hsl(var(--sidebar-primary));
     box-shadow: 0 0 8px hsl(var(--sidebar-primary) / 0.6);
+  }
+
+  /* Sidebar warm gradient overlay */
+  .sidebar-warm {
+    background: linear-gradient(
+      170deg,
+      hsl(14 88% 28%) 0%,
+      hsl(18 68% 17%) 35%,
+      hsl(20 50% 12%) 100%
+    ) !important;
+  }
+  .dark .sidebar-warm {
+    background: linear-gradient(
+      170deg,
+      hsl(14 82% 19%) 0%,
+      hsl(18 65% 13%) 35%,
+      hsl(22 48% 9%) 100%
+    ) !important;
   }
 
   /* Sticky KPI strip backdrop (top offset set via utilities for mobile bar) */

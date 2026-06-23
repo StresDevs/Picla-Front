@@ -26,8 +26,8 @@ import {
   getAppSettings,
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
-import { mockBranches } from '@/lib/mock/data'
 import { printMockInvoice } from '@/lib/mock/invoice'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { posService, type POSCatalogItem, type POSQueuedSale, type POSQueueLineInput } from '@/lib/supabase/pos'
 import { creditsService } from '@/lib/supabase/credits'
 import { customersService, type CustomerRecord } from '@/lib/supabase/customers'
@@ -155,6 +155,7 @@ export default function POSSalesPage() {
   const [expandedCartItemId, setExpandedCartItemId] = useState<string | null>(null)
   const [isCartOpen, setIsCartOpen] = useState(true)
   const [deliverySet, setDeliverySet] = useState<Set<string>>(new Set())
+  const [activeBranchName, setActiveBranchName] = useState('Sucursal')
 
   const canCompleteSale = canRoleCompleteSale(activeRole)
   const canQueueSale = activeRole === 'read_only'
@@ -191,8 +192,6 @@ export default function POSSalesPage() {
   }, [anonymousSale, branchCustomers, selectedCustomerId])
 
   const resolvedCustomerName = anonymousSale ? 'Cliente anónimo' : selectedCustomer?.full_name || 'Cliente mostrador'
-  const activeBranchName = mockBranches.find((branch) => branch.id === activeBranchId)?.name ?? 'Sucursal sin nombre'
-
   const queueNumberMap = useMemo(() => {
     const map = new Map<string, string>()
     const grouped = new Map<string, POSQueuedSale[]>()
@@ -267,21 +266,29 @@ export default function POSSalesPage() {
     setExchangeRate(settings.usd_to_bob_rate)
     setPaymentCurrency(settings.default_currency)
 
-    const syncContext = () => {
+    const syncContext = async () => {
       const context = getActiveUserContext()
       setActiveRole(context.role)
       setActiveUserName(context.user_name)
       setActiveBranchId(context.branch_id)
+      try {
+        const supabase = getSupabaseClient()
+        const { data } = await supabase.from('branches').select('name').eq('id', context.branch_id).single()
+        if (data?.name) setActiveBranchName(data.name)
+      } catch {
+        // silently fall back to id
+      }
       void reloadPOSData(context.branch_id)
     }
 
-    syncContext()
-    window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
-    window.addEventListener('focus', syncContext)
+    void syncContext()
+    const onContextChange = () => { void syncContext() }
+    window.addEventListener(ACTIVE_ROLE_EVENT, onContextChange)
+    window.addEventListener('focus', onContextChange)
 
     return () => {
-      window.removeEventListener(ACTIVE_ROLE_EVENT, syncContext)
-      window.removeEventListener('focus', syncContext)
+      window.removeEventListener(ACTIVE_ROLE_EVENT, onContextChange)
+      window.removeEventListener('focus', onContextChange)
     }
   }, [])
 
@@ -292,6 +299,11 @@ export default function POSSalesPage() {
       (item) => item.name.toLowerCase().includes(term) || item.code.toLowerCase().includes(term),
     )
   }, [catalog, searchTerm])
+
+  const quickAccessProducts = useMemo(() => {
+    const cartIds = new Set(cart.map((item) => item.part_id))
+    return catalog.filter((p) => Number(p.stock || 0) > 0 && !cartIds.has(p.part_id)).slice(0, 6)
+  }, [catalog, cart])
 
   const cartTotalBob = useMemo(
     () => cart.reduce((sum, item) => sum + item.quantity * item.unit_price, 0),
@@ -812,7 +824,7 @@ export default function POSSalesPage() {
         />
         <PageHeader title="Punto de Venta" description="Ventas por sucursal con validación de caja abierta y cola para solo lectura" />
 
-        <Card className="card-info">
+        <Card className="card-filter">
           <CardContent className="pt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="flex items-center gap-3">
               <ShieldCheck className={`h-5 w-5 ${canCompleteSale ? 'text-emerald-500' : canQueueSale ? 'text-amber-500' : 'text-muted-foreground'}`} />
@@ -1406,11 +1418,12 @@ export default function POSSalesPage() {
                   <p className="text-sm text-muted-foreground">Cargando catálogo...</p>
                 ) : (
                   <div
-                    className={`grid gap-4 ${
-                      isCartOpen
-                        ? 'grid-cols-1 min-[520px]:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3'
-                        : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4'
-                    }`}
+                    className="grid gap-4"
+                    style={{
+                      gridTemplateColumns: isCartOpen
+                        ? 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))'
+                        : 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+                    }}
                   >
                     {filteredCatalog.map((product) => {
                       const stock = Number(product.stock || 0)
@@ -1421,8 +1434,8 @@ export default function POSSalesPage() {
                           key={product.part_id}
                           className={`flex h-full min-w-0 flex-col overflow-hidden rounded-xl border shadow-sm ${
                             outOfStock
-                              ? 'border-red-200 dark:border-red-900/50 bg-red-50/60 dark:bg-red-950/20 opacity-75'
-                              : 'border-green-200 dark:border-green-800/40 bg-green-50/60 dark:bg-green-950/20'
+                              ? 'border-red-400/80 dark:border-red-700/70 bg-red-100/90 dark:bg-red-900/40'
+                              : 'border-green-400/70 dark:border-green-700/60 bg-green-100/90 dark:bg-green-900/35'
                           }`}
                         >
                           <div className="relative aspect-[5/4] shrink-0 overflow-hidden border-b border-border/60 bg-muted/25">
@@ -1523,7 +1536,7 @@ export default function POSSalesPage() {
             <div className="w-full lg:w-[400px] xl:w-[440px] 2xl:w-[500px] 2xl:sticky 2xl:top-6">
             <Card className="flex max-h-none flex-col overflow-visible card-sales shadow-lg shadow-black/10 2xl:max-h-[calc(100svh-3rem)] 2xl:overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-                <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
+                <CardTitle className="flex items-center gap-2 text-orange-900 dark:text-orange-300">
                   <ShoppingCart className="h-5 w-5" />
                   Carrito
                   {cart.length > 0 ? (
@@ -1688,6 +1701,24 @@ export default function POSSalesPage() {
                 </Button>
               </CardContent>
             </Card>
+            {quickAccessProducts.length > 0 && (
+              <div className="mt-3 rounded-xl border border-border/60 bg-card/80 p-3 2xl:hidden">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Acceso rápido</p>
+                <div className="space-y-1.5">
+                  {quickAccessProducts.map((product) => (
+                    <button
+                      key={product.part_id}
+                      type="button"
+                      onClick={() => addToCart(product)}
+                      className="w-full flex items-center justify-between rounded-lg border border-border/40 bg-background/60 px-3 py-2 text-xs hover:bg-primary/8 hover:border-primary/30 transition-colors text-left gap-2"
+                    >
+                      <span className="font-medium truncate flex-1">{product.name}</span>
+                      <span className="text-primary font-bold shrink-0">Bs {Number(product.price || 0).toFixed(2)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             </div>
           </aside>
         </div>
