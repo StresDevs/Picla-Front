@@ -18,7 +18,8 @@ import {
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
-import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins, ChevronRight, Truck } from 'lucide-react'
+import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins, ChevronRight, ChevronUp, Truck } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   ACTIVE_ROLE_EVENT,
   canRoleCompleteSale,
@@ -154,6 +155,7 @@ export default function POSSalesPage() {
   })
   const [expandedCartItemId, setExpandedCartItemId] = useState<string | null>(null)
   const [isCartOpen, setIsCartOpen] = useState(true)
+  const [mobileCartExpanded, setMobileCartExpanded] = useState(false)
   const [deliverySet, setDeliverySet] = useState<Set<string>>(new Set())
   const [activeBranchName, setActiveBranchName] = useState('Sucursal')
 
@@ -816,7 +818,7 @@ export default function POSSalesPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-20 lg:pb-0">
         <ErrorAlertModal
           open={errorModal !== null}
           onClose={() => setErrorModal(null)}
@@ -1526,15 +1528,48 @@ export default function POSSalesPage() {
             </Card>
           </section>
 
+          {mobileCartExpanded ? (
+            <div
+              className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+              onClick={() => setMobileCartExpanded(false)}
+              aria-hidden="true"
+            />
+          ) : null}
+
           <aside
-            className={`collapsible-x w-full lg:shrink-0 ${
+            className={cn(
+              // Móvil: hoja flotante anclada abajo, expansible/retráctil
+              'fixed inset-x-0 bottom-0 z-40 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-border bg-background shadow-2xl shadow-black/40 transition-transform duration-300 ease-out',
+              mobileCartExpanded ? 'translate-y-0' : 'translate-y-[calc(100%-3.5rem)]',
+              // Escritorio: barra lateral sticky — overflow-visible para no bloquear position:sticky en hijos
+              'lg:static lg:z-auto lg:max-h-none lg:translate-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:transition-none lg:shrink-0 lg:overflow-visible lg:sticky lg:top-6 lg:self-start',
               isCartOpen
-                ? 'block lg:w-[400px] xl:w-[440px] 2xl:w-[500px] opacity-100'
-                : 'hidden lg:block lg:w-0 lg:opacity-0'
-            }`}
+                ? 'lg:block lg:w-[400px] xl:w-[440px] 2xl:w-[500px] lg:opacity-100'
+                : 'lg:hidden lg:w-0 lg:opacity-0',
+            )}
           >
-            <div className="w-full lg:w-[400px] xl:w-[440px] 2xl:w-[500px] 2xl:sticky 2xl:top-6">
-            <Card className="flex max-h-none flex-col overflow-visible card-sales shadow-lg shadow-black/10 2xl:max-h-[calc(100svh-3rem)] 2xl:overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setMobileCartExpanded((prev) => !prev)}
+              aria-expanded={mobileCartExpanded}
+              className="flex h-14 shrink-0 items-center justify-between gap-3 px-4 lg:hidden"
+            >
+              <span className="flex items-center gap-2 font-bold text-orange-900 dark:text-orange-300">
+                <ShoppingCart className="h-5 w-5" />
+                Carrito
+                {cart.length > 0 ? (
+                  <Badge variant="secondary" className="font-normal">{cart.length}</Badge>
+                ) : null}
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-sm font-bold text-primary">Bs {cartTotalBob.toFixed(2)}</span>
+                <ChevronUp className={cn('h-5 w-5 transition-transform duration-200', mobileCartExpanded && 'rotate-180')} />
+              </span>
+            </button>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 lg:flex-none lg:overflow-visible lg:p-0">
+            <div className="w-full">
+            <Card className="flex max-h-none flex-col overflow-visible card-sales shadow-lg shadow-black/10 lg:max-h-[calc(100svh-3rem)] lg:overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
                 <CardTitle className="flex items-center gap-2 text-orange-900 dark:text-orange-300">
                   <ShoppingCart className="h-5 w-5" />
@@ -1549,7 +1584,7 @@ export default function POSSalesPage() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0"
+                  className="hidden h-8 w-8 shrink-0 lg:flex"
                   onClick={() => setIsCartOpen(false)}
                   aria-label="Ocultar carrito"
                   title="Ocultar carrito"
@@ -1557,7 +1592,7 @@ export default function POSSalesPage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 2xl:overflow-y-auto 2xl:pr-1">
+              <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 lg:overflow-y-auto lg:pr-1">
                 <div className="rounded-2xl border border-border/70 bg-muted/20 p-3">
                   <p className="text-xs text-muted-foreground">Cliente de la venta</p>
                   <p className="font-semibold">{resolvedCustomerName}</p>
@@ -1702,7 +1737,7 @@ export default function POSSalesPage() {
               </CardContent>
             </Card>
             {quickAccessProducts.length > 0 && (
-              <div className="mt-3 rounded-xl border border-border/60 bg-card/80 p-3 2xl:hidden">
+              <div className="mt-3 rounded-xl border border-border/60 bg-card/80 p-3 lg:hidden">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Acceso rápido</p>
                 <div className="space-y-1.5">
                   {quickAccessProducts.map((product) => (
@@ -1719,6 +1754,7 @@ export default function POSSalesPage() {
                 </div>
               </div>
             )}
+            </div>
             </div>
           </aside>
         </div>

@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Search, Trash2, ReceiptText, UserPlus } from 'lucide-react'
+import { Plus, Search, Trash2, ReceiptText, UserPlus, ChevronUp } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   ACTIVE_ROLE_EVENT,
   getActiveUserContext,
@@ -113,6 +114,7 @@ export default function QuotationPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
   const [showCustomerForm, setShowCustomerForm] = useState(false)
+  const [mobileCartExpanded, setMobileCartExpanded] = useState(false)
   const [priceDraftByItemId, setPriceDraftByItemId] = useState<Record<string, string>>({})
   const [newCustomer, setNewCustomer] = useState<NewCustomerForm>({
     full_name: '',
@@ -477,7 +479,7 @@ export default function QuotationPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-20 xl:pb-0">
         <PageHeader title="Cotizacion" description="Crea cotizaciones reales desde Supabase y asignalas a clientes" />
         <QuotationsSubnav />
 
@@ -666,8 +668,44 @@ export default function QuotationPage() {
             </Card>
           </section>
 
-          <aside className="xl:col-span-1">
-            <Card className="xl:sticky xl:top-6">
+          {mobileCartExpanded ? (
+            <div
+              className="fixed inset-0 z-30 bg-black/40 xl:hidden"
+              onClick={() => setMobileCartExpanded(false)}
+              aria-hidden="true"
+            />
+          ) : null}
+
+          <aside
+            className={cn(
+              // Móvil: hoja flotante anclada abajo, expansible/retráctil
+              'fixed inset-x-0 bottom-0 z-40 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-border bg-background shadow-2xl shadow-black/40 transition-transform duration-300 ease-out',
+              mobileCartExpanded ? 'translate-y-0' : 'translate-y-[calc(100%-3.5rem)]',
+              // Escritorio: barra lateral normal (xl+)
+              'xl:static xl:z-auto xl:col-span-1 xl:block xl:max-h-none xl:translate-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:shadow-none xl:transition-none',
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setMobileCartExpanded((prev) => !prev)}
+              aria-expanded={mobileCartExpanded}
+              className="flex h-14 shrink-0 items-center justify-between gap-3 px-4 xl:hidden"
+            >
+              <span className="flex items-center gap-2 font-bold">
+                <ReceiptText className="h-5 w-5 text-primary" />
+                Carrito
+                {cart.length > 0 ? (
+                  <Badge variant="secondary" className="font-normal">{cart.length}</Badge>
+                ) : null}
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="text-sm font-bold text-primary">Bs {total.toFixed(2)}</span>
+                <ChevronUp className={cn('h-5 w-5 transition-transform duration-200', mobileCartExpanded && 'rotate-180')} />
+              </span>
+            </button>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 xl:overflow-visible xl:p-0">
+            <Card className="border-0 shadow-none xl:sticky xl:top-6 xl:border xl:shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ReceiptText className="h-5 w-5 text-primary" />
@@ -747,6 +785,7 @@ export default function QuotationPage() {
                 </Button>
               </CardContent>
             </Card>
+            </div>
           </aside>
         </div>
       </div>
