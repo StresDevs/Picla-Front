@@ -126,8 +126,15 @@ export default function CreditsPaymentsPage() {
       try {
         const rows = await creditPaymentsService.getPendingRequests({ branch_id: branchScope })
         setPendingRequests(rows as CreditPaymentRequest[])
-      } catch {
-        // silently fail
+      } catch (loadError) {
+        // Tragarse este error mostraba una lista vacia indistinguible de "no hay
+        // solicitudes", justo el sintoma de "los registros no aparecen".
+        setPendingRequests([])
+        toast({
+          title: 'No se pudieron cargar las solicitudes pendientes',
+          description: loadError instanceof Error ? loadError.message : 'Error desconocido',
+          variant: 'destructive',
+        })
       }
     }
 

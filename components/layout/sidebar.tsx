@@ -177,7 +177,7 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
   const [expandedItems, setExpandedItems] = useState<string[]>([])
   const [activeRole, setActiveRole] = useState<AppUserRole>('employee')
   const [activeUserName, setActiveUserName] = useState('Usuario Demo')
-  const [activeBranchId, setActiveBranchId] = useState('branch-1')
+  const [activeBranchId, setActiveBranchId] = useState('')
   const [activeBranchName, setActiveBranchName] = useState('Sin sucursal')
   const [availableBranches, setAvailableBranches] = useState<Array<{ id: string; name: string }>>([])
   const [notificationCount, setNotificationCount] = useState(0)
@@ -216,7 +216,7 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
         if (!profile) return
 
         const resolvedRole = normalizeRole(profile?.role_name)
-        const fallbackBranchId = profile?.branch_id || 'branch-1'
+        const fallbackBranchId = profile?.branch_id || ''
         const resolvedUserName =
           profile?.full_name ||
           (authUser.user_metadata as { full_name?: string } | undefined)?.full_name ||

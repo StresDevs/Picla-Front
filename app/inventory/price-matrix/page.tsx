@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { branchesService, partsService } from '@/lib/supabase/inventory'
+import { CENTRAL_BRANCH_ID, branchesService, partsService } from '@/lib/supabase/inventory'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
 
@@ -41,8 +41,6 @@ interface MatrixRow {
   category: string | null
   cells: Record<string, MatrixCell>
 }
-
-const CENTRAL_BRANCH_ID = 'c2d40d4a-213b-4a65-bfc5-95f8cf64fa61'
 
 function normalizeCode(value: string) {
   return value.trim().toLowerCase()

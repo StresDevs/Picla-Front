@@ -955,7 +955,9 @@ export function getActiveUserContext(): ActiveUserContext {
   return {
     role,
     user_name: readJSON<string>(KEYS.activeUserName, fallbackName),
-    branch_id: readJSON<string>(KEYS.activeBranchId, 'branch-1'),
+    // Sin fallback: 'branch-1' era una sucursal inexistente en la base real, y
+    // apuntar a ella hacia que todas las consultas volvieran vacias sin error.
+    branch_id: readJSON<string>(KEYS.activeBranchId, ''),
   }
 }
 
@@ -964,7 +966,9 @@ export function setActiveUserContext(context: Partial<ActiveUserContext>) {
   const next: ActiveUserContext = {
     role: context.role || current.role,
     user_name: context.user_name || current.user_name,
-    branch_id: context.branch_id || current.branch_id,
+    // ?? y no ||: pasar '' significa "sin sucursal asignada" y tiene que borrar
+    // la que quedo guardada, no conservarla.
+    branch_id: context.branch_id ?? current.branch_id,
   }
 
   writeJSON(KEYS.activeRole, next.role)
@@ -1318,10 +1322,13 @@ export function getCustomerOpenCreditsCount(customerId: string) {
   ).length
 }
 
+// El limite real lo aplica validate_customer_credit_limit en la base de datos;
+// esta copia solo alimenta el flujo mock de creditos.
+const MOCK_MAX_OPEN_CREDITS = 2
+
 export function validateCustomerCreditLimit(customerId: string) {
-  const settings = getAppSettings()
   const openCount = getCustomerOpenCreditsCount(customerId)
-  const limit = settings.max_open_credits_per_customer
+  const limit = MOCK_MAX_OPEN_CREDITS
 
   return {
     limit,
@@ -1738,26 +1745,10 @@ export function saveCustomers(customers: CustomerRecord[]) {
   writeJSON(KEYS.customers, customers)
 }
 
-export function getAppSettings(): AppSettingsRecord {
-  const seeded = readJSON<AppSettingsRecord | null>(KEYS.settings, null)
-  if (seeded) return seeded
-
-  const initial: AppSettingsRecord = {
-    company_name: 'Mi Tienda de Repuestos',
-    company_email: 'info@repuestos.com',
-    company_phone: '555-0000',
-    default_currency: 'BOB',
-    usd_to_bob_rate: 6.96,
-    max_open_credits_per_customer: 2,
-  }
-
-  writeJSON(KEYS.settings, initial)
-  return initial
-}
-
-export function saveAppSettings(settings: AppSettingsRecord) {
-  writeJSON(KEYS.settings, settings)
-}
+// getAppSettings / saveAppSettings vivian aqui sobre localStorage: devolvian una
+// semilla fija por navegador que nunca se sincronizaba con public.app_settings,
+// asi que dos maquinas usaban tipos de cambio distintos. La configuracion real
+// esta ahora en lib/supabase/settings.ts.
 
 export function getInventoryCrudLogs() {
   seedInventoryCrudLogsIfNeeded()

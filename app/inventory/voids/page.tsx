@@ -99,15 +99,27 @@ export default function InventoryVoidsPage() {
     void initialize()
   }, [])
 
+  // Cada accion aplica sobre un estado distinto:
+  //   anulacion  -> pendiente  (libera la reserva, no mueve stock)
+  //   devolucion -> completado (devuelve el stock al origen)
+  //   reposicion -> devuelto   (lo vuelve a enviar)
+  // Antes las tres se ofrecian sobre traspasos completados: anular no hacia nada
+  // y reponer mandaba el stock por segunda vez.
+  const actionableStatus: Record<typeof actionType, TransferRequestDetail['status']> = {
+    anulacion: 'pending',
+    devolucion: 'completed',
+    reposicion: 'returned',
+  }
+
   const actionableTransfers = useMemo(
-    () => transfers.filter((item) => item.status === 'completed'),
-    [transfers]
+    () => transfers.filter((item) => item.status === actionableStatus[actionType]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [transfers, actionType]
   )
 
   useEffect(() => {
-    if (actionableTransfers.length > 0 && !selectedTransferId) {
-      setSelectedTransferId(actionableTransfers[0].id)
-    }
+    if (actionableTransfers.some((item) => item.id === selectedTransferId)) return
+    setSelectedTransferId(actionableTransfers[0]?.id ?? '')
   }, [actionableTransfers, selectedTransferId])
 
   const selectedTransfer = useMemo(
@@ -120,11 +132,28 @@ export default function InventoryVoidsPage() {
     const fromName = branches.find((branch) => branch.id === selectedTransfer.from_branch_id)?.name ?? selectedTransfer.from_branch_id
     const toName = branches.find((branch) => branch.id === selectedTransfer.to_branch_id)?.name ?? selectedTransfer.to_branch_id
 
+    if (actionType === 'anulacion') {
+      return `Se cancelará el traspaso pendiente y las unidades reservadas volverán a estar disponibles en ${fromName}. No se mueve stock.`
+    }
     if (actionType === 'reposicion') {
-      return `Se descontará el stock de la sucursal de origen (${fromName}) y se reenviará a la sucursal destino (${toName}).`
+      return `Se volverá a MOVER el stock: se descontará de ${fromName} y se sumará otra vez a ${toName}. Úsalo solo si el traspaso fue devuelto y hay que reenviarlo.`
     }
     return `Se devolverá el stock a la sucursal de origen (${fromName}) y se descontará de la sucursal de destino (${toName}).`
   }, [selectedTransfer, branches, actionType])
+
+  const confirmationHint =
+    actionType === 'anulacion'
+      ? 'Cancela un traspaso que todavía no se completó y libera la reserva.'
+      : actionType === 'devolucion'
+      ? 'Regresa a origen el stock de un traspaso ya completado.'
+      : 'Vuelve a enviar un traspaso que fue devuelto. Mueve stock otra vez.'
+
+  const emptyActionHint =
+    actionType === 'anulacion'
+      ? 'No hay traspasos pendientes para anular.'
+      : actionType === 'devolucion'
+      ? 'No hay traspasos completados para devolver.'
+      : 'No hay traspasos devueltos. Para reponer un traspaso, primero registra su devolución.'
 
   const requestApplyAction = () => {
     if (!selectedTransferId || !reason.trim()) {
@@ -185,7 +214,7 @@ export default function InventoryVoidsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {actionableTransfers.length === 0 ? (
-                      <SelectItem value="none" disabled>No hay traspasos disponibles</SelectItem>
+                      <SelectItem value="none" disabled>{emptyActionHint}</SelectItem>
                     ) : (
                       actionableTransfers.map((transfer) => (
                         <SelectItem key={transfer.id} value={transfer.id}>
@@ -195,6 +224,9 @@ export default function InventoryVoidsPage() {
                     )}
                   </SelectContent>
                 </Select>
+                {actionableTransfers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">{emptyActionHint}</p>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -203,11 +235,12 @@ export default function InventoryVoidsPage() {
                   <Select value={actionType} onValueChange={(value: 'anulacion' | 'devolucion' | 'reposicion') => setActionType(value)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="anulacion">Anulación</SelectItem>
-                      <SelectItem value="devolucion">Devolución</SelectItem>
-                      <SelectItem value="reposicion">Reposición</SelectItem>
+                      <SelectItem value="anulacion">Anulación (traspaso pendiente)</SelectItem>
+                      <SelectItem value="devolucion">Devolución (traspaso completado)</SelectItem>
+                      <SelectItem value="reposicion">Reposición (traspaso devuelto)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">{confirmationHint}</p>
                 </div>
 
                 <div className="space-y-2">

@@ -16,10 +16,12 @@ import {
   inventoryService,
   partsService,
   transferService,
+  type PartAvailability,
   type PendingTransferSummary,
   type TransferRequestDetail,
 } from '@/lib/supabase/inventory'
-import { ACTIVE_ROLE_EVENT, getActiveUserContext, getAppSettings, type AppUserRole } from '@/lib/mock/runtime-store'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
+import { getCachedAppSettings, loadAppSettings } from '@/lib/supabase/settings'
 import { Boxes, Plus, Trash2 } from 'lucide-react'
 import type { Part } from '@/types/database'
 import { generateTransferPdf, type TransferConfirmationItem } from '@/lib/pdf/generators'
@@ -57,6 +59,17 @@ function createBulkRow(partId = ''): BulkRow {
   }
 }
 
+const EMPTY_AVAILABILITY: PartAvailability = {
+  part_id: '',
+  on_hand: 0,
+  reserved: 0,
+  available: 0,
+}
+
+function formatUnits(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2)
+}
+
 function toLocalDateKey(value: string) {
   const dt = new Date(value)
   const year = dt.getFullYear()
@@ -67,7 +80,7 @@ function toLocalDateKey(value: string) {
 
 export default function InventoryTransfersPage() {
   const [products, setProducts] = useState<Part[]>([])
-  const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
+  const [availabilityByPartId, setAvailabilityByPartId] = useState<Record<string, PartAvailability>>({})
   const [transfers, setTransfers] = useState<TransferRequestDetail[]>([])
   const [pendingTransfers, setPendingTransfers] = useState<PendingTransferSummary[]>([])
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
@@ -108,6 +121,20 @@ export default function InventoryTransfersPage() {
     return message
   }
 
+  // La base de datos revalida al guardar, asi que este mensaje aparece cuando dos
+  // personas crean traspasos del mismo producto casi a la vez.
+  const resolveCreationErrorMessage = (value: unknown, fallback: string) => {
+    const message = resolveErrorMessage(value, fallback)
+    const match = message.match(/Disponible (\d+), solicitado (\d+)/)
+    if (match) {
+      return `Alguien mas reservo ese producto mientras armabas el traspaso. Ahora solo quedan ${match[1]} disponibles y estas pidiendo ${match[2]}.`
+    }
+    if (message.includes('No existe inventario en origen')) {
+      return 'Ese producto no tiene inventario en la sucursal de origen.'
+    }
+    return message
+  }
+
   const loadTransfers = async (branchId: string | null) => {
     const [transferRows, pendingRows] = await Promise.all([
       transferService.getRequests(branchId),
@@ -130,6 +157,8 @@ export default function InventoryTransfersPage() {
       setError(null)
       try {
         syncContext()
+        // El tipo de cambio del PDF sale de app_settings, no del navegador.
+        void loadAppSettings()
         const branchRows = await branchesService.getAll()
         setBranches(branchRows)
 
@@ -184,26 +213,51 @@ export default function InventoryTransfersPage() {
     })
   }, [fromBranch, branches])
 
+  const loadAvailability = async (branchId: string) => {
+    if (!branchId) {
+      setAvailabilityByPartId({})
+      return
+    }
+    setAvailabilityByPartId(await inventoryService.getAvailabilityByBranch(branchId))
+  }
+
+  // Otra maquina pudo crear o completar traspasos mientras esta pestaña estaba en
+  // segundo plano; nada revalida solo.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      void loadTransfers(activeBranchId || null).catch(() => undefined)
+      if (fromBranch) {
+        void loadAvailability(fromBranch).catch(() => undefined)
+      }
+    }
+
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId, fromBranch])
+
   useEffect(() => {
     const loadProducts = async () => {
       if (!fromBranch) {
         setProducts([])
         setPartId('')
-        setStockByPartId({})
+        setAvailabilityByPartId({})
         return
       }
 
       try {
-        const [loaded, inventoryRows] = await Promise.all([
+        const [loaded, availability] = await Promise.all([
           partsService.getAll(fromBranch),
-          inventoryService.getByBranch(fromBranch),
+          inventoryService.getAvailabilityByBranch(fromBranch),
         ])
-        const stockMap: Record<string, number> = {}
-        for (const row of inventoryRows) {
-          stockMap[row.part_id] = Number(row.quantity || 0)
-        }
         setProducts(loaded)
-        setStockByPartId(stockMap)
+        setAvailabilityByPartId(availability)
 
         if (loaded.length > 0) {
           setPartId((prev) => prev || loaded[0].id)
@@ -224,7 +278,44 @@ export default function InventoryTransfersPage() {
   }, [fromBranch])
 
   const selectedPart = useMemo(() => products.find((item) => item.id === partId), [products, partId])
-  const selectedStock = useMemo(() => stockByPartId[partId] ?? 0, [stockByPartId, partId])
+
+  const availabilityFor = (id: string) => availabilityByPartId[id] ?? EMPTY_AVAILABILITY
+  const selectedAvailability = availabilityFor(partId)
+
+  const shortageMessage = (requested: number, stock: PartAvailability) => {
+    if (!requested || requested <= stock.available) return null
+    const base = `Solo tienes ${formatUnits(stock.available)} disponibles en el inventario`
+    return stock.reserved > 0
+      ? `${base} (${formatUnits(stock.on_hand)} en stock, ${formatUnits(stock.reserved)} reservados en traspasos pendientes).`
+      : `${base}.`
+  }
+
+  const singleShortage = useMemo(
+    () => shortageMessage(Number(quantity), selectedAvailability),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [quantity, selectedAvailability],
+  )
+
+  // Un mismo producto puede repetirse en varias lineas: lo que cuenta contra el
+  // stock es la suma, no cada linea por separado.
+  const bulkRequestedByPart = useMemo(() => {
+    const totals: Record<string, number> = {}
+    for (const row of bulkRows) {
+      if (!row.partId) continue
+      totals[row.partId] = (totals[row.partId] || 0) + (Number(row.quantity) || 0)
+    }
+    return totals
+  }, [bulkRows])
+
+  const bulkShortages = useMemo(() => {
+    const messages: Record<string, string> = {}
+    for (const [id, requested] of Object.entries(bulkRequestedByPart)) {
+      const message = shortageMessage(requested, availabilityFor(id))
+      if (message) messages[id] = message
+    }
+    return messages
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkRequestedByPart, availabilityByPartId])
 
   const transferRows = useMemo(() => {
     return transfers.map((transfer) => {
@@ -270,10 +361,13 @@ export default function InventoryTransfersPage() {
     return map
   }, [pendingTransfers])
 
-  const canCreateSingle = Boolean(selectedPart && Number(quantity) > 0 && fromBranch !== toBranch)
+  const canCreateSingle = Boolean(
+    selectedPart && Number(quantity) > 0 && fromBranch !== toBranch && !singleShortage,
+  )
 
   const canCreateBulk = useMemo(() => {
     if (fromBranch === toBranch || bulkRows.length === 0) return false
+    if (Object.keys(bulkShortages).length > 0) return false
 
     const uniqueParts = new Set<string>()
     for (const row of bulkRows) {
@@ -288,7 +382,7 @@ export default function InventoryTransfersPage() {
     }
 
     return true
-  }, [bulkRows, fromBranch, toBranch])
+  }, [bulkRows, bulkShortages, fromBranch, toBranch])
 
   const resetForm = () => {
     setQuantity('')
@@ -311,7 +405,7 @@ export default function InventoryTransfersPage() {
 
   const registerSingleTransfer = async () => {
     const qty = Number(quantity)
-    if (!selectedPart || !qty || qty <= 0 || fromBranch === toBranch) return
+    if (!selectedPart || !qty || qty <= 0 || fromBranch === toBranch || singleShortage) return
 
     setIsSaving(true)
     setError(null)
@@ -337,19 +431,19 @@ export default function InventoryTransfersPage() {
       generateTransferPdf({
         transferNumber,
         date: new Date(),
-        exchangeRate: getAppSettings().usd_to_bob_rate,
+        exchangeRate: getCachedAppSettings().usd_to_bob_rate,
         fromBranchName: fromName,
         toBranchName: toName,
         items: pdfItems,
       })
 
-      await loadTransfers(activeBranchId || null)
+      await Promise.all([loadTransfers(activeBranchId || null), loadAvailability(fromBranch)])
       setQuantity('')
       setUnitPrice('')
       setNotes('')
-      setFeedback('Traspaso registrado como pendiente. Puedes completarlo desde la cola de la derecha.')
+      setFeedback('Traspaso registrado como pendiente. Las unidades quedan reservadas y ya no figuran como disponibles en origen.')
     } catch (createError) {
-      setError(resolveErrorMessage(createError, 'No se pudo registrar el traspaso'))
+      setError(resolveCreationErrorMessage(createError, 'No se pudo registrar el traspaso'))
     } finally {
       setIsSaving(false)
     }
@@ -398,17 +492,17 @@ export default function InventoryTransfersPage() {
       generateTransferPdf({
         transferNumber,
         date: new Date(),
-        exchangeRate: getAppSettings().usd_to_bob_rate,
+        exchangeRate: getCachedAppSettings().usd_to_bob_rate,
         fromBranchName: fromName,
         toBranchName: toName,
         items: pdfItems,
       })
 
-      await loadTransfers(activeBranchId || null)
+      await Promise.all([loadTransfers(activeBranchId || null), loadAvailability(fromBranch)])
       resetForm()
-      setFeedback('Traspasos masivos registrados como pendientes.')
+      setFeedback('Traspasos masivos registrados como pendientes. Las unidades quedan reservadas en origen.')
     } catch (bulkError) {
-      setError(resolveErrorMessage(bulkError, 'No se pudo registrar el traspaso masivo'))
+      setError(resolveCreationErrorMessage(bulkError, 'No se pudo registrar el traspaso masivo'))
     } finally {
       setIsSaving(false)
     }
@@ -420,8 +514,8 @@ export default function InventoryTransfersPage() {
     setFeedback(null)
     try {
       await transferService.completeRequest(transferId, 'Confirmado desde cola de pendientes')
-      await loadTransfers(activeBranchId || null)
-      setFeedback(`Traspaso ${transferId} marcado como completado.`)
+      await Promise.all([loadTransfers(activeBranchId || null), loadAvailability(fromBranch)])
+      setFeedback('Traspaso completado. El stock ya se movio a la sucursal de destino.')
     } catch (completeError) {
       setError(resolveCompletionErrorMessage(completeError))
     } finally {
@@ -518,12 +612,28 @@ export default function InventoryTransfersPage() {
                     <label className="text-sm font-medium">Producto</label>
                     <PartCombobox parts={products} value={partId} onValueChange={setPartId} />
                     <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">
-                      Stock disponible en origen: <span className="font-semibold">{selectedStock}</span>
+                      Disponible en origen: <span className="font-semibold">{formatUnits(selectedAvailability.available)}</span>
+                      {selectedAvailability.reserved > 0 ? (
+                        <span className="text-emerald-300/70">
+                          {' '}({formatUnits(selectedAvailability.on_hand)} en stock,{' '}
+                          {formatUnits(selectedAvailability.reserved)} reservados en traspasos pendientes)
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Cantidad</label>
-                    <Input type="number" value={quantity} onChange={(event) => setQuantity(event.target.value)} placeholder="0" />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={selectedAvailability.available || undefined}
+                      value={quantity}
+                      onChange={(event) => setQuantity(event.target.value)}
+                      placeholder="0"
+                    />
+                    {singleShortage ? (
+                      <p className="text-xs font-medium text-red-600 dark:text-red-400">{singleShortage}</p>
+                    ) : null}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Precio unitario (opcional)</label>
@@ -541,17 +651,28 @@ export default function InventoryTransfersPage() {
                   </div>
 
                   <div className="space-y-2">
-                    {bulkRows.map((row, index) => (
+                    {bulkRows.map((row, index) => {
+                      const rowStock = availabilityFor(row.partId)
+                      const rowShortage = bulkShortages[row.partId]
+
+                      return (
                       <div key={row.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-lg border border-border/60 p-2">
                         <div className="md:col-span-7">
                           <PartCombobox parts={products} value={row.partId} onValueChange={(id) => updateBulkRow(row.id, { partId: id })} />
                           <div className="mt-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">
-                            Stock disponible: <span className="font-semibold">{stockByPartId[row.partId] ?? 0}</span>
+                            Disponible: <span className="font-semibold">{formatUnits(rowStock.available)}</span>
+                            {rowStock.reserved > 0 ? (
+                              <span className="text-emerald-300/70">
+                                {' '}({formatUnits(rowStock.on_hand)} en stock, {formatUnits(rowStock.reserved)} reservados)
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         <div className="md:col-span-2">
                           <Input
                             type="number"
+                            min={0}
+                            max={rowStock.available || undefined}
                             value={row.quantity}
                             onChange={(event) => updateBulkRow(row.id, { quantity: event.target.value })}
                             placeholder="Cantidad"
@@ -571,11 +692,18 @@ export default function InventoryTransfersPage() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                        <div className="md:col-span-12 text-xs text-muted-foreground">
-                          Linea {index + 1}: puedes quitarla o cambiar el producto libremente.
+                        <div className="md:col-span-12 text-xs">
+                          {rowShortage ? (
+                            <span className="font-medium text-red-600 dark:text-red-400">{rowShortage}</span>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              Linea {index + 1}: puedes quitarla o cambiar el producto libremente.
+                            </span>
+                          )}
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}

@@ -9,7 +9,20 @@ import { QueuedSaleNotification } from './queued-sale-notification'
 import { PayrollAlertNotification } from './payroll-alert-notification'
 import { getCurrentAuthUser, getCurrentSession } from '@/lib/supabase/auth'
 import { supabase } from '@/lib/supabase/client'
-import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
+import {
+  ACTIVE_ROLE_EVENT,
+  getActiveUserContext,
+  setActiveUserContext,
+  type AppUserRole,
+} from '@/lib/mock/runtime-store'
+
+function normalizeRole(value: unknown): AppUserRole {
+  const role = String(value || '').toLowerCase()
+  if (role === 'admin' || role === 'manager' || role === 'employee' || role === 'read_only') {
+    return role
+  }
+  return 'employee'
+}
 
 export function MainLayout({
   children,
@@ -20,6 +33,7 @@ export function MainLayout({
   const pathname = usePathname()
   const [isChecking, setIsChecking] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [missingBranch, setMissingBranch] = useState(false)
 
   useEffect(() => {
     const basicInventoryRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
@@ -96,6 +110,32 @@ export function MainLayout({
           return
         }
 
+        // Rol y sucursal se guardaban en localStorage al iniciar sesion y no se
+        // volvian a mirar: si un admin reasignaba la sucursal de un usuario, esa
+        // maquina seguia viendo la anterior indefinidamente.
+        const { data: profile } = await supabase.rpc('get_current_user_profile').single()
+        const typedProfile = profile as { role_name?: string; branch_id?: string | null } | null
+
+        if (mounted && typedProfile) {
+          const role = normalizeRole(typedProfile.role_name)
+          const branchId = typedProfile.branch_id || ''
+
+          // El admin elige sucursal desde la barra lateral; el resto la hereda
+          // de su perfil y no puede quedar desincronizada.
+          if (role === 'admin') {
+            setMissingBranch(false)
+            if (getActiveUserContext().role !== role) {
+              setActiveUserContext({ role })
+            }
+          } else {
+            setMissingBranch(!branchId)
+            const current = getActiveUserContext()
+            if (branchId && (current.branch_id !== branchId || current.role !== role)) {
+              setActiveUserContext({ role, branch_id: branchId })
+            }
+          }
+        }
+
         if (mounted) {
           setIsChecking(false)
         }
@@ -135,6 +175,12 @@ export function MainLayout({
       <main className="flex-1 overflow-y-auto pt-14 lg:pt-0 lg:pl-0">
         <div className="page-fade p-4 lg:p-8 xl:p-10 max-w-[120rem]">
           <div className="surface-panel p-4 md:p-6 lg:p-8 min-h-[calc(100svh-6rem)]">
+            {missingBranch ? (
+              <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                Tu usuario no tiene sucursal asignada, por eso no ves inventario ni ventas.
+                Pide a un administrador que te asigne una en Gestión &gt; Usuarios.
+              </div>
+            ) : null}
             <CreditPendingNotification />
             <QueuedSaleNotification />
             <PayrollAlertNotification />

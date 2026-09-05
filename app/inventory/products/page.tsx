@@ -23,7 +23,14 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { InventorySubnav } from '@/components/modules/inventory/inventory-subnav'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { categoriesService, inventoryService, partsService, type InventoryAvailabilityRow } from '@/lib/supabase/inventory'
+import {
+  categoriesService,
+  inventoryService,
+  partsService,
+  type InventoryAvailabilityRow,
+  type PartAvailability,
+  type SimilarProductRow,
+} from '@/lib/supabase/inventory'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import {
   ACTIVE_ROLE_EVENT,
@@ -114,6 +121,17 @@ const createTier = (minQty = '2', price = ''): TierFormData => ({
 })
 
 const DEFAULT_QUOTATION_MAX_PERCENT = 120
+
+const EMPTY_AVAILABILITY: PartAvailability = {
+  part_id: '',
+  on_hand: 0,
+  reserved: 0,
+  available: 0,
+}
+
+function formatUnits(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2)
+}
 
 function toPercentString(value: number) {
   if (!Number.isFinite(value)) return String(DEFAULT_QUOTATION_MAX_PERCENT)
@@ -393,7 +411,7 @@ function SerializationToggleCard({
 
 export default function InventoryProductsPage() {
   const [parts, setParts] = useState<Part[]>([])
-  const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
+  const [availabilityByPartId, setAvailabilityByPartId] = useState<Record<string, PartAvailability>>({})
   const [availabilityByCode, setAvailabilityByCode] = useState<Record<string, InventoryAvailabilityRow[]>>({})
   const [availabilityLoadingByCode, setAvailabilityLoadingByCode] = useState<Record<string, boolean>>({})
   const [categories, setCategories] = useState<InventoryCategory[]>([])
@@ -432,12 +450,48 @@ export default function InventoryProductsPage() {
   const [bulkResults, setBulkResults] = useState<BulkResultRow[]>([])
   const [bulkFileName, setBulkFileName] = useState<string | null>(null)
 
+  const [similarProducts, setSimilarProducts] = useState<SimilarProductRow[]>([])
+
+  const activeBranchName = useMemo(
+    () => branches.find((branch) => branch.id === activeBranchId)?.name || 'la sucursal activa',
+    [branches, activeBranchId],
+  )
+
   const [productForm, setProductForm] = useState<ProductFormData>(() => createEmptyProductForm(getActiveUserContext().branch_id))
   const [editForm, setEditForm] = useState<ProductFormData>(() => createEmptyProductForm(getActiveUserContext().branch_id))
 
   const canModify = activeRole === 'admin'
   const canSeePurchasePrice = activeRole === 'admin'
   const canSeeFullProductDetails = activeRole === 'admin' || activeRole === 'read_only'
+
+  const availabilityFor = (partId: string): PartAvailability =>
+    availabilityByPartId[partId] ?? EMPTY_AVAILABILITY
+
+  // Al aceptar una sugerencia el producto conserva nombre, codigo y categoria
+  // del catalogo; en esta sucursal solo se define precio y stock.
+  const applySuggestion = (suggestion: SimilarProductRow) => {
+    const category = categories.find(
+      (item) => item.name.trim().toLowerCase() === suggestion.category_name.trim().toLowerCase(),
+    )
+
+    setProductForm((prev) => ({
+      ...prev,
+      name: suggestion.canonical_name,
+      code: suggestion.code,
+      category: suggestion.category_name,
+      categoryId: category?.id || '',
+      price: prev.price || (suggestion.reference_price ? String(suggestion.reference_price) : ''),
+    }))
+    setSimilarProducts([])
+  }
+
+  // El reporte de control se usa para contar fisicamente la mercaderia, y lo
+  // reservado sigue estando en el deposito hasta que el traspaso se completa.
+  // Los demas reportes hablan de lo que se puede vender o mover.
+  const reportStock = (partId: string) => {
+    const stock = availabilityFor(partId)
+    return inventoryReportVariant === 'stock-check' ? stock.on_hand : stock.available
+  }
 
   const normalizePartCode = (code: string) => code.trim().toLowerCase()
 
@@ -464,18 +518,14 @@ export default function InventoryProductsPage() {
     setError(null)
 
     try {
-      const [productsData, categoriesData, inventoryRows] = await Promise.all([
+      const [productsData, categoriesData, availability] = await Promise.all([
         partsService.getAll(branchId),
         categoriesService.getAll(branchId),
-        inventoryService.getByBranch(branchId),
+        inventoryService.getAvailabilityByBranch(branchId),
       ])
-      const stockMap: Record<string, number> = {}
-      for (const row of inventoryRows) {
-        stockMap[row.part_id] = Number(row.quantity || 0)
-      }
       setParts(productsData)
       setCategories(categoriesData)
-      setStockByPartId(stockMap)
+      setAvailabilityByPartId(availability)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar inventario')
     } finally {
@@ -522,6 +572,58 @@ export default function InventoryProductsPage() {
     void refreshData(activeBranchId)
   }, [activeBranchId])
 
+  // Sugerir productos ya existentes mientras se escribe el nombre, para no crear
+  // el mismo producto dos veces con codigos distintos.
+  useEffect(() => {
+    if (!isCreateOpen) {
+      setSimilarProducts([])
+      return
+    }
+
+    const term = productForm.name.trim()
+    if (term.length < 3 || productForm.code) {
+      setSimilarProducts([])
+      return
+    }
+
+    let cancelled = false
+    const timer = setTimeout(() => {
+      partsService
+        .findSimilar(term)
+        .then((rows) => {
+          if (cancelled) return
+          // No sugerir el nombre exacto que el usuario ya escribio completo:
+          // en ese caso el upsert reutiliza el codigo por si solo.
+          setSimilarProducts(rows.filter((row) => row.score >= 0.35))
+        })
+        .catch(() => undefined)
+    }, 350)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [isCreateOpen, productForm.name, productForm.code])
+
+  // Otra maquina pudo crear o editar productos mientras esta pestaña estaba en
+  // segundo plano; nada revalida solo.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      if (!activeBranchId) return
+      void refreshData(activeBranchId)
+    }
+
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId])
+
   const categoryOptions = useMemo(() => {
     const fromRows = categories.map((category) => category.name)
     const fromProducts = parts.map((part) => part.category).filter(Boolean)
@@ -554,9 +656,9 @@ export default function InventoryProductsPage() {
   }, [filteredParts, productsPage])
 
   const selectedStock = useMemo(() => {
-    if (!selectedProduct) return 0
-    return stockByPartId[selectedProduct.id] ?? 0
-  }, [selectedProduct, stockByPartId])
+    if (!selectedProduct) return EMPTY_AVAILABILITY
+    return availabilityByPartId[selectedProduct.id] ?? EMPTY_AVAILABILITY
+  }, [selectedProduct, availabilityByPartId])
 
   const addTier = () => {
     setProductForm((prev) => ({
@@ -617,6 +719,15 @@ export default function InventoryProductsPage() {
     setEditForm(toProductForm(part))
     setIsEditOpen(true)
   }
+
+  // El nombre es la identidad global del producto: cambiarlo lo renombra en
+  // todas las sucursales (lo hace partsService.update).
+  const editingNameChanged = useMemo(() => {
+    if (!editingProductId) return false
+    const original = parts.find((part) => part.id === editingProductId)
+    if (!original) return false
+    return editForm.name.trim().toLowerCase() !== original.name.trim().toLowerCase()
+  }, [editingProductId, editForm.name, parts])
 
   const saveEditedProduct = async () => {
     if (!canModify || !editingProductId) return
@@ -799,19 +910,16 @@ export default function InventoryProductsPage() {
     try {
       let imageUrl: string | null = null
       const trackingMode = productForm.requiresSerialization ? 'serial' : 'none'
-      const generatedCode = await partsService.generateAutoCode({
-        branch_id: productForm.branchId,
-        category: productForm.category,
-        category_id: productForm.categoryId || null,
-      })
 
       if (productForm.imageFile) {
         imageUrl = await partsService.uploadProductImage(productForm.imageFile, productForm.branchId)
       }
 
+      // El codigo lo resuelve el catalogo global a partir del nombre: si el
+      // producto ya existe en otra sucursal se reutiliza el mismo codigo.
       await partsService.create({
         branch_id: productForm.branchId,
-        code: generatedCode,
+        code: null,
         name: productForm.name.trim(),
         description: `Producto ${productForm.name.trim()}`,
         category: productForm.category,
@@ -911,16 +1019,12 @@ export default function InventoryProductsPage() {
     setError(null)
 
     try {
-      const preparedRows = await Promise.all(
-        validRows.map(async (row) => {
+      // El codigo lo resuelve bulk_upsert_inventory_products contra el catalogo
+      // global. Antes se generaba aqui con N llamadas en paralelo peleando por
+      // el mismo contador, y cada sucursal producia su propia numeracion.
+      const preparedRows = validRows.map((row) => {
           const branchId = row.branchId || activeBranchId
-          const code = row.code.trim()
-            ? row.code.trim()
-            : await partsService.generateAutoCode({
-                branch_id: branchId,
-                category: row.category,
-                category_id: row.categoryId || null,
-              })
+          const code = row.code.trim() || null
 
           const maxPercentValue = Number(row.quotationMaxPercent || DEFAULT_QUOTATION_MAX_PERCENT)
           const safeMaxPercent = Number.isFinite(maxPercentValue) && maxPercentValue >= 100
@@ -953,12 +1057,9 @@ export default function InventoryProductsPage() {
               },
             ],
           }
-        }),
-      )
+        })
 
-      const result = await partsService.bulkUpsert(
-        preparedRows
-      )
+      const result = await partsService.bulkUpsert(preparedRows)
 
       setBulkResults(result)
       await refreshData(activeBranchId)
@@ -982,7 +1083,9 @@ export default function InventoryProductsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Inventario"
-          description="Catálogo de productos, categorías y carga masiva"
+          // La sucursal activa se elige por navegador: hacerla visible evita la
+          // confusion de "cree el producto y en la otra maquina no aparece".
+          description={`Catálogo de ${activeBranchName}. Productos, categorías y carga masiva.`}
           action={
             canModify ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -1199,13 +1302,58 @@ export default function InventoryProductsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">Nombre</label>
-                        <Input value={productForm.name} onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))} placeholder="Ej. Bujia Iridium" />
+                        <Input
+                          value={productForm.name}
+                          onChange={(event) =>
+                            // Si venia de una sugerencia y cambian el nombre, se
+                            // suelta el codigo y vuelven a buscarse coincidencias.
+                            setProductForm((prev) => ({ ...prev, name: event.target.value, code: '' }))
+                          }
+                          placeholder="Ej. Bujia Iridium"
+                        />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">Código (autogenerado)</label>
                         <Input value={productForm.code} readOnly placeholder="Se genera automáticamente al guardar" />
-                        <p className="text-xs text-muted-foreground">Formato: prefijo por categoría + correlativo (ej. BOM-1).</p>
+                        <p className="text-xs text-muted-foreground">
+                          El mismo producto lleva el mismo código en todas las sucursales.
+                        </p>
                       </div>
+
+                      {similarProducts.length > 0 ? (
+                        <div className="md:col-span-2 space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                          <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                            Este producto ya existe en el catálogo
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Úsalo para que comparta código con las demás sucursales. Solo tendrás que
+                            poner el precio y el stock de esta sucursal.
+                          </p>
+                          <div className="space-y-1.5">
+                            {similarProducts.map((suggestion) => (
+                              <div
+                                key={suggestion.code}
+                                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-background/60 px-2 py-1.5"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium break-words">
+                                    {suggestion.canonical_name}{' '}
+                                    <Badge className="bg-primary/90 text-primary-foreground">{suggestion.code}</Badge>
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {suggestion.branches
+                                      ? `Ya existe en: ${suggestion.branches}`
+                                      : 'Registrado en el catálogo, sin stock en ninguna sucursal'}
+                                  </p>
+                                </div>
+                                <Button size="sm" variant="outline" onClick={() => applySuggestion(suggestion)}>
+                                  Usar este producto
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">Categoría</label>
                         <Select
@@ -1404,7 +1552,7 @@ export default function InventoryProductsPage() {
                 variant: inventoryReportVariant,
                 rows: filteredParts.map((p) => ({
                   code: p.code,
-                  stock: stockByPartId[p.id] ?? 0,
+                  stock: reportStock(p.id),
                   name: p.name,
                   branch: branchName,
                   cost: p.cost,
@@ -1425,7 +1573,7 @@ export default function InventoryProductsPage() {
               const branchName = branches.find((b) => b.id === activeBranchId)?.name || 'Sucursal'
               const rows = filteredParts.map((p) => ({
                 code: p.code,
-                stock: stockByPartId[p.id] ?? 0,
+                stock: reportStock(p.id),
                 name: p.name,
                 branch: branchName,
                 cost: p.cost,
@@ -1559,7 +1707,15 @@ export default function InventoryProductsPage() {
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                       <p><span className="font-medium">Categoría:</span> {selectedProduct.category}</p>
-                      <p><span className="font-medium">Stock disponible:</span> {selectedStock}</p>
+                      <p>
+                        <span className="font-medium">Stock disponible:</span> {formatUnits(selectedStock.available)}
+                        {selectedStock.reserved > 0 ? (
+                          <span className="text-muted-foreground">
+                            {' '}({formatUnits(selectedStock.on_hand)} en stock,{' '}
+                            {formatUnits(selectedStock.reserved)} reservados en traspasos)
+                          </span>
+                        ) : null}
+                      </p>
                       <p><span className="font-medium">Sucursal:</span> {branches.find((b) => b.id === selectedProduct.branch_id)?.name || selectedProduct.branch_id}</p>
                       {canSeePurchasePrice && (
                         <p><span className="font-medium">Precio de compra:</span> Bs {selectedProduct.cost.toFixed(2)}</p>
@@ -1650,10 +1806,18 @@ export default function InventoryProductsPage() {
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Nombre</label>
                 <Input value={editForm.name} onChange={(event) => setEditForm((prev) => ({ ...prev, name: event.target.value }))} />
+                {editingNameChanged ? (
+                  <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                    Este nombre se actualizará en todas las sucursales que tengan el producto {editForm.code}.
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Codigo</label>
-                <Input value={editForm.code} onChange={(event) => setEditForm((prev) => ({ ...prev, code: event.target.value }))} disabled />
+                <Input value={editForm.code} disabled readOnly />
+                <p className="text-xs text-muted-foreground">
+                  Es el mismo en todas las sucursales; no se puede cambiar.
+                </p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Categoría</label>
@@ -1835,7 +1999,8 @@ export default function InventoryProductsPage() {
               const tiers = [...(part.price_tiers || [])]
                 .filter((tier) => tier.min_quantity > 1)
                 .sort((a, b) => a.min_quantity - b.min_quantity)
-              const stockValue = stockByPartId[part.id] ?? 0
+              const stock = availabilityFor(part.id)
+              const stockValue = stock.available
 
               return (
                 <article key={part.id} className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-colors duration-150 ${
@@ -1864,9 +2029,14 @@ export default function InventoryProductsPage() {
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">Stock disponible</span>
                       <span className={stockValue <= 0 ? 'font-semibold text-red-500' : 'font-semibold text-foreground'}>
-                        {stockValue}
+                        {formatUnits(stockValue)}
                       </span>
                     </div>
+                    {stock.reserved > 0 ? (
+                      <div className="text-[11px] text-amber-600 dark:text-amber-400">
+                        {formatUnits(stock.on_hand)} en stock, {formatUnits(stock.reserved)} reservados en traspasos pendientes
+                      </div>
+                    ) : null}
                     <div className="flex items-center justify-between">
                       {canSeePurchasePrice ? (
                         <div className="flex items-center gap-1 rounded-md border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-500">
@@ -1930,7 +2100,8 @@ export default function InventoryProductsPage() {
               const tiers = [...(part.price_tiers || [])]
                 .filter((tier) => tier.min_quantity > 1)
                 .sort((a, b) => a.min_quantity - b.min_quantity)
-              const stockValue = stockByPartId[part.id] ?? 0
+              const stock = availabilityFor(part.id)
+              const stockValue = stock.available
               const isExpanded = expandedRowId === part.id
               const availabilityKey = normalizePartCode(part.code)
               const availabilityRows = availabilityByCode[availabilityKey] || []
@@ -1958,8 +2129,15 @@ export default function InventoryProductsPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-6">
                       <div className="text-left md:text-right">
-                        <p className="text-xs text-muted-foreground">Stock</p>
-                        <p className={stockValue <= 0 ? 'font-semibold text-red-500' : 'font-semibold text-foreground'}>{stockValue}</p>
+                        <p className="text-xs text-muted-foreground">Disponible</p>
+                        <p className={stockValue <= 0 ? 'font-semibold text-red-500' : 'font-semibold text-foreground'}>
+                          {formatUnits(stockValue)}
+                        </p>
+                        {stock.reserved > 0 ? (
+                          <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                            {formatUnits(stock.reserved)} reservados
+                          </p>
+                        ) : null}
                       </div>
                       <div className="text-left md:text-right">
                         <p className="text-xs text-muted-foreground">Precio</p>

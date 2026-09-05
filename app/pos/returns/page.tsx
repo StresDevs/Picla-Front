@@ -15,7 +15,7 @@ import { SearchableStringPick } from '@/components/modules/inventory/part-combob
 export default function POSReturnsPage() {
   const [sales, setSales] = useState<POSSaleRecord[]>([])
   const [returns, setReturns] = useState<POSReturnRecord[]>([])
-  const [activeBranchId, setActiveBranchId] = useState('branch-1')
+  const [activeBranchId, setActiveBranchId] = useState('')
 
   const [selectedSaleId, setSelectedSaleId] = useState('')
   const [returnItemsMap, setReturnItemsMap] = useState<Record<string, { checked: boolean; qty: string }>>({})

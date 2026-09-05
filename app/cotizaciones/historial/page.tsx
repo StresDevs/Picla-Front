@@ -13,9 +13,9 @@ import { CreditCard, DollarSign, Printer, QrCode } from 'lucide-react'
 import {
   ACTIVE_ROLE_EVENT,
   getActiveUserContext,
-  getAppSettings,
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
+import { getCachedAppSettings, loadAppSettings } from '@/lib/supabase/settings'
 import { printMockInvoice } from '@/lib/mock/invoice'
 import { quotationsService, type QuotationRecord } from '@/lib/supabase/quotations'
 import { posService } from '@/lib/supabase/pos'
@@ -76,8 +76,10 @@ export default function QuotationsHistoryPage() {
   const [selectedQuotation, setSelectedQuotation] = useState<QuotationRecord | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'qr'>('cash')
-  const [paymentCurrency, setPaymentCurrency] = useState<'BOB' | 'USD'>(() => getAppSettings().default_currency)
-  const [exchangeRate, setExchangeRate] = useState(() => getAppSettings().usd_to_bob_rate)
+  const [paymentCurrency, setPaymentCurrency] = useState<'BOB' | 'USD'>(
+    () => getCachedAppSettings().default_currency,
+  )
+  const [exchangeRate, setExchangeRate] = useState(() => getCachedAppSettings().usd_to_bob_rate)
   const [printInvoice, setPrintInvoice] = useState(true)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -113,6 +115,15 @@ export default function QuotationsHistoryPage() {
     }
 
     syncContext()
+
+    // Moneda y tipo de cambio vienen de app_settings, iguales en toda maquina.
+    void loadAppSettings()
+      .then((settings) => {
+        setPaymentCurrency(settings.default_currency)
+        setExchangeRate(settings.usd_to_bob_rate)
+      })
+      .catch(() => undefined)
+
     window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
     window.addEventListener('focus', syncContext)
 

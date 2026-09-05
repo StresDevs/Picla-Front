@@ -30,7 +30,7 @@ interface SaleCreditInfo {
 }
 import { generateSaleInvoicePdf, generateCashSessionPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
-import { getAppSettings } from '@/lib/mock/runtime-store'
+import { getCachedAppSettings, loadAppSettings } from '@/lib/supabase/settings'
 import { SearchableStringPick } from '@/components/modules/inventory/part-combobox'
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 
@@ -171,6 +171,8 @@ export default function POSSalesHistoryPage() {
 
     syncContext()
     void loadBranches()
+    // El tipo de cambio de los PDF sale de app_settings, no del navegador.
+    void loadAppSettings().catch(() => undefined)
     window.addEventListener(ACTIVE_ROLE_EVENT, syncContext)
     window.addEventListener('focus', syncContext)
     return () => {
@@ -548,7 +550,7 @@ export default function POSSalesHistoryPage() {
               disabled={filteredSales.length === 0}
               onClick={() => {
                 const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
-                const settings = getAppSettings()
+                const settings = getCachedAppSettings()
                 generateCashSessionPdf({
                   branchName,
                   sessionDate: new Date().toLocaleDateString('es-BO'),
@@ -592,7 +594,7 @@ export default function POSSalesHistoryPage() {
               disabled={filteredSales.length === 0}
               onClick={() => {
                 const branchName = branches.find((b) => b.id === activeBranchId)?.name || activeBranchId
-                const settings = getAppSettings()
+                const settings = getCachedAppSettings()
                 let counter = 0
                 const rows: Array<Array<string | number>> = []
 
@@ -837,7 +839,7 @@ export default function POSSalesHistoryPage() {
                                         lineTotal: Number(item.line_total || 0),
                                       })),
                                       total: Number(sale.total_amount || 0),
-                                      exchangeRate: getAppSettings().usd_to_bob_rate,
+                                      exchangeRate: getCachedAppSettings().usd_to_bob_rate,
                                     })
                                   }}
                                 >

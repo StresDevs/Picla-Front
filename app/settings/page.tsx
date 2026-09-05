@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { loadAppSettings } from '@/lib/supabase/settings'
 import { toast } from '@/hooks/use-toast'
 import type { AppSettings } from '@/types/database'
 import { Database, Wifi, WifiOff, RefreshCw } from 'lucide-react'
@@ -151,7 +152,8 @@ export default function SettingsPage() {
         title: 'Configuracion guardada',
         description: 'Los cambios se aplicaron correctamente.',
       })
-      await loadSettings()
+      // Invalida la copia en memoria que usan POS, cotizaciones y los PDF.
+      await Promise.all([loadSettings(), loadAppSettings(true).catch(() => undefined)])
     } finally {
       setIsSaving(false)
     }

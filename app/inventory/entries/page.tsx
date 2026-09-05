@@ -10,7 +10,21 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
-import { branchesService, entriesService, inventoryService, partsService, type InventoryEntryView } from '@/lib/supabase/inventory'
+import {
+  branchesService,
+  entriesService,
+  inventoryService,
+  partsService,
+  type InventoryEntryView,
+  type PartAvailability,
+} from '@/lib/supabase/inventory'
+
+const EMPTY_AVAILABILITY: PartAvailability = {
+  part_id: '',
+  on_hand: 0,
+  reserved: 0,
+  available: 0,
+}
 import type { Part } from '@/types/database'
 import { generateEntriesPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
@@ -42,7 +56,7 @@ export default function InventoryEntriesPage() {
 
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
   const [products, setProducts] = useState<Part[]>([])
-  const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
+  const [availabilityByPartId, setAvailabilityByPartId] = useState<Record<string, PartAvailability>>({})
   const [entries, setEntries] = useState<InventoryEntryView[]>([])
 
   const [branchId, setBranchId] = useState('')
@@ -134,23 +148,19 @@ export default function InventoryEntriesPage() {
     if (!branchId) {
       setProducts([])
       setPartId('')
-      setStockByPartId({})
+      setAvailabilityByPartId({})
       return
     }
 
     const loadProducts = async () => {
       try {
-        const [rows, inventoryRows] = await Promise.all([
+        const [rows, availability] = await Promise.all([
           partsService.getAll(branchId),
-          inventoryService.getByBranch(branchId),
+          inventoryService.getAvailabilityByBranch(branchId),
         ])
-        const stockMap: Record<string, number> = {}
-        for (const row of inventoryRows) {
-          stockMap[row.part_id] = Number(row.quantity || 0)
-        }
         setProducts(rows)
         setPartId((prev) => prev || rows[0]?.id || '')
-        setStockByPartId(stockMap)
+        setAvailabilityByPartId(availability)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar productos')
       }
@@ -215,14 +225,16 @@ export default function InventoryEntriesPage() {
     const currentCost = selectedProduct ? Number(selectedProduct.cost || 0) : 0
     const newCost = unitCost.trim() ? Number(unitCost) : currentCost
     const newQty = qty
-    const totalNew = newQty + selectedStock
+    // El costo promedio pondera todas las unidades fisicas, tambien las
+    // reservadas en traspasos: siguen estando en la sucursal con su costo.
+    const totalNew = newQty + selectedStock.on_hand
     const avgCost = totalNew > 0
-      ? (selectedStock * currentCost + newQty * newCost) / totalNew
+      ? (selectedStock.on_hand * currentCost + newQty * newCost) / totalNew
       : newCost
 
     setAvgPriceDialog({
       avgCost: Number(avgCost.toFixed(4)),
-      currentStock: selectedStock,
+      currentStock: selectedStock.on_hand,
       currentCost,
       newQty,
       newCost,
@@ -279,8 +291,8 @@ export default function InventoryEntriesPage() {
     [products, partId]
   )
   const selectedStock = useMemo(
-    () => stockByPartId[partId] ?? 0,
-    [stockByPartId, partId]
+    () => availabilityByPartId[partId] ?? EMPTY_AVAILABILITY,
+    [availabilityByPartId, partId]
   )
 
   return (
@@ -382,7 +394,12 @@ export default function InventoryEntriesPage() {
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                Stock disponible en sucursal: <span className="font-semibold">{selectedStock}</span>
+                Disponible en sucursal: <span className="font-semibold">{selectedStock.available}</span>
+                {selectedStock.reserved > 0 ? (
+                  <span className="opacity-70">
+                    {' '}({selectedStock.on_hand} en stock, {selectedStock.reserved} reservados en traspasos)
+                  </span>
+                ) : null}
                 <span className="text-emerald-100/80"> · {selectedPartName || 'N/A'}</span>
               </div>
               <Button onClick={() => void registerEntry()} disabled={isSaving || !canRegister}>Registrar Ingreso</Button>

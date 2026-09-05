@@ -25,6 +25,8 @@ interface ImportPriceRow {
   sourcePart: Part
   targetPartId: string | null
   targetPartName: string | null
+  /** El codigo apunta a un producto distinto en destino: no se puede importar. */
+  mismatched: boolean
   selected: boolean
   price: string
   kitPrice: string
@@ -59,6 +61,23 @@ function normalizeCode(value: string) {
   return value.trim().toLowerCase()
 }
 
+/** Misma normalizacion que public.normalize_product_name en la base de datos. */
+function normalizeName(value: string) {
+  const stripped = value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .split('')
+    .filter((char) => {
+      const code = char.charCodeAt(0)
+      // Rango de marcas diacriticas combinantes que deja NFD.
+      return code < 0x0300 || code > 0x036f
+    })
+    .join('')
+
+  return stripped.replace(/\s+/g, ' ')
+}
+
 function formatAdjusted(value: number) {
   return Number.isFinite(value) ? value.toFixed(2) : '0.00'
 }
@@ -71,12 +90,18 @@ function buildImportRows(sourceProducts: Part[], targetProducts: Part[]) {
 
   return sourceProducts.map((source) => {
     const target = targetByCode.get(normalizeCode(source.code))
+    // Un codigo debe identificar al mismo producto en toda sucursal. Si en destino
+    // apunta a otro nombre, el emparejamiento esta mal y sobreescribiria un
+    // producto ajeno (el caso "TAN-4 actualiza el tanque de 600 L").
+    const mismatched = Boolean(target && normalizeName(target.name) !== normalizeName(source.name))
+
     return {
       id: source.id,
       sourcePart: source,
       targetPartId: target?.id || null,
       targetPartName: target?.name || null,
-      selected: true,
+      mismatched,
+      selected: !mismatched,
       price: formatAdjusted(Number(source.price || 0)),
       kitPrice: formatAdjusted(Number(source.kit_price ?? source.price ?? 0)),
       quotationMinPrice:
@@ -178,7 +203,10 @@ export default function InventoryCatalogImportPage() {
   }
 
   const setAllImportSelection = (selected: boolean) => {
-    setImportRows((prev) => prev.map((row) => ({ ...row, selected })))
+    // Las filas con codigo en conflicto nunca se seleccionan en masa.
+    setImportRows((prev) =>
+      prev.map((row) => ({ ...row, selected: selected && !row.mismatched })),
+    )
   }
 
   const applyPercentageToAllImportRows = () => {
@@ -217,6 +245,16 @@ export default function InventoryCatalogImportPage() {
     const selectedRows = importRows.filter((row) => row.selected)
     if (selectedRows.length === 0) {
       setFeedback('Selecciona al menos un producto para importar.')
+      return
+    }
+
+    const conflicted = selectedRows.filter((row) => row.mismatched)
+    if (conflicted.length > 0) {
+      setError(
+        `Estos códigos identifican productos distintos en la sucursal destino: ${conflicted
+          .map((row) => row.sourcePart.code)
+          .join(', ')}. Unifica los códigos antes de importar.`,
+      )
       return
     }
 
@@ -490,13 +528,21 @@ export default function InventoryCatalogImportPage() {
                       <input
                         type="checkbox"
                         checked={row.selected}
+                        disabled={row.mismatched}
                         onChange={(event) => updateImportRow(row.id, { selected: event.target.checked })}
                       />
                       <span className="font-medium">{row.sourcePart.name}</span>
                     </label>
-                    <p className="text-xs text-muted-foreground">
-                      {row.sourcePart.code} | {row.targetPartId ? `Actualiza ${row.targetPartName || 'producto destino'}` : 'Crea producto nuevo en destino'}
-                    </p>
+                    {row.mismatched ? (
+                      <p className="text-xs font-medium text-red-600 dark:text-red-400">
+                        El código {row.sourcePart.code} corresponde a &quot;{row.targetPartName}&quot; en la
+                        sucursal destino. Son productos distintos: unifica los códigos antes de importar.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {row.sourcePart.code} | {row.targetPartId ? `Actualiza ${row.targetPartName || 'producto destino'}` : 'Crea producto nuevo en destino'}
+                      </p>
+                    )}
                   </div>
 
                   <div className="md:col-span-2 space-y-1">

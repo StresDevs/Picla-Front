@@ -10,7 +10,12 @@ import {
 
 interface UpsertProductInput {
   branch_id: string
-  code: string
+  /**
+   * Solo una sugerencia. El codigo definitivo lo resuelve el catalogo global a
+   * partir del nombre, para que el mismo producto tenga el mismo codigo en
+   * todas las sucursales. Dejar vacio para que se genere solo.
+   */
+  code?: string | null
   name: string
   description?: string
   category?: string
@@ -187,7 +192,28 @@ export interface InventoryAvailabilityRow {
   part_name: string
   cost: number
   price: number
+  /** Stock disponible: fisico menos lo reservado en traspasos pendientes. */
   quantity: number
+  reserved_quantity: number
+  on_hand_quantity: number
+}
+
+/** Stock de un producto en una sucursal, separando lo comprometido en traspasos. */
+export interface PartAvailability {
+  part_id: string
+  on_hand: number
+  reserved: number
+  available: number
+}
+
+export interface SimilarProductRow {
+  code: string
+  canonical_name: string
+  category_name: string
+  score: number
+  /** Sucursales donde ya existe, separadas por coma. */
+  branches: string
+  reference_price: number | null
 }
 
 interface InventoryExitRow {
@@ -341,25 +367,41 @@ function buildTiersPayload(tiers: ProductPriceTier[] | undefined, basePrice: num
   return [...byQty.values()].sort((a, b) => a.min_quantity - b.min_quantity)
 }
 
-const CENTRAL_BRANCH_ID = 'c2d40d4a-213b-4a65-bfc5-95f8cf64fa61'
+/** Bodega central. Es la sucursal maestra del catalogo de productos. */
+export const CENTRAL_BRANCH_ID = 'c2d40d4a-213b-4a65-bfc5-95f8cf64fa61'
 
 // Parts Service
 export const partsService = {
-  async generateAutoCode(input: { branch_id: string; category: string; category_id?: string | null }) {
-    const { data, error } = await supabase.rpc('generate_inventory_product_code', {
-      p_branch_id: input.branch_id,
-      p_category_name: input.category,
-      p_category_id: input.category_id ?? null,
+  /**
+   * Productos ya registrados con un nombre parecido. Sirve para ofrecer
+   * "esto ya existe con codigo X" antes de crear un duplicado con otro codigo.
+   */
+  async findSimilar(name: string, limit = 5) {
+    const term = name.trim()
+    if (term.length < 3) return []
+
+    const { data, error } = await supabase.rpc('find_similar_products', {
+      p_name: term,
+      p_limit: limit,
     })
 
     if (error) throw error
+    return ((data || []) as SimilarProductRow[]).map((row) => ({
+      ...row,
+      score: Number(row.score || 0),
+      reference_price: row.reference_price === null ? null : Number(row.reference_price),
+    }))
+  },
 
-    const nextCode = String(data || '').trim()
-    if (!nextCode) {
-      throw new Error('No se pudo generar un codigo automatico para el producto')
-    }
+  /** Renombra el producto en todas las sucursales. Devuelve cuantas filas cambiaron. */
+  async renameGlobally(partId: string, newName: string) {
+    const { data, error } = await supabase.rpc('rename_product_globally', {
+      p_part_id: partId,
+      p_new_name: newName,
+    })
 
-    return nextCode
+    if (error) throw error
+    return Number(data || 0)
   },
 
   async getAll(branchId: string) {
@@ -404,7 +446,7 @@ export const partsService = {
   async create(part: UpsertProductInput) {
     const { data, error } = await supabase.rpc('upsert_inventory_product', {
       p_branch_id: part.branch_id,
-      p_code: part.code,
+      p_code: part.code || null,
       p_name: part.name,
       p_description: part.description || null,
       p_category: part.category || null,
@@ -458,11 +500,21 @@ export const partsService = {
 
   async update(id: string, part: Partial<UpsertProductInput>) {
     const current = await this.getById(id)
-    const nextName = part.name ?? current.name
+    const nextName = String(part.name ?? current.name).trim()
 
-    const updated = await this.create({
+    // El nombre es la identidad del producto. Si cambia hay que renombrarlo en
+    // todas las sucursales ANTES del upsert: si no, el upsert resolveria otro
+    // codigo y crearia un producto nuevo en lugar de editar este.
+    const nameChanged =
+      nextName.length > 0 && nextName.toLowerCase() !== current.name.trim().toLowerCase()
+
+    if (nameChanged) {
+      await this.renameGlobally(id, nextName)
+    }
+
+    return this.create({
       branch_id: part.branch_id || current.branch_id,
-      code: part.code || current.code,
+      code: current.code,
       name: nextName,
       description: part.description ?? current.description,
       category: part.category ?? current.category,
@@ -480,19 +532,6 @@ export const partsService = {
       min_quantity: part.min_quantity,
       price_tiers: part.price_tiers ?? current.price_tiers ?? [],
     })
-
-    const currentName = current.name.trim().toLowerCase()
-    const updatedName = String(nextName || '').trim().toLowerCase()
-    if (current.branch_id === CENTRAL_BRANCH_ID && updatedName && updatedName !== currentName) {
-      await supabase.rpc('sync_inventory_product_name', {
-        p_part_id: id,
-        p_old_name: current.name,
-        p_new_name: nextName,
-        p_central_branch_id: CENTRAL_BRANCH_ID,
-      })
-    }
-
-    return updated
   },
 
   async updateImageUrl(id: string, imageUrl: string | null) {
@@ -1306,7 +1345,58 @@ export const inventoryService = {
       cost: Number(row.cost || 0),
       price: Number(row.price || 0),
       quantity: Number(row.quantity || 0),
+      reserved_quantity: Number(row.reserved_quantity || 0),
+      on_hand_quantity: Number(row.on_hand_quantity || 0),
     }))
+  },
+
+  /** Cantidades comprometidas en traspasos pendientes que salen de esta sucursal. */
+  async getReservedByBranch(branchId: string) {
+    const { data, error } = await supabase.rpc('get_reserved_inventory_by_branch', {
+      p_branch_id: branchId,
+    })
+
+    if (error) throw error
+
+    const map: Record<string, number> = {}
+    for (const row of (data || []) as Array<{ part_id: string; reserved_quantity: number }>) {
+      map[row.part_id] = Number(row.reserved_quantity || 0)
+    }
+    return map
+  },
+
+  /**
+   * Stock disponible por producto en una sucursal.
+   * Unico lugar donde se resta lo reservado: todas las pantallas consumen esto
+   * para no volver a mostrar stock que la base de datos ya no deja mover.
+   */
+  async getAvailabilityByBranch(branchId: string): Promise<Record<string, PartAvailability>> {
+    const [rows, reserved] = await Promise.all([
+      this.getByBranch(branchId),
+      this.getReservedByBranch(branchId),
+    ])
+
+    const result: Record<string, PartAvailability> = {}
+
+    for (const row of rows) {
+      const onHand = Number(row.quantity || 0)
+      const held = Number(reserved[row.part_id] || 0)
+      result[row.part_id] = {
+        part_id: row.part_id,
+        on_hand: onHand,
+        reserved: held,
+        available: Math.max(onHand - held, 0),
+      }
+    }
+
+    // Reservas de productos sin fila de inventario (no deberia pasar, pero no
+    // queremos que desaparezcan del conteo).
+    for (const [partId, held] of Object.entries(reserved)) {
+      if (result[partId]) continue
+      result[partId] = { part_id: partId, on_hand: 0, reserved: held, available: 0 }
+    }
+
+    return result
   },
 
   async getWithParts(branchId: string) {

@@ -12,7 +12,21 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext, type AppUserRole } from '@/lib/mock/runtime-store'
-import { branchesService, exitsService, inventoryService, partsService, type InventoryExitView } from '@/lib/supabase/inventory'
+import {
+  branchesService,
+  exitsService,
+  inventoryService,
+  partsService,
+  type InventoryExitView,
+  type PartAvailability,
+} from '@/lib/supabase/inventory'
+
+const EMPTY_AVAILABILITY: PartAvailability = {
+  part_id: '',
+  on_hand: 0,
+  reserved: 0,
+  available: 0,
+}
 import type { Part } from '@/types/database'
 import { generateExitsPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
@@ -27,7 +41,7 @@ function getQuotationRange(part: Part) {
 
 export default function InventoryExitsPage() {
   const [products, setProducts] = useState<Part[]>([])
-  const [stockByPartId, setStockByPartId] = useState<Record<string, number>>({})
+  const [availabilityByPartId, setAvailabilityByPartId] = useState<Record<string, PartAvailability>>({})
   const [records, setRecords] = useState<InventoryExitView[]>([])
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
@@ -115,22 +129,18 @@ export default function InventoryExitsPage() {
       if (!branchId) {
         setProducts([])
         setProductId('')
-        setStockByPartId({})
+        setAvailabilityByPartId({})
         return
       }
 
       try {
-        const [rows, inventoryRows] = await Promise.all([
+        const [rows, availability] = await Promise.all([
           partsService.getAll(branchId),
-          inventoryService.getByBranch(branchId),
+          inventoryService.getAvailabilityByBranch(branchId),
         ])
-        const stockMap: Record<string, number> = {}
-        for (const row of inventoryRows) {
-          stockMap[row.part_id] = Number(row.quantity || 0)
-        }
         setProducts(rows)
         setProductId((prev) => prev || rows[0]?.id || '')
-        setStockByPartId(stockMap)
+        setAvailabilityByPartId(availability)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar productos')
       }
@@ -145,8 +155,8 @@ export default function InventoryExitsPage() {
   )
 
   const selectedStock = useMemo(
-    () => stockByPartId[productId] ?? 0,
-    [stockByPartId, productId]
+    () => availabilityByPartId[productId] ?? EMPTY_AVAILABILITY,
+    [availabilityByPartId, productId]
   )
 
   const canSeePurchasePrice = activeRole === 'admin'
@@ -234,7 +244,12 @@ export default function InventoryExitsPage() {
                 <Label>Producto</Label>
                 <PartCombobox parts={products} value={productId} onValueChange={setProductId} />
                 <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200">
-                  Stock disponible en sucursal: <span className="font-semibold">{selectedStock}</span>
+                  Disponible en sucursal: <span className="font-semibold">{selectedStock.available}</span>
+                  {selectedStock.reserved > 0 ? (
+                    <span className="text-emerald-200/70">
+                      {' '}({selectedStock.on_hand} en stock, {selectedStock.reserved} reservados en traspasos)
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <div className="space-y-2">

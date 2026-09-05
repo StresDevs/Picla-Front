@@ -134,7 +134,9 @@ export default function LoginPage() {
         typedProfile?.full_name ||
         (authUser?.user_metadata as { full_name?: string } | undefined)?.full_name ||
         'Usuario'
-      const resolvedBranchId = typedProfile?.branch_id || 'branch-1'
+      // Sin sucursal el usuario no ve nada; MainLayout lo avisa explicitamente
+      // en vez de apuntar a una sucursal inexistente.
+      const resolvedBranchId = typedProfile?.branch_id || ''
 
       setActiveUserContext({
         role: resolvedRole,

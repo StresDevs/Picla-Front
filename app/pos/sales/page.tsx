@@ -24,9 +24,9 @@ import {
   ACTIVE_ROLE_EVENT,
   canRoleCompleteSale,
   getActiveUserContext,
-  getAppSettings,
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
+import { loadAppSettings } from '@/lib/supabase/settings'
 import { printMockInvoice } from '@/lib/mock/invoice'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { posService, type POSCatalogItem, type POSQueuedSale, type POSQueueLineInput } from '@/lib/supabase/pos'
@@ -130,7 +130,7 @@ export default function POSSalesPage() {
   const [exchangeRate, setExchangeRate] = useState(6.96)
   const [activeRole, setActiveRole] = useState<AppUserRole>('employee')
   const [activeUserName, setActiveUserName] = useState('Usuario')
-  const [activeBranchId, setActiveBranchId] = useState('branch-1')
+  const [activeBranchId, setActiveBranchId] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [printInvoiceOnSale, setPrintInvoiceOnSale] = useState(true)
@@ -264,9 +264,14 @@ export default function POSSalesPage() {
   }
 
   useEffect(() => {
-    const settings = getAppSettings()
-    setExchangeRate(settings.usd_to_bob_rate)
-    setPaymentCurrency(settings.default_currency)
+    // Tipo de cambio y moneda desde app_settings: antes salian de una semilla
+    // fija en localStorage y cada maquina cobraba distinto.
+    void loadAppSettings()
+      .then((settings) => {
+        setExchangeRate(settings.usd_to_bob_rate)
+        setPaymentCurrency(settings.default_currency)
+      })
+      .catch(() => undefined)
 
     const syncContext = async () => {
       const context = getActiveUserContext()
