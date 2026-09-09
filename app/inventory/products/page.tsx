@@ -43,6 +43,7 @@ import {
   Download,
   FileSpreadsheet,
   LayoutGrid,
+  Lightbulb,
   List,
   Plus,
   Search,
@@ -451,6 +452,9 @@ export default function InventoryProductsPage() {
   const [bulkFileName, setBulkFileName] = useState<string | null>(null)
 
   const [similarProducts, setSimilarProducts] = useState<SimilarProductRow[]>([])
+  // Nombre para el que el usuario ya dijo "no es el mismo producto": mientras no
+  // cambie el nombre, no volvemos a mostrarle las sugerencias.
+  const [dismissedSimilarTerm, setDismissedSimilarTerm] = useState('')
 
   const activeBranchName = useMemo(
     () => branches.find((branch) => branch.id === activeBranchId)?.name || 'la sucursal activa',
@@ -577,6 +581,7 @@ export default function InventoryProductsPage() {
   useEffect(() => {
     if (!isCreateOpen) {
       setSimilarProducts([])
+      setDismissedSimilarTerm('')
       return
     }
 
@@ -1320,14 +1325,16 @@ export default function InventoryProductsPage() {
                         </p>
                       </div>
 
-                      {similarProducts.length > 0 ? (
-                        <div className="md:col-span-2 space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-                          <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                            Este producto ya existe en el catálogo
+                      {similarProducts.length > 0 && productForm.name.trim() !== dismissedSimilarTerm ? (
+                        <div className="md:col-span-2 space-y-2 rounded-lg border border-border bg-muted/40 p-3">
+                          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                            <Lightbulb className="h-4 w-4 text-muted-foreground" />
+                            Sugerencia: ¿es alguno de estos productos?
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Úsalo para que comparta código con las demás sucursales. Solo tendrás que
-                            poner el precio y el stock de esta sucursal.
+                            Encontramos productos con nombre parecido en el catálogo. Si es el mismo,
+                            úsalo para que comparta código con las demás sucursales y solo cargues
+                            precio y stock. Si es un producto distinto, continúa y créalo normalmente.
                           </p>
                           <div className="space-y-1.5">
                             {similarProducts.map((suggestion) => (
@@ -1342,16 +1349,24 @@ export default function InventoryProductsPage() {
                                   </p>
                                   <p className="text-xs text-muted-foreground">
                                     {suggestion.branches
-                                      ? `Ya existe en: ${suggestion.branches}`
+                                      ? `Disponible en: ${suggestion.branches}`
                                       : 'Registrado en el catálogo, sin stock en ninguna sucursal'}
                                   </p>
                                 </div>
                                 <Button size="sm" variant="outline" onClick={() => applySuggestion(suggestion)}>
-                                  Usar este producto
+                                  Es este
                                 </Button>
                               </div>
                             ))}
                           </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-auto px-2 py-1 text-xs text-muted-foreground"
+                            onClick={() => setDismissedSimilarTerm(productForm.name.trim())}
+                          >
+                            Ninguno, es un producto nuevo
+                          </Button>
                         </div>
                       ) : null}
                       <div className="space-y-2">
