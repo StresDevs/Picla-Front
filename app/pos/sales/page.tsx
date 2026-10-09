@@ -29,7 +29,9 @@ import {
 } from '@/lib/mock/runtime-store'
 import { loadAppSettings } from '@/lib/supabase/settings'
 import { loadPaymentQr } from '@/lib/payment-qr'
-import { printMockInvoice } from '@/lib/mock/invoice'
+import { type PrintInvoiceParams } from '@/lib/mock/invoice'
+import { receiptFromSale, receiptFromQueuedSale } from '@/lib/sale-receipt'
+import { SaleReceiptDialog } from '@/components/modules/pos/sale-receipt-dialog'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { posService, type POSCatalogItem, type POSQueuedSale, type POSQueueLineInput } from '@/lib/supabase/pos'
 import { creditsService } from '@/lib/supabase/credits'
@@ -137,7 +139,7 @@ export default function POSSalesPage() {
   const [activeBranchId, setActiveBranchId] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [printInvoiceOnSale, setPrintInvoiceOnSale] = useState(true)
+  const [completedReceipt, setCompletedReceipt] = useState<PrintInvoiceParams | null>(null)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [qrStatus, setQrStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -733,8 +735,18 @@ export default function POSSalesPage() {
           customer_id: selectedCustomer?.id ?? null,
           customer_name: selectedCustomer?.full_name ?? resolvedCustomerName,
           customer_nit_ci: selectedCustomer?.nit_ci ?? null,
+          customer_phone: selectedCustomer?.phone ?? null,
           customer_is_anonymous: anonymousSale,
           payment_type: isCreditSale ? 'credit' : selectedPayment,
+          ...(isCreditSale && {
+            credit_initial_payment: Number(creditInitialPayment) || 0,
+            credit_initial_payment_method: creditInitialPaymentMethod,
+            credit_due_days: Math.floor(Number(creditDueDays)),
+            credit_due_date: (() => { const date = new Date(); date.setDate(date.getDate() + Math.floor(Number(creditDueDays))); return date.toLocaleDateString('es-BO') })(),
+            credit_reminder_date: creditReminderDate || null,
+            credit_seller_name: creditSellerName.trim(),
+            credit_notes: creditNotes.trim() || null,
+          }),
           price_changes: changedPrices.map((item) => ({
             part_id: item.part_id,
             original_price: item.base_price,
@@ -761,6 +773,7 @@ export default function POSSalesPage() {
         throw new Error('No se pudo obtener el identificador de la venta creada')
       }
 
+      let creditRegistered = !isCreditSale
       if (isCreditSale) {
         try {
           await creditsService.create({
@@ -775,6 +788,7 @@ export default function POSSalesPage() {
             reminder_date: creditReminderDate || null,
             notes: creditNotes.trim() || null,
           })
+          creditRegistered = true
         } catch (creditErr) {
           const errDetails = parseErrorDetails(creditErr, 'No se pudo registrar el crédito')
           setErrorModal({
@@ -787,11 +801,11 @@ export default function POSSalesPage() {
         }
       }
 
-      let receiptNumber = 'N0'
+      let receiptNumber = result.sale_id
       try {
         receiptNumber = await posService.getSaleReceiptNumber(result.sale_id, branchId)
       } catch {
-        receiptNumber = 'N0'
+        receiptNumber = result.sale_id
       }
 
       // Items checked for deferred delivery → reset from auto-delivered back to pending.
@@ -813,29 +827,44 @@ export default function POSSalesPage() {
         .filter((item) => deliverySet.has(item.part_id))
         .map((item) => item.name)
 
-      if (printInvoiceOnSale) {
-        printMockInvoice({
-          invoiceNumber: receiptNumber,
-          customerName: resolvedCustomerName,
-          branchName: activeBranchName,
-          cashierName: activeUserName,
-          paymentMethod: PAYMENT_METHODS.find((method) => method.id === selectedPayment)?.label || selectedPayment,
-          currency: paymentCurrency,
-          total: amountToCharge,
-          lines: cart.map((item) => ({
-            code: item.code,
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.unit_price,
-          })),
-          isCredit: isCreditSale,
-          notes: isCreditSale && creditNotes.trim() ? creditNotes.trim() : undefined,
-          pendingDeliveryItems: pendingDeliveryNames.length > 0 ? pendingDeliveryNames : undefined,
-        })
-      }
+      setIsCheckoutOpen(false)
+      setCompletedReceipt({
+        invoiceNumber: receiptNumber,
+        customerName: resolvedCustomerName,
+        branchName: activeBranchName,
+        cashierName: activeUserName,
+        paymentMethod: PAYMENT_METHODS.find((method) => method.id === selectedPayment)?.label || selectedPayment,
+        currency: isCreditSale ? 'BOB' : paymentCurrency,
+        total: isCreditSale ? cartTotalBob : amountToCharge,
+        customerDocument: selectedCustomer?.nit_ci,
+        customerPhone: selectedCustomer?.phone || undefined,
+        lines: cart.map((item) => ({
+          code: item.code,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: !isCreditSale && paymentCurrency === 'USD' ? item.unit_price / safeExchangeRate : item.unit_price,
+        })),
+        credit: isCreditSale ? {
+          initialPayment: Number(creditInitialPayment) || 0,
+          initialPaymentMethod: PAYMENT_METHODS.find((method) => method.id === creditInitialPaymentMethod)?.label,
+          balance: cartTotalBob - (Number(creditInitialPayment) || 0),
+          dueDays: Math.floor(Number(creditDueDays)),
+          dueDate: (() => { const date = new Date(); date.setDate(date.getDate() + Math.floor(Number(creditDueDays))); return date.toLocaleDateString('es-BO') })(),
+          reminderDate: creditReminderDate || undefined,
+          sellerName: creditSellerName.trim(),
+          registered: creditRegistered,
+        } : undefined,
+        isCredit: isCreditSale,
+        notes: isCreditSale && creditNotes.trim() ? creditNotes.trim() : undefined,
+        pendingDeliveryItems: pendingDeliveryNames.length > 0 ? pendingDeliveryNames : undefined,
+      })
 
       setCart([])
-      await reloadPOSData(branchId)
+      try {
+        await reloadPOSData(branchId)
+      } catch {
+        toast({ title: 'Venta registrada', description: 'El comprobante está disponible. No se pudieron actualizar los datos del POS; recarga la página.', variant: 'destructive' })
+      }
       toast({
         title: 'Venta registrada',
         description: `Venta registrada correctamente: ${receiptNumber}`,
@@ -870,14 +899,26 @@ export default function POSSalesPage() {
 
     try {
       const result = await posService.approveQueuedSale({ queue_id: queueId })
-      await reloadPOSData(activeBranchId)
-      let saleNumber = 'N0'
+      const queue = queuedSales.find((queue) => queue.queue_id === queueId)
+      if (result?.sale_id && queue) setCompletedReceipt(receiptFromQueuedSale(queue, result.sale_id, activeBranchName))
+      try {
+        await reloadPOSData(activeBranchId)
+      } catch {
+        toast({ title: 'Venta aprobada', description: 'El comprobante está disponible. Recarga la página para actualizar el POS.', variant: 'destructive' })
+      }
+      let saleNumber = result?.sale_id || 'N0'
       if (result?.sale_id) {
         try {
           saleNumber = await posService.getSaleReceiptNumber(result.sale_id, activeBranchId)
         } catch {
-          saleNumber = 'N0'
+          saleNumber = result.sale_id
         }
+      }
+      if (result?.sale_id) {
+        try {
+          const sale = (await posService.getSales(activeBranchId)).find((sale) => sale.sale_id === result.sale_id)
+          if (sale) setCompletedReceipt(receiptFromSale(sale, saleNumber, activeBranchName))
+        } catch { /* El comprobante ya conserva los datos de la venta aprobada. */ }
       }
       toast({
         title: 'Venta aprobada',
@@ -1039,6 +1080,8 @@ export default function POSSalesPage() {
             </CardContent>
           </Card>
         ) : null}
+
+        <SaleReceiptDialog receipt={completedReceipt} onClose={() => setCompletedReceipt(null)} />
 
         <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
           <DialogContent className="!w-[min(99vw,1600px)] !max-w-none sm:!max-w-none p-0 overflow-y-auto max-h-[95svh]">
@@ -1476,10 +1519,7 @@ export default function POSSalesPage() {
                     </div>
                   </div>
 
-                  <label className="mt-5 flex items-center gap-2 text-xs text-muted-foreground">
-                    <input type="checkbox" checked={printInvoiceOnSale} onChange={(event) => setPrintInvoiceOnSale(event.target.checked)} />
-                    Imprimir comprobante al completar
-                  </label>
+                  <p className="mt-5 text-xs text-muted-foreground">Al completar la venta aparecerá el comprobante para imprimir.</p>
 
                   <DialogFooter className="mt-6 border-t border-border/60 pt-4">
                     <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} disabled={isSubmitting} className="h-11 px-5">

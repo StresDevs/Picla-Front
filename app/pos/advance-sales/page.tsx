@@ -17,11 +17,16 @@ import { posService, type POSCatalogItem, type POSPendingDelivery } from '@/lib/
 import { toast } from '@/hooks/use-toast'
 import { Clock, PackageCheck } from 'lucide-react'
 import type { AppSettings } from '@/types/database'
+import { type PrintInvoiceParams } from '@/lib/mock/invoice'
+import { SaleReceiptDialog } from '@/components/modules/pos/sale-receipt-dialog'
+import { salePaymentLabels } from '@/lib/sale-receipt'
 
 export default function POSAdvanceSalesPage() {
+  const [completedReceipt, setCompletedReceipt] = useState<PrintInvoiceParams | null>(null)
   const [catalog, setCatalog] = useState<POSCatalogItem[]>([])
   const [pendingDeliveries, setPendingDeliveries] = useState<POSPendingDelivery[]>([])
   const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
+  const [activeBranchName, setActiveBranchName] = useState(() => getActiveUserContext().branch_id)
 
   const [customerName, setCustomerName] = useState('')
   const [partId, setPartId] = useState('')
@@ -49,10 +54,12 @@ export default function POSAdvanceSalesPage() {
     setIsLoading(true)
     try {
       const target = branchId ?? activeBranchId
-      const [catalogData, deliveryData] = await Promise.all([
+      const [catalogData, deliveryData, branch] = await Promise.all([
         posService.getCatalog(target),
         posService.getPendingDeliveries(target),
+        getSupabaseClient().from('branches').select('name').eq('id', target).maybeSingle(),
       ])
+      setActiveBranchName(branch.data?.name || target)
       setCatalog(catalogData)
       setPendingDeliveries(deliveryData)
       if (!partId && catalogData.length > 0) {
@@ -132,9 +139,23 @@ export default function POSAdvanceSalesPage() {
           source_type: 'product',
           source_kit_id: null,
         }],
-        metadata: { module: 'pos/advance-sales', notes: notes || null },
+        metadata: { module: 'pos/advance-sales', notes: notes || null, created_by_name: getActiveUserContext().user_name },
       })
 
+      if (!result?.sale_id) throw new Error('No se obtuvo el identificador de la venta')
+      const ctx = getActiveUserContext()
+      setCompletedReceipt({
+        invoiceNumber: result.sale_id,
+        customerName: customerName || 'Mostrador',
+        branchName: activeBranchName,
+        cashierName: ctx.user_name,
+        paymentMethod: salePaymentLabels[paymentMethod],
+        currency: 'BOB',
+        total: Number(result.total_amount_bob),
+        lines: [{ code: selectedPart.code, name: selectedPart.name, quantity: qty, unitPrice: Number(selectedPart.price) }],
+        notes: `Anticipo: Bs ${Math.min(adv, Number(result.total_amount_bob)).toFixed(2)}. Saldo pendiente: Bs ${Math.max(Number(result.total_amount_bob) - adv, 0).toFixed(2)}. ${notes}`,
+        pendingDeliveryItems: [selectedPart.name],
+      })
       toast({
         title: 'Venta adelantada registrada',
         description: `ID: ${result?.sale_id?.slice(0, 12) ?? 'OK'}…`,
@@ -168,6 +189,7 @@ export default function POSAdvanceSalesPage() {
 
   return (
     <MainLayout>
+      <SaleReceiptDialog receipt={completedReceipt} onClose={() => setCompletedReceipt(null)} />
       <div className="space-y-6">
         <PageHeader
           title="Venta por Adelantado"

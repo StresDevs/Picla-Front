@@ -16,7 +16,8 @@ import {
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
 import { getCachedAppSettings, loadAppSettings } from '@/lib/supabase/settings'
-import { printMockInvoice } from '@/lib/mock/invoice'
+import { type PrintInvoiceParams } from '@/lib/mock/invoice'
+import { SaleReceiptDialog } from '@/components/modules/pos/sale-receipt-dialog'
 import { quotationsService, type QuotationRecord } from '@/lib/supabase/quotations'
 import { posService } from '@/lib/supabase/pos'
 import { generateQuotationPdf } from '@/lib/pdf/generators'
@@ -80,7 +81,7 @@ export default function QuotationsHistoryPage() {
     () => getCachedAppSettings().default_currency,
   )
   const [exchangeRate, setExchangeRate] = useState(() => getCachedAppSettings().usd_to_bob_rate)
-  const [printInvoice, setPrintInvoice] = useState(true)
+  const [completedReceipt, setCompletedReceipt] = useState<PrintInvoiceParams | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -206,30 +207,29 @@ export default function QuotationsHistoryPage() {
         throw new Error('No se obtuvo el identificador de la venta creada')
       }
 
-      let receiptNumber = 'N0'
+      let receiptNumber = result.sale_id
       try {
         receiptNumber = await posService.getSaleReceiptNumber(result.sale_id, selectedQuotation.branch_id)
       } catch {
-        receiptNumber = 'N0'
+        receiptNumber = result.sale_id
       }
 
-      if (printInvoice) {
-        printMockInvoice({
-          invoiceNumber: receiptNumber,
-          customerName: selectedQuotation.customer_name,
-          branchName: selectedQuotation.branch_name,
-          cashierName: activeUserName,
-          paymentMethod: PAYMENT_METHODS.find((item) => item.id === paymentMethod)?.label || paymentMethod,
-          currency: paymentCurrency,
-          total: amountToPay,
-          lines: selectedQuotation.items.map((item) => ({
-            code: item.part_code,
-            name: item.part_name,
-            quantity: item.quantity,
-            unitPrice: item.unit_price,
-          })),
-        })
-      }
+      setIsDialogOpen(false)
+      setCompletedReceipt({
+        invoiceNumber: receiptNumber,
+        customerName: selectedQuotation.customer_name,
+        branchName: selectedQuotation.branch_name,
+        cashierName: activeUserName,
+        paymentMethod: PAYMENT_METHODS.find((item) => item.id === paymentMethod)?.label || paymentMethod,
+        currency: paymentCurrency,
+        total: amountToPay,
+        lines: selectedQuotation.items.map((item) => ({
+          code: item.part_code,
+          name: item.part_name,
+          quantity: item.quantity,
+          unitPrice: paymentCurrency === 'USD' ? item.unit_price / safeExchangeRate : item.unit_price,
+        })),
+      })
 
       await refresh(activeBranchId)
       setIsDialogOpen(false)
@@ -250,6 +250,7 @@ export default function QuotationsHistoryPage() {
 
   return (
     <MainLayout>
+      <SaleReceiptDialog receipt={completedReceipt} onClose={() => setCompletedReceipt(null)} />
       <div className="space-y-6">
         <PageHeader
           title="Historial de Cotizaciones"
@@ -524,14 +525,7 @@ export default function QuotationsHistoryPage() {
                           </div>
                         ) : null}
 
-                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <input
-                            type="checkbox"
-                            checked={printInvoice}
-                            onChange={(event) => setPrintInvoice(event.target.checked)}
-                          />
-                          Imprimir factura al confirmar
-                        </label>
+                        <p className="text-xs text-muted-foreground">Al confirmar aparecerá el comprobante para imprimir.</p>
                       </div>
                     </div>
                   </div>

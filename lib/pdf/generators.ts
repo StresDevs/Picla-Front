@@ -476,6 +476,8 @@ export interface CashSessionSaleGroup {
   date: string
   customer: string
   paymentMethod: string
+  seller?: string
+  saleNumber?: string
   items: CashSessionSaleItem[]
   subtotalBob: number
   discount: number
@@ -506,6 +508,8 @@ export function generateCashSessionPdf(input: {
       globalItem++
       allRows.push([
         globalItem,
+        sale.saleNumber || sale.saleId,
+        sale.seller || 'No registrado',
         item.code,
         item.name,
         item.quantity,
@@ -519,14 +523,14 @@ export function generateCashSessionPdf(input: {
 
   autoTable(doc, {
     startY,
-    head: [['#', 'Código', 'Producto', 'Cant.', 'U.M.', 'P. Unit.', 'Total ($)', 'Total (Bs)']],
+    head: [['#', 'Venta', 'Vendedor', 'Código', 'Producto', 'Cant.', 'U.M.', 'P. Unit.', 'Total ($)', 'Total (Bs)']],
     body: allRows,
     styles: { fontSize: 7, cellPadding: 2 },
     headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245, 245, 245] },
   })
 
-  const finalY = (doc as unknown as Record<string, number>).lastAutoTable?.finalY ?? 200
+  const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 200
 
   const totalBob = input.sales.reduce((s, sale) => s + sale.totalBob, 0)
   const totalUsd = input.sales.reduce((s, sale) => s + sale.totalUsd, 0)
@@ -577,6 +581,15 @@ export function generateSaleInvoicePdf(input: {
   items: InvoiceItem[]
   total: number
   exchangeRate?: number
+  credit?: {
+    initialPayment?: number
+    initialPaymentMethod?: string
+    paidAmount: number
+    balance: number
+    dueDate: string
+    sellerName: string
+    notes?: string | null
+  }
 }) {
   const doc = new jsPDF()
   buildTitle(doc, 'RECIBO DE VENTA')
@@ -592,6 +605,16 @@ export function generateSaleInvoicePdf(input: {
   doc.text(`Método de pago: ${input.paymentMethod}`, 14, y); y += 5
   doc.text(`Sucursal: ${input.branchName}`, 14, y); y += 5
   if (input.cashier) { doc.text(`Funcionario: ${input.cashier}`, 14, y); y += 5 }
+  if (input.credit) {
+    const credit = input.credit
+    const rows: RowData[] = []
+    if (credit.initialPayment !== undefined) rows.push(['Pago inicial', `Bs ${fmtMoney(credit.initialPayment)}`])
+    if (credit.initialPaymentMethod) rows.push(['Método del pago inicial', credit.initialPaymentMethod])
+    rows.push(['Pagado a la fecha', `Bs ${fmtMoney(credit.paidAmount)}`], ['Saldo actual', `Bs ${fmtMoney(credit.balance)}`], ['Vencimiento', fmtDate(`${credit.dueDate}T12:00:00`)], ['Responsable del crédito', credit.sellerName])
+    if (credit.notes) rows.push(['Notas', credit.notes])
+    autoTable(doc, { startY: y, head: [['Detalle del crédito', '']], body: rows, styles: { fontSize: 8, cellPadding: 2 } })
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5
+  }
   y += 3
 
   const body: RowData[] = input.items.map((item, i) => [
@@ -612,7 +635,7 @@ export function generateSaleInvoicePdf(input: {
     alternateRowStyles: { fillColor: [245, 245, 245] },
   })
 
-  const finalY = (doc as unknown as Record<string, number>).lastAutoTable?.finalY ?? 180
+  const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 180
   let ty = finalY + 8
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')

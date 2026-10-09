@@ -86,6 +86,9 @@ export interface POSSaleRecord {
   sale_id: string
   branch_id: string
   sold_by: string | null
+  sold_by_name?: string
+  exchange_rate?: number
+  metadata?: Record<string, unknown>
   customer_name: string | null
   payment_method: 'cash' | 'card' | 'qr' | 'credit'
   payment_currency: 'BOB' | 'USD'
@@ -291,7 +294,33 @@ export const posService = {
     })
 
     if (error) throw error
-    return (data || []) as POSSaleRecord[]
+    const sales = (data || []) as POSSaleRecord[]
+    if (!sales.length) return sales
+    const details = await supabase.rpc('pos_get_sale_receipt_details', { p_branch_id: branchId ?? null })
+    if (!details.error) {
+      const rows = (details.data || []) as Array<{ sale_id: string; sold_by_name: string; metadata: Record<string, unknown>; exchange_rate: number }>
+      const byId = new Map(rows.map((row) => [row.sale_id, row] as const))
+      return sales.map((sale) => ({ ...sale, ...byId.get(sale.sale_id) })) as POSSaleRecord[]
+    }
+    if (details.error.code !== 'PGRST202') throw details.error
+    // Compatibilidad mientras se instala la consulta de nombres en Supabase.
+    const [metadataResult, usersResult] = await Promise.all([
+      supabase.from('pos_sales').select('id, metadata, exchange_rate').in('id', sales.map((sale) => sale.sale_id)),
+      supabase.from('users').select('id, full_name').in('id', [...new Set(sales.map((sale) => sale.sold_by).filter((id): id is string => !!id))]),
+    ])
+    if (metadataResult.error) throw metadataResult.error
+    if (usersResult.error) throw usersResult.error
+    const metadataById = new Map((metadataResult.data || []).map((row) => [row.id, row]))
+    const usersById = new Map((usersResult.data || []).map((row) => [row.id, row.full_name]))
+    return sales.map((sale) => {
+      const details = metadataById.get(sale.sale_id)
+      return {
+        ...sale,
+        metadata: details?.metadata || {},
+        exchange_rate: Number(details?.exchange_rate || 1),
+        sold_by_name: details?.metadata?.created_by_name || details?.metadata?.converted_by_name || usersById.get(sale.sold_by) || (sale.sold_by ? `Usuario ${sale.sold_by}` : 'No registrado'),
+      }
+    }) as POSSaleRecord[]
   },
 
   async getTopSellers(input?: {

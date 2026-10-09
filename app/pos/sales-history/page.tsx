@@ -30,6 +30,9 @@ interface SaleCreditInfo {
 }
 import { generateSaleInvoicePdf, generateCashSessionPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
+import { getSalePaymentMethod, receiptFromSale, receiptFromQueuedSale } from '@/lib/sale-receipt'
+import { type PrintInvoiceParams } from '@/lib/mock/invoice'
+import { SaleReceiptDialog } from '@/components/modules/pos/sale-receipt-dialog'
 import { getCachedAppSettings, loadAppSettings } from '@/lib/supabase/settings'
 import { SearchableStringPick } from '@/components/modules/inventory/part-combobox'
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
@@ -71,6 +74,7 @@ function toLocalDateKey(value: string) {
 interface BranchOption { id: string; name: string }
 
 export default function POSSalesHistoryPage() {
+  const [completedReceipt, setCompletedReceipt] = useState<PrintInvoiceParams | null>(null)
   const [sales, setSales] = useState<POSSaleRecord[]>([])
   const [queuedSales, setQueuedSales] = useState<POSQueuedSale[]>([])
   const [branches, setBranches] = useState<BranchOption[]>([])
@@ -145,6 +149,8 @@ export default function POSSalesHistoryPage() {
         } else {
           setCreditMap(new Map())
         }
+      } else {
+        setCreditMap(new Map())
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el historial')
@@ -231,14 +237,15 @@ export default function POSSalesHistoryPage() {
 
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
-      if (paymentFilter !== 'all' && sale.payment_method !== paymentFilter) return false
+      if (paymentFilter !== 'all' && (creditMap.has(sale.sale_id) ? 'credit' : getSalePaymentMethod(sale)) !== paymentFilter) return false
       if (statusFilter !== 'all' && sale.status !== statusFilter) return false
       if (searchTerm) {
         const term = searchTerm.toLowerCase()
         const saleNumber = (saleNumberMap.get(sale.sale_id) ?? '').toLowerCase()
         const matchId = saleNumber.includes(term)
         const matchCustomer = (sale.customer_name ?? '').toLowerCase().includes(term)
-        if (!matchId && !matchCustomer) return false
+        const matchSeller = (sale.sold_by_name || sale.sold_by || '').toLowerCase().includes(term)
+        if (!matchId && !matchCustomer && !matchSeller) return false
       }
       if (dateFrom) {
         const from = new Date(`${dateFrom}T00:00:00`)
@@ -250,7 +257,7 @@ export default function POSSalesHistoryPage() {
       }
       return true
     })
-  }, [sales, paymentFilter, statusFilter, searchTerm, dateFrom, dateTo, saleNumberMap])
+  }, [sales, paymentFilter, statusFilter, searchTerm, dateFrom, dateTo, saleNumberMap, creditMap])
 
   const filteredQueue = useMemo(() => {
     return queuedSales.filter((q) => {
@@ -288,14 +295,22 @@ export default function POSSalesHistoryPage() {
 
     try {
       const result = await posService.approveQueuedSale({ queue_id: queueId })
+      const queue = queuedSales.find((queue) => queue.queue_id === queueId)
+      if (result?.sale_id && queue) setCompletedReceipt(receiptFromQueuedSale(queue, result.sale_id, branches.find((branch) => branch.id === queue.branch_id)?.name || activeBranchId))
       await loadData(branchFilter !== 'all' ? branchFilter : activeBranchId)
-      let saleNumber = 'N0'
+      let saleNumber = result?.sale_id || 'N0'
       if (result?.sale_id) {
         try {
           saleNumber = await posService.getSaleReceiptNumber(result.sale_id, activeBranchId)
         } catch {
-          saleNumber = 'N0'
+          saleNumber = result.sale_id
         }
+      }
+      if (result?.sale_id) {
+        try {
+          const sale = (await posService.getSales(activeBranchId)).find((sale) => sale.sale_id === result.sale_id)
+          if (sale) setCompletedReceipt(receiptFromSale(sale, saleNumber, branches.find((branch) => branch.id === sale.branch_id)?.name || activeBranchId))
+        } catch { /* El comprobante ya conserva los datos de la venta aprobada. */ }
       }
       toast({
         title: 'Venta aprobada',
@@ -453,6 +468,7 @@ export default function POSSalesHistoryPage() {
 
   return (
     <MainLayout>
+      <SaleReceiptDialog receipt={completedReceipt} onClose={() => setCompletedReceipt(null)} />
       <div className="space-y-6">
         <PageHeader
           title="Historial de Ventas"
@@ -560,7 +576,7 @@ export default function POSSalesHistoryPage() {
                     const items = (sale.items || []).map((item) => {
                       const bob = Number(item.line_total || 0)
                       return {
-                        code: '',
+                        code: item.part_code,
                         name: item.part_name,
                         quantity: Number(item.quantity || 0),
                         unit: 'PZA',
@@ -573,9 +589,11 @@ export default function POSSalesHistoryPage() {
                     const total = Number(sale.total_amount || 0)
                     return {
                       saleId: sale.sale_id,
+                      saleNumber: resolveSaleNumber(sale.sale_id) || sale.sale_id,
+                      seller: sale.sold_by_name,
                       date: sale.created_at,
                       customer: sale.customer_name ?? 'Mostrador',
-                      paymentMethod: paymentLabels[sale.payment_method] ?? sale.payment_method,
+                      paymentMethod: paymentLabels[creditMap.has(sale.sale_id) ? 'credit' : getSalePaymentMethod(sale)] ?? sale.payment_method,
                       items,
                       subtotalBob: subtotal,
                       discount: subtotal - total > 0.01 ? subtotal - total : 0,
@@ -604,7 +622,9 @@ export default function POSSalesHistoryPage() {
                     const bob = Number(item.line_total || 0)
                     rows.push([
                       counter,
-                      '',
+                      resolveSaleNumber(sale.sale_id) || sale.sale_id,
+                      sale.sold_by_name || sale.sold_by || 'No registrado',
+                      item.part_code,
                       item.part_name,
                       Number(item.quantity || 0),
                       'PZA',
@@ -617,7 +637,7 @@ export default function POSSalesHistoryPage() {
 
                 exportToExcel({
                   fileName: `cierre_caja_${branchName.replace(/\s+/g, '_')}`,
-                  headers: ['#', 'Codigo', 'Producto', 'Cant.', 'U.M.', 'P. Unit.', 'Total ($)', 'Total (Bs)'],
+                  headers: ['#', 'Venta', 'Vendedor', 'Codigo', 'Producto', 'Cant.', 'U.M.', 'P. Unit.', 'Total ($)', 'Total (Bs)'],
                   rows,
                 })
               }}
@@ -700,7 +720,8 @@ export default function POSSalesHistoryPage() {
                           </span>
                           <span className="text-xs font-mono text-muted-foreground">{saleNumber}</span>
                           <span className="text-sm font-medium flex-1 min-w-[120px]">{sale.customer_name ?? 'Mostrador'}</span>
-                          <span className="text-xs text-muted-foreground">{paymentLabels[sale.payment_method] ?? sale.payment_method}</span>
+                          <span className="text-xs text-muted-foreground">Vendedor: {sale.sold_by_name || sale.sold_by || 'No registrado'}</span>
+                          <span className="text-xs text-muted-foreground">{paymentLabels[creditMap.has(sale.sale_id) ? 'credit' : getSalePaymentMethod(sale)] ?? sale.payment_method}</span>
                           <Badge variant="outline" className={`text-xs ${badge.className}`}>{badge.label}</Badge>
                           {hasDeliveryPending && (
                             <Badge variant="outline" className="text-xs bg-sky-500/15 text-sky-400 border-sky-500/30">
@@ -718,7 +739,7 @@ export default function POSSalesHistoryPage() {
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
                               <div><span className="font-medium text-foreground">Modo:</span> {sale.sale_mode === 'advance' ? 'Adelantada' : 'Inmediata'}</div>
                               <div><span className="font-medium text-foreground">Entrega:</span> {deliveryLabels[sale.delivery_status] ?? sale.delivery_status}</div>
-                              <div><span className="font-medium text-foreground">Método:</span> {paymentLabels[sale.payment_method] ?? sale.payment_method}</div>
+                              <div><span className="font-medium text-foreground">Método:</span> {paymentLabels[creditMap.has(sale.sale_id) ? 'credit' : getSalePaymentMethod(sale)] ?? sale.payment_method}</div>
                             </div>
 
                             {creditMap.has(sale.sale_id) && (() => {
@@ -829,10 +850,20 @@ export default function POSSalesHistoryPage() {
                                       saleNumber,
                                       date: sale.created_at,
                                       customer: sale.customer_name ?? 'Mostrador',
-                                      paymentMethod: paymentLabels[sale.payment_method] ?? sale.payment_method,
+                                      paymentMethod: paymentLabels[creditMap.has(sale.sale_id) ? 'credit' : getSalePaymentMethod(sale)] ?? sale.payment_method,
                                       branchName,
+                                      cashier: sale.sold_by_name || sale.sold_by || 'No registrado',
+                                      credit: creditMap.has(sale.sale_id) ? {
+                                        initialPayment: sale.metadata?.credit_initial_payment !== undefined ? Number(sale.metadata.credit_initial_payment) : undefined,
+                                        initialPaymentMethod: paymentLabels[String(sale.metadata?.credit_initial_payment_method || '')],
+                                        paidAmount: creditMap.get(sale.sale_id)!.paid_amount,
+                                        balance: creditMap.get(sale.sale_id)!.balance,
+                                        dueDate: creditMap.get(sale.sale_id)!.due_date,
+                                        sellerName: creditMap.get(sale.sale_id)!.seller_name,
+                                        notes: creditMap.get(sale.sale_id)!.notes,
+                                      } : undefined,
                                       items: (sale.items || []).map((item) => ({
-                                        code: '',
+                                        code: item.part_code,
                                         name: item.part_name,
                                         quantity: Number(item.quantity),
                                         unitPrice: Number(item.unit_price || 0),
@@ -851,14 +882,22 @@ export default function POSSalesHistoryPage() {
                                   onClick={() => {
                                     exportToExcel({
                                       fileName: `recibo_${saleNumber}_${branchName.replace(/\s+/g, '_')}`,
-                                      headers: ['#', 'Codigo', 'Producto', 'Cant.', 'P. Unit.', 'Total'],
+                                      headers: ['#', 'Venta', 'Vendedor', 'Codigo', 'Producto', 'Cant.', 'P. Unit.', 'Total', 'Pago inicial (Bs)', 'Pagado a la fecha (Bs)', 'Saldo actual (Bs)', 'Vencimiento', 'Responsable del credito', 'Notas'],
                                       rows: (sale.items || []).map((item, index) => [
                                         index + 1,
-                                        '',
+                                        saleNumber,
+                                        sale.sold_by_name || sale.sold_by || 'No registrado',
+                                        item.part_code,
                                         item.part_name,
                                         Number(item.quantity),
                                         Number(item.unit_price || 0),
                                         Number(item.line_total || 0),
+                                        sale.metadata?.credit_initial_payment !== undefined ? Number(sale.metadata.credit_initial_payment) : '',
+                                        creditMap.get(sale.sale_id)?.paid_amount ?? '',
+                                        creditMap.get(sale.sale_id)?.balance ?? '',
+                                        creditMap.get(sale.sale_id)?.due_date ?? '',
+                                        creditMap.get(sale.sale_id)?.seller_name ?? '',
+                                        creditMap.get(sale.sale_id)?.notes ?? '',
                                       ]),
                                     })
                                   }}

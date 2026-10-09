@@ -5,7 +5,7 @@ interface InvoiceLine {
   unitPrice: number
 }
 
-interface PrintInvoiceParams {
+export interface PrintInvoiceParams {
   invoiceNumber: string
   customerName: string
   branchName: string
@@ -16,6 +16,18 @@ interface PrintInvoiceParams {
   lines: InvoiceLine[]
   createdAt?: string
   isCredit?: boolean
+  customerDocument?: string
+  customerPhone?: string
+  credit?: {
+    initialPayment: number
+    initialPaymentMethod?: string
+    balance: number
+    dueDays?: number
+    dueDate?: string
+    reminderDate?: string
+    sellerName?: string
+    registered?: boolean
+  }
   notes?: string
   pendingDeliveryItems?: string[]
 }
@@ -27,8 +39,24 @@ function formatCurrency(amount: number, currency: 'BOB' | 'USD') {
   return `Bs ${amount.toFixed(2)}`
 }
 
-export function printMockInvoice(params: PrintInvoiceParams) {
-  if (typeof window === 'undefined') return
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!))
+}
+
+export function buildInvoiceHtml(input: PrintInvoiceParams, autoPrint = false) {
+  const params = {
+    ...input,
+    invoiceNumber: escapeHtml(input.invoiceNumber),
+    customerName: escapeHtml(input.customerName),
+    branchName: escapeHtml(input.branchName),
+    cashierName: escapeHtml(input.cashierName),
+    paymentMethod: escapeHtml(input.paymentMethod),
+    customerDocument: escapeHtml(input.customerDocument || ''),
+    customerPhone: escapeHtml(input.customerPhone || ''),
+    notes: escapeHtml(input.notes || ''),
+    lines: input.lines.map((line) => ({ ...line, name: escapeHtml(line.name), code: escapeHtml(line.code || '') })),
+    pendingDeliveryItems: input.pendingDeliveryItems?.map(escapeHtml),
+  }
 
   const createdAt = params.createdAt || new Date().toISOString()
   const issueDate = new Date(createdAt).toLocaleString('es-BO', {
@@ -65,7 +93,7 @@ export function printMockInvoice(params: PrintInvoiceParams) {
   const badgesHtml = badges.length > 0 ? `<div class="badges">${badges.join('')}</div>` : ''
 
   const notesSection = params.notes
-    ? `<div class="notes-box"><span class="notes-label">Notas del crédito:</span> ${params.notes}</div>`
+    ? `<div class="notes-box"><span class="notes-label">${params.isCredit ? 'Notas del crédito' : 'Notas'}:</span> ${params.notes}</div>`
     : ''
 
   const pendingDeliverySection =
@@ -79,7 +107,20 @@ export function printMockInvoice(params: PrintInvoiceParams) {
         </div>`
       : ''
 
-  const invoiceHtml = `<!doctype html>
+  const credit = params.credit
+  const creditSection = credit ? `<div class="notes-box">
+    <div class="pending-title">Detalle del crédito</div>
+    ${credit.registered === false ? '<p>Atención: la venta fue registrada, pero el registro del crédito falló. Requiere revisión.</p>' : ''}
+    <p>Pago inicial: <strong>${formatCurrency(credit.initialPayment, params.currency)}</strong></p>
+    <p>Método del pago inicial: ${credit.initialPayment > 0 ? escapeHtml(credit.initialPaymentMethod || 'No registrado') : 'Sin pago inicial'}</p>
+    <p>Saldo al realizar la venta: <strong>${formatCurrency(credit.balance, params.currency)}</strong></p>
+    ${credit.dueDays ? `<p>Plazo: ${credit.dueDays} días</p>` : ''}
+    ${credit.dueDate ? `<p>Vencimiento: ${escapeHtml(credit.dueDate)}</p>` : ''}
+    ${credit.reminderDate ? `<p>Recordatorio: ${escapeHtml(credit.reminderDate)}</p>` : ''}
+    ${credit.sellerName ? `<p>Responsable del crédito: ${escapeHtml(credit.sellerName)}</p>` : ''}
+  </div>` : ''
+
+  return `<!doctype html>
 <html>
 <head>
   <meta charset="UTF-8" />
@@ -242,6 +283,9 @@ export function printMockInvoice(params: PrintInvoiceParams) {
     </div>
   </div>
 
+  ${params.customerDocument ? `<p>NIT/CI: ${params.customerDocument}</p>` : ''}
+  ${params.customerPhone ? `<p>Teléfono: ${params.customerPhone}</p>` : ''}
+
   <table>
     <thead>
       <tr>
@@ -259,6 +303,7 @@ export function printMockInvoice(params: PrintInvoiceParams) {
   </table>
 
   ${pendingDeliverySection}
+  ${creditSection}
   ${notesSection}
 
   <div class="total-section">
@@ -272,16 +317,20 @@ export function printMockInvoice(params: PrintInvoiceParams) {
     Gracias por su compra &nbsp;·&nbsp; Generado por Picla POS
   </div>
 
-  <script>
-    window.onload = function() { window.print(); };
-  </script>
+  ${autoPrint ? '<script>window.onload = function() { window.print(); };</script>' : ''}
 </body>
 </html>`
 
+}
+
+export function printMockInvoice(params: PrintInvoiceParams) {
+  if (typeof window === 'undefined') return false
+  const invoiceHtml = buildInvoiceHtml(params, true)
   const printWindow = window.open('', '_blank', 'width=900,height=700')
-  if (!printWindow) return
+  if (!printWindow) return false
 
   printWindow.document.open()
   printWindow.document.write(invoiceHtml)
   printWindow.document.close()
+  return true
 }
