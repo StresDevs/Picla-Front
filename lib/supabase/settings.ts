@@ -14,6 +14,7 @@ export interface AppSettings {
   max_open_credits_per_customer: number
   credit_reminder_weekly_day: number
   credit_due_daily_threshold_days: number
+  pos_price_changes_enabled: boolean
 }
 
 /** Solo se usa mientras la primera lectura esta en vuelo o si la RPC falla. */
@@ -26,6 +27,7 @@ export const FALLBACK_APP_SETTINGS: AppSettings = {
   max_open_credits_per_customer: 2,
   credit_reminder_weekly_day: 1,
   credit_due_daily_threshold_days: 5,
+  pos_price_changes_enabled: false,
 }
 
 let cached: AppSettings | null = null
@@ -50,6 +52,7 @@ function normalize(row: Record<string, unknown> | null): AppSettings {
       FALLBACK_APP_SETTINGS.max_open_credits_per_customer,
     credit_reminder_weekly_day: Number(row.credit_reminder_weekly_day ?? 1),
     credit_due_daily_threshold_days: Number(row.credit_due_daily_threshold_days ?? 5),
+    pos_price_changes_enabled: row.pos_price_changes_enabled === true,
   }
 }
 

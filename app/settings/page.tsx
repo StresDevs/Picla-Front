@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { loadAppSettings } from '@/lib/supabase/settings'
+import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { toast } from '@/hooks/use-toast'
 import type { AppSettings } from '@/types/database'
 import { Database, Wifi, WifiOff, RefreshCw } from 'lucide-react'
@@ -56,6 +57,36 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false)
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [priceChangesEnabled, setPriceChangesEnabled] = useState(false)
+  const [priceSettingLoaded, setPriceSettingLoaded] = useState(false)
+  const [isSavingPriceSetting, setIsSavingPriceSetting] = useState(false)
+
+  useEffect(() => {
+    const syncRole = () => setIsAdmin(getActiveUserContext().role === 'admin')
+    syncRole()
+    window.addEventListener(ACTIVE_ROLE_EVENT, syncRole)
+    return () => window.removeEventListener(ACTIVE_ROLE_EVENT, syncRole)
+  }, [])
+
+  const savePriceSetting = async () => {
+    if (!isAdmin || !priceSettingLoaded || isSavingPriceSetting) return
+    setIsSavingPriceSetting(true)
+    try {
+      const { error } = await getSupabaseClient().rpc('pos_set_price_changes_enabled', {
+        p_enabled: priceChangesEnabled,
+      })
+      if (error) throw error
+      await loadAppSettings(true)
+      toast({ title: 'Permiso de precios guardado', description: priceChangesEnabled
+        ? 'Todos los roles del POS pueden ajustar precios antes de vender.'
+        : 'Los precios del POS quedan bloqueados al precio original.' })
+    } catch (error) {
+      toast({ title: 'No se pudo guardar el permiso', description: error instanceof Error ? error.message : String((error as { message?: string })?.message || error), variant: 'destructive' })
+    } finally {
+      setIsSavingPriceSetting(false)
+    }
+  }
   const [systemStats, setSystemStats] = useState<SystemStats>({
     sales_count: 0,
     products_count: 0,
@@ -87,6 +118,8 @@ export default function SettingsPage() {
 
     const row = Array.isArray(data) ? data[0] : data
     setSettings((row as AppSettings | null) || fallbackSettings)
+    setPriceChangesEnabled(row?.pos_price_changes_enabled === true)
+    setPriceSettingLoaded(typeof row?.pos_price_changes_enabled === 'boolean')
   }
 
   const loadSystemStats = async () => {
@@ -300,6 +333,29 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card className="mb-6 bg-card">
+          <CardHeader><CardTitle>Precios en el POS</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-start gap-3">
+              <input type="checkbox" className="mt-1" checked={priceChangesEnabled}
+                disabled={!priceSettingLoaded || isSavingPriceSetting}
+                onChange={(event) => setPriceChangesEnabled(event.target.checked)} />
+              <span>
+                <span className="font-medium">Permitir cambios de precios en el POS</span>
+                <span className="block text-sm text-muted-foreground">
+                  Todos los roles con acceso al POS podrán ajustar precios antes de confirmar la venta, dentro del mínimo y máximo del producto. Los cambios se registran en la venta.
+                </span>
+              </span>
+            </label>
+            {!priceSettingLoaded && <p className="text-sm text-muted-foreground">El permiso estará disponible al cargar la configuración con la actualización de base de datos.</p>}
+            <Button onClick={savePriceSetting} disabled={!priceSettingLoaded || isSavingPriceSetting}>
+              {isSavingPriceSetting ? 'Guardando...' : 'Guardar permiso de precios'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* System info with real data */}
       <Card className="bg-card">

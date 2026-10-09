@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins, ChevronRight, ChevronUp, Truck } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { resolvePOSPriceDraft } from '@/lib/pos-price'
 import {
   ACTIVE_ROLE_EVENT,
   canRoleCompleteSale,
@@ -124,6 +125,8 @@ export default function POSSalesPage() {
   const [queuedSales, setQueuedSales] = useState<POSQueuedSale[]>([])
   const [queuePage, setQueuePage] = useState(1)
   const [cart, setCart] = useState<CartItem[]>([])
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({})
+  const [priceChangesEnabled, setPriceChangesEnabled] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPayment, setSelectedPayment] = useState<'cash' | 'card' | 'qr' | 'credit'>('cash')
   const [paymentCurrency, setPaymentCurrency] = useState<'BOB' | 'USD'>('BOB')
@@ -158,6 +161,18 @@ export default function POSSalesPage() {
   const [mobileCartExpanded, setMobileCartExpanded] = useState(false)
   const [deliverySet, setDeliverySet] = useState<Set<string>>(new Set())
   const [activeBranchName, setActiveBranchName] = useState('Sucursal')
+
+  const canEditPrices = priceChangesEnabled && !isSubmitting && !isCheckoutOpen
+  const changedPrices = cart.filter((item) => item.unit_price !== item.base_price)
+  const priceDifference = changedPrices.reduce((sum, item) => sum + (item.unit_price - item.base_price) * item.quantity, 0)
+
+  useEffect(() => {
+    if (!priceChangesEnabled) {
+      setPriceDrafts({})
+      setCart((previous) => previous.map((item) => item.unit_price === item.base_price
+        ? item : { ...item, unit_price: item.base_price }))
+    }
+  }, [priceChangesEnabled])
 
   const canCompleteSale = canRoleCompleteSale(activeRole)
   const canQueueSale = activeRole === 'read_only'
@@ -275,6 +290,9 @@ export default function POSSalesPage() {
 
     const syncContext = async () => {
       const context = getActiveUserContext()
+      void loadAppSettings(true)
+        .then((settings) => setPriceChangesEnabled(settings.pos_price_changes_enabled))
+        .catch(() => setPriceChangesEnabled(false))
       setActiveRole(context.role)
       setActiveUserName(context.user_name)
       setActiveBranchId(context.branch_id)
@@ -390,6 +408,11 @@ export default function POSSalesPage() {
 
   const removeFromCart = (partId: string) => {
     setCart((prev) => prev.filter((item) => item.part_id !== partId))
+    setPriceDrafts((previous) => {
+      const next = { ...previous }
+      delete next[partId]
+      return next
+    })
   }
 
   const updateCartQuantity = (partId: string, value: string) => {
@@ -404,18 +427,48 @@ export default function POSSalesPage() {
     )
   }
 
-  const updateCartPrice = (partId: string, value: string) => {
-    const price = Number(value)
-    if (!Number.isFinite(price) || price < 0) return
+  const notifyPriceAdjustment = (item: CartItem, result: ReturnType<typeof resolvePOSPriceDraft>) => {
+    if (!result.reason) return
+    toast({
+      title: result.reason === 'invalid' ? 'Precio restaurado' : 'Precio ajustado',
+      description: item.name + (result.reason === 'invalid'
+        ? ': se restauró el último precio válido: Bs '
+        : ': precio ajustado al ' + (result.reason === 'min' ? 'mínimo' : 'máximo') + ' permitido: Bs ') + result.price.toFixed(2),
+    })
+  }
 
-    setCart((prev) =>
-      prev.map((item) => {
-        if (item.part_id !== partId) return item
-        let resolvedPrice = Number(price.toFixed(2))
-        resolvedPrice = Math.min(Math.max(resolvedPrice, item.min_price), item.max_price)
-        return { ...item, unit_price: resolvedPrice }
-      }),
-    )
+  const commitCartPrice = (partId: string, draft: string) => {
+    if (!canEditPrices) return
+    const item = cart.find((entry) => entry.part_id === partId)
+    if (!item) return
+    const result = resolvePOSPriceDraft(draft, item.unit_price, item.min_price, item.max_price)
+    setCart((previous) => previous.map((entry) => entry.part_id === partId
+      ? { ...entry, unit_price: result.price } : entry))
+    setPriceDrafts((previous) => {
+      const next = { ...previous }
+      delete next[partId]
+      return next
+    })
+    notifyPriceAdjustment(item, result)
+  }
+
+  const resolvePendingPrices = () => {
+    const resolved = cart.map((item) => {
+      const draft = priceDrafts[item.part_id]
+      if (draft === undefined) return item
+      const result = resolvePOSPriceDraft(draft, item.unit_price, item.min_price, item.max_price)
+      notifyPriceAdjustment(item, result)
+      return { ...item, unit_price: result.price }
+    })
+    setCart(resolved)
+    setPriceDrafts({})
+    return resolved
+  }
+
+  const openCheckout = () => {
+    if (isSubmitting) return
+    resolvePendingPrices()
+    setIsCheckoutOpen(true)
   }
 
   const buildSaleItemsPayload = (): POSQueueLineInput[] => {
@@ -489,6 +542,18 @@ export default function POSSalesPage() {
   }
 
   const completeOrQueueSale = async () => {
+    if (isSubmitting) return false
+    if (Object.keys(priceDrafts).length > 0) {
+      resolvePendingPrices()
+      toast({ title: 'Precios actualizados', description: 'Revisa el total actualizado antes de confirmar la venta.' })
+      return false
+    }
+    if ((!priceChangesEnabled && changedPrices.length > 0) || cart.some((item) =>
+      !Number.isFinite(item.unit_price) || (item.unit_price !== item.base_price &&
+        (item.unit_price < item.min_price || item.unit_price > item.max_price)))) {
+      toast({ title: 'Revisa los precios', description: 'Los cambios requieren autorización y deben respetar el rango del producto.', variant: 'destructive' })
+      return false
+    }
     if (cart.length === 0) {
       toast({
         title: 'Carrito vacío',
@@ -645,6 +710,13 @@ export default function POSSalesPage() {
           customer_nit_ci: selectedCustomer?.nit_ci ?? null,
           customer_is_anonymous: anonymousSale,
           payment_type: isCreditSale ? 'credit' : selectedPayment,
+          price_changes: changedPrices.map((item) => ({
+            part_id: item.part_id,
+            original_price: item.base_price,
+            final_price: item.unit_price,
+            quantity: item.quantity,
+            changed_by_name: activeUserName,
+          })),
           ...(cart.some((item) => item.unit_price !== item.base_price) && {
             price_discounts: cart
               .filter((item) => item.unit_price !== item.base_price)
@@ -885,6 +957,14 @@ export default function POSSalesPage() {
                         ))}
                       </div>
 
+                      {queue.price_changes && queue.price_changes.length > 0 && (
+                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs">
+                          <p className="font-semibold">Esta venta incluye cambios de precios</p>
+                          {queue.price_changes.map((change, index) => (
+                            <p key={change.part_id + '-' + index}>{change.part_name}: Bs {Number(change.original_price).toFixed(2)} → Bs {Number(change.final_price).toFixed(2)}</p>
+                          ))}
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <Button variant="success" size="sm" onClick={() => approveQueuedSale(queue.queue_id)} disabled={isSubmitting}>
                           <CheckCircle2 className="h-4 w-4 mr-2" /> Aprobar
@@ -1265,6 +1345,17 @@ export default function POSSalesPage() {
                           {deliverySet.size === cart.length
                             ? 'Todos los productos se marcarán para entrega posterior.'
                             : `${deliverySet.size} producto${deliverySet.size > 1 ? 's' : ''} se marcarán para entrega posterior.`}
+                        </div>
+                      )}
+                      {changedPrices.length > 0 && (
+                        <div role="status" className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                          <p className="font-semibold">Cambios de precios en esta venta</p>
+                          {changedPrices.map((item) => (
+                            <p key={item.part_id} className="mt-1 text-xs">
+                              {item.name}: Bs {item.base_price.toFixed(2)} → Bs {item.unit_price.toFixed(2)} (x {item.quantity})
+                            </p>
+                          ))}
+                          <p className="mt-2 text-xs">Diferencia total: {priceDifference >= 0 ? '+' : ''}Bs {priceDifference.toFixed(2)}. Los cambios quedarán registrados.</p>
                         </div>
                       )}
                       <div className="mt-4 space-y-3 text-sm">
@@ -1679,17 +1770,39 @@ export default function POSSalesPage() {
                               <Input
                                 type="number"
                                 step="0.01"
-                                min={item.min_price}
-                                max={item.max_price}
-                                value={item.unit_price}
-                                onChange={(event) => updateCartPrice(item.part_id, event.target.value)}
-                                onBlur={(event) => updateCartPrice(item.part_id, event.target.value)}
+                                value={priceDrafts[item.part_id] ?? item.unit_price}
+                                disabled={!canEditPrices}
+                                aria-label={'Precio unitario de ' + item.name}
+                                onChange={(event) => {
+                                  if (canEditPrices) setPriceDrafts((previous) => ({ ...previous, [item.part_id]: event.target.value }))
+                                }}
+                                onBlur={(event) => {
+                                  if (priceDrafts[item.part_id] !== undefined) commitCartPrice(item.part_id, event.target.value)
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    event.currentTarget.blur()
+                                  }
+                                }}
                               />
                             </div>
                             <div className="col-span-2 flex items-center justify-between rounded-xl bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                               <span>Producto: {item.code}</span>
                               <span>Subtotal: Bs {(item.quantity * item.unit_price).toFixed(2)}</span>
                             </div>
+                            <div className="col-span-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                              <span>Precio original: Bs {item.base_price.toFixed(2)}</span>
+                              <Button type="button" size="sm" variant="ghost" disabled={!canEditPrices || (item.unit_price === item.base_price && priceDrafts[item.part_id] === undefined)}
+                                onClick={() => {
+                                  setCart((previous) => previous.map((entry) => entry.part_id === item.part_id ? { ...entry, unit_price: entry.base_price } : entry))
+                                  setPriceDrafts((previous) => { const next = { ...previous }; delete next[item.part_id]; return next })
+                                }}>Restaurar precio</Button>
+                            </div>
+                            <p className="col-span-2 text-xs text-muted-foreground">
+                              {priceChangesEnabled ? 'El precio se valida al salir del campo o presionar Enter. El total usa el último precio válido.' : 'Un administrador debe habilitar los cambios de precios en Configuración.'}
+                            </p>
                             {item.unit_price < item.base_price && (
                               <div className="col-span-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400">
                                 Rebaja aplicada: -{(((item.base_price - item.unit_price) / item.base_price) * 100).toFixed(1)}% — se registrará en la observación de la venta
@@ -1736,7 +1849,7 @@ export default function POSSalesPage() {
                   Imprimir comprobante al completar
                 </label>
 
-                <Button className="w-full" onClick={() => setIsCheckoutOpen(true)} disabled={isSubmitting || (!canCompleteSale && !canQueueSale) || cart.length === 0}>
+                <Button className="w-full" onClick={openCheckout} disabled={isSubmitting || (!canCompleteSale && !canQueueSale) || cart.length === 0}>
                   {canQueueSale ? 'Enviar venta a cola' : 'Completar venta'}
                 </Button>
               </CardContent>

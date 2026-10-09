@@ -34,7 +34,17 @@ export interface POSQueueItem {
   source_kit_id: string | null
 }
 
+export interface POSPriceChange {
+  part_id: string
+  part_name: string
+  original_price: number
+  final_price: number
+  quantity: number
+  changed_by: string | null
+}
+
 export interface POSQueuedSale {
+  price_changes?: POSPriceChange[]
   queue_id: string
   branch_id: string
   created_by: string | null
@@ -169,12 +179,19 @@ function parseSingleRpcRow<T>(data: T[] | T | null): T | null {
 
 export const posService = {
   async getCatalog(branchId?: string | null) {
-    const { data, error } = await supabase.rpc('pos_get_catalog', {
-      p_branch_id: branchId ?? null,
-    })
-
-    if (error) throw error
-    return (data || []) as POSCatalogItem[]
+    const [catalog, limits] = await Promise.all([
+      supabase.rpc('pos_get_catalog', { p_branch_id: branchId ?? null }),
+      supabase.rpc('pos_get_price_limits', { p_branch_id: branchId ?? null }),
+    ])
+    if (catalog.error) throw catalog.error
+    if (limits.error) throw limits.error
+    const priceLimits = new Map<string, Pick<POSCatalogItem, 'quotation_min_price' | 'quotation_max_price'>>(
+      (limits.data || []).map((row: Pick<POSCatalogItem, 'part_id' | 'quotation_min_price' | 'quotation_max_price'>) => [row.part_id, row]),
+    )
+    return ((catalog.data || []) as POSCatalogItem[]).map((item) => ({
+      ...item,
+      ...priceLimits.get(item.part_id),
+    }))
   },
 
   async getQueuedSales(input?: { branch_id?: string | null; status?: string | null }) {
@@ -184,7 +201,13 @@ export const posService = {
     })
 
     if (error) throw error
-    return (data || []) as POSQueuedSale[]
+    const queues = (data || []) as POSQueuedSale[]
+    if (queues.length === 0) return queues
+    const { data: metadata, error: metadataError } = await supabase
+      .from('pos_sale_queue').select('id, metadata').in('id', queues.map((queue) => queue.queue_id))
+    if (metadataError) throw metadataError
+    const changes = new Map((metadata || []).map((row) => [row.id, row.metadata?.price_changes]))
+    return queues.map((queue) => ({ ...queue, price_changes: changes.get(queue.queue_id) || [] }))
   },
 
   async enqueueSale(input: {
