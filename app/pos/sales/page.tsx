@@ -28,6 +28,7 @@ import {
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
 import { loadAppSettings } from '@/lib/supabase/settings'
+import { loadPaymentQr } from '@/lib/payment-qr'
 import { printMockInvoice } from '@/lib/mock/invoice'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { posService, type POSCatalogItem, type POSQueuedSale, type POSQueueLineInput } from '@/lib/supabase/pos'
@@ -138,6 +139,9 @@ export default function POSSalesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [printInvoiceOnSale, setPrintInvoiceOnSale] = useState(true)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [qrStatus, setQrStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [qrImageError, setQrImageError] = useState(false)
   const [errorModal, setErrorModal] = useState<ErrorAlertDetails | null>(null)
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
@@ -161,6 +165,27 @@ export default function POSSalesPage() {
   const [mobileCartExpanded, setMobileCartExpanded] = useState(false)
   const [deliverySet, setDeliverySet] = useState<Set<string>>(new Set())
   const [activeBranchName, setActiveBranchName] = useState('Sucursal')
+
+  useEffect(() => {
+    if (!isCheckoutOpen) return
+    let cancelled = false
+    setQrStatus('loading')
+    setQrImageError(false)
+    void loadPaymentQr().then((qr) => {
+      if (!cancelled) { setQrUrl(qr.url); setQrStatus('ready') }
+    }).catch(() => { if (!cancelled) setQrStatus('error') })
+    return () => { cancelled = true }
+  }, [isCheckoutOpen])
+
+  const paymentQr = (
+    <div className="mt-4 space-y-2">
+      {qrStatus === 'loading' ? <p role="status" className="text-sm text-muted-foreground">Cargando QR...</p>
+        : qrStatus === 'error' || qrImageError ? <p role="alert" className="text-sm text-destructive">No se pudo cargar el QR. Vuelve a abrir el cobro para reintentar.</p>
+        : qrUrl ? <img src={qrUrl} alt="QR para realizar el pago" className="mx-auto max-h-80 w-full max-w-sm rounded-xl bg-white p-3 object-contain" onError={() => setQrImageError(true)} />
+        : <p className="text-sm text-muted-foreground">No hay un QR configurado. Solicita al administrador que lo cargue en Configuración o realiza una transferencia.</p>}
+      <p className="text-xs text-muted-foreground">Verifica la recepción del pago antes de confirmar la venta.</p>
+    </div>
+  )
 
   const canEditPrices = priceChangesEnabled && !isSubmitting && !isCheckoutOpen
   const changedPrices = cart.filter((item) => item.unit_price !== item.base_price)
@@ -1016,8 +1041,8 @@ export default function POSSalesPage() {
         ) : null}
 
         <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-          <DialogContent className="!w-[min(99vw,1600px)] !max-w-none sm:!max-w-none p-0 overflow-hidden max-h-[95vh]">
-            <div className="flex max-h-[95vh] flex-col">
+          <DialogContent className="!w-[min(99vw,1600px)] !max-w-none sm:!max-w-none p-0 overflow-y-auto max-h-[95svh]">
+            <div className="flex flex-col">
               <DialogHeader className="border-b border-border/60 bg-gradient-to-r from-background to-muted/20 px-6 py-5 text-left sm:px-8">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-1">
@@ -1041,8 +1066,8 @@ export default function POSSalesPage() {
                 </div>
               </DialogHeader>
 
-              <div className="grid flex-1 min-h-0 grid-cols-1 gap-0 overflow-y-auto lg:grid-cols-[minmax(0,1.12fr)_minmax(420px,0.88fr)] lg:overflow-hidden">
-                <div className="space-y-5 px-6 py-6 sm:px-8 lg:overflow-y-auto">
+              <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+                <div className="min-w-0 space-y-5 px-4 py-5 sm:px-8">
                   <div className="rounded-3xl border border-border/70 bg-muted/20 p-5 shadow-sm">
                     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                       <div>
@@ -1220,8 +1245,17 @@ export default function POSSalesPage() {
                       <Badge variant="outline" className="w-fit">{selectedPayment.toUpperCase()}</Badge>
                     </div>
 
+                    <div className="mt-4 space-y-2">
+                      <p className="text-sm font-semibold">Moneda</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button variant={paymentCurrency === 'BOB' ? 'default' : 'outline'} onClick={() => setPaymentCurrency('BOB')}>BOB</Button>
+                        <Button variant={paymentCurrency === 'USD' ? 'default' : 'outline'} onClick={() => setPaymentCurrency('USD')}>USD</Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Cobrar: {paymentCurrency === 'USD' ? `$${amountToCharge.toFixed(2)}` : `Bs ${amountToCharge.toFixed(2)}`}</p>
+                    </div>
+
                     <Tabs value={selectedPayment} onValueChange={(value) => setSelectedPayment(value as 'cash' | 'card' | 'qr' | 'credit')} className="mt-5">
-                      <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl p-2 sm:grid-cols-4">
+                      <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl p-2 sm:grid-cols-2 xl:grid-cols-4">
                         {availablePaymentMethods.map((method) => (
                           <TabsTrigger key={method.id} value={method.id} className="h-12 justify-center gap-2 rounded-xl py-3 text-sm">
                             <method.icon className="h-4 w-4" />
@@ -1245,9 +1279,12 @@ export default function POSSalesPage() {
                               ? 'Usa este modo para pagos por QR o transferencia.'
                               : 'La venta se registrará a crédito. Completa los detalles del crédito a continuación.'}
                           </p>
+                          {method.id === 'qr' && paymentQr}
                         </TabsContent>
                       ))}
                     </Tabs>
+
+                    {isCreditSale && Number(creditInitialPayment) > 0 && creditInitialPaymentMethod === 'qr' && paymentQr}
 
                     {/* Campos de crédito visibles en el dialog cuando payment = credit */}
                     {isCreditSale && (
@@ -1332,7 +1369,7 @@ export default function POSSalesPage() {
                   </div>
                 </div>
 
-                <div className="border-t border-border/60 bg-muted/10 px-6 py-6 sm:px-8 lg:border-l lg:border-t-0 lg:overflow-y-auto">
+                <div className="border-t border-border/60 bg-muted/10 px-6 py-6 sm:px-8 min-w-0 lg:border-l lg:border-t-0">
                   <div className="space-y-5">
                     <div className="rounded-3xl border border-border/70 bg-card/95 p-5 shadow-sm">
                       <div className="flex items-center justify-between gap-3">
@@ -1438,6 +1475,11 @@ export default function POSSalesPage() {
                       ) : null}
                     </div>
                   </div>
+
+                  <label className="mt-5 flex items-center gap-2 text-xs text-muted-foreground">
+                    <input type="checkbox" checked={printInvoiceOnSale} onChange={(event) => setPrintInvoiceOnSale(event.target.checked)} />
+                    Imprimir comprobante al completar
+                  </label>
 
                   <DialogFooter className="mt-6 border-t border-border/60 pt-4">
                     <Button variant="outline" onClick={() => setIsCheckoutOpen(false)} disabled={isSubmitting} className="h-11 px-5">
@@ -1666,7 +1708,7 @@ export default function POSSalesPage() {
             <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 lg:flex-none lg:overflow-visible lg:p-0">
             <div className="w-full">
             <Card className="flex max-h-none flex-col overflow-visible card-sales shadow-lg shadow-black/10 lg:max-h-[calc(100svh-3rem)] lg:overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+              <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-3 space-y-0">
                 <CardTitle className="flex items-center gap-2 text-orange-900 dark:text-orange-300">
                   <ShoppingCart className="h-5 w-5" />
                   Carrito
@@ -1688,7 +1730,7 @@ export default function POSSalesPage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 lg:overflow-y-auto lg:pr-1">
+              <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto">
                 <div className="rounded-2xl border border-border/70 bg-muted/20 p-3">
                   <p className="text-xs text-muted-foreground">Cliente de la venta</p>
                   <p className="font-semibold">{resolvedCustomerName}</p>
@@ -1706,7 +1748,7 @@ export default function POSSalesPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                  <div className="shrink-0 space-y-2 pr-1">
                     {cart.map((item) => (
                       <div
                         key={item.id}
@@ -1820,38 +1862,17 @@ export default function POSSalesPage() {
                   </div>
                 )}
 
-                <div className="border-t border-border pt-3">
-                  <p className="text-xs text-muted-foreground">Total BOB</p>
-                  <p className="text-2xl font-bold text-primary">Bs {cartTotalBob.toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground">USD: ${cartTotalUsd.toFixed(2)} (TC {safeExchangeRate.toFixed(2)})</p>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold">Moneda</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant={paymentCurrency === 'BOB' ? 'default' : 'outline'} onClick={() => setPaymentCurrency('BOB')}>BOB</Button>
-                    <Button variant={paymentCurrency === 'USD' ? 'default' : 'outline'} onClick={() => setPaymentCurrency('USD')}>USD</Button>
+                <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card py-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total BOB</p>
+                    <p className="text-xl font-bold text-primary">Bs {cartTotalBob.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">USD: ${cartTotalUsd.toFixed(2)} (TC {safeExchangeRate.toFixed(2)})</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">Cobrar: {paymentCurrency === 'USD' ? `$${amountToCharge.toFixed(2)}` : `Bs ${amountToCharge.toFixed(2)}`}</p>
+                  <Button onClick={openCheckout} disabled={isSubmitting || (!canCompleteSale && !canQueueSale) || cart.length === 0}>
+                    {canQueueSale ? 'Preparar venta para cola' : 'Cobrar'}
+                  </Button>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold">Método de pago</p>
-                  {PAYMENT_METHODS.map((method) => (
-                    <Button key={method.id} variant={selectedPayment === method.id ? 'default' : 'outline'} className="w-full justify-start" onClick={() => setSelectedPayment(method.id)}>
-                      <method.icon className="h-4 w-4 mr-2" /> {method.label}
-                    </Button>
-                  ))}
-                </div>
-
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <input type="checkbox" checked={printInvoiceOnSale} onChange={(event) => setPrintInvoiceOnSale(event.target.checked)} />
-                  Imprimir comprobante al completar
-                </label>
-
-                <Button className="w-full" onClick={openCheckout} disabled={isSubmitting || (!canCompleteSale && !canQueueSale) || cart.length === 0}>
-                  {canQueueSale ? 'Enviar venta a cola' : 'Completar venta'}
-                </Button>
               </CardContent>
             </Card>
             {quickAccessProducts.length > 0 && (

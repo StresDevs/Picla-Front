@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { loadAppSettings } from '@/lib/supabase/settings'
+import { loadPaymentQr, savePaymentQr } from '@/lib/payment-qr'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { toast } from '@/hooks/use-toast'
 import type { AppSettings } from '@/types/database'
@@ -58,6 +59,11 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [qrLoaded, setQrLoaded] = useState(false)
+  const [isSavingQr, setIsSavingQr] = useState(false)
+  const [qrError, setQrError] = useState(false)
+  const [qrLoadError, setQrLoadError] = useState(false)
   const [priceChangesEnabled, setPriceChangesEnabled] = useState(false)
   const [priceSettingLoaded, setPriceSettingLoaded] = useState(false)
   const [isSavingPriceSetting, setIsSavingPriceSetting] = useState(false)
@@ -68,6 +74,45 @@ export default function SettingsPage() {
     window.addEventListener(ACTIVE_ROLE_EVENT, syncRole)
     return () => window.removeEventListener(ACTIVE_ROLE_EVENT, syncRole)
   }, [])
+
+  const refreshQr = async () => {
+    setQrLoadError(false)
+    try {
+      const qr = await loadPaymentQr()
+      setQrUrl(qr.url)
+      setQrLoaded(true)
+      setQrError(false)
+    } catch {
+      setQrLoadError(true)
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin) void refreshQr()
+  }, [isAdmin])
+
+  const updateQr = async (file: File | null) => {
+    if (!isAdmin || isSavingQr) return
+    if (file && (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024 || !file.size)) {
+      toast({ title: 'Imagen no válida', description: 'Selecciona un PNG, JPG o WebP de hasta 2 MB.', variant: 'destructive' })
+      return
+    }
+    setIsSavingQr(true)
+    try {
+      if (file) {
+        const bitmap = await createImageBitmap(file)
+        bitmap.close()
+      }
+      const qr = await savePaymentQr(file)
+      setQrUrl(qr.url)
+      setQrError(false)
+      toast({ title: file ? 'QR guardado' : 'QR eliminado', description: 'El cambio ya está disponible en el cobro del POS.' })
+    } catch (error) {
+      toast({ title: 'No se pudo guardar el QR', description: error instanceof Error ? error.message : 'Intenta nuevamente.', variant: 'destructive' })
+    } finally {
+      setIsSavingQr(false)
+    }
+  }
 
   const savePriceSetting = async () => {
     if (!isAdmin || !priceSettingLoaded || isSavingPriceSetting) return
@@ -353,6 +398,33 @@ export default function SettingsPage() {
             <Button onClick={savePriceSetting} disabled={!priceSettingLoaded || isSavingPriceSetting}>
               {isSavingPriceSetting ? 'Guardando...' : 'Guardar permiso de precios'}
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card className="mb-6 bg-card">
+          <CardHeader><CardTitle>QR para pagos del POS</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">Sube la imagen que los clientes escanearán al pagar por QR. Se guarda automáticamente al seleccionarla.</p>
+            <Label htmlFor="payment-qr-file">Imagen QR (PNG, JPG o WebP; máximo 2 MB)</Label>
+            <Input id="payment-qr-file" type="file" accept="image/png,image/jpeg,image/webp"
+              disabled={!qrLoaded || isSavingQr}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (file) void updateQr(file)
+              }} />
+            {qrLoadError ? <div role="alert" className="space-y-2"><p>No se pudo cargar el QR.</p><Button variant="outline" onClick={() => void refreshQr()}>Reintentar</Button></div>
+              : !qrLoaded ? <p role="status" className="text-sm text-muted-foreground">Cargando QR...</p> : qrUrl ? (
+              <div className="space-y-3">
+                {qrError ? <p role="alert">No se pudo mostrar la imagen. Puedes reemplazarla.</p> : (
+                  <img src={qrUrl} alt="QR de pago guardado" className="max-h-80 w-full max-w-sm rounded-xl bg-white p-3 object-contain" onError={() => setQrError(true)} />
+                )}
+                <Button variant="outline" disabled={isSavingQr} onClick={() => void updateQr(null)}>Quitar QR</Button>
+              </div>
+            ) : <p className="text-sm text-muted-foreground">Todavía no hay un QR guardado.</p>}
+            {isSavingQr && <p role="status" className="text-sm text-muted-foreground">Guardando QR...</p>}
           </CardContent>
         </Card>
       )}
