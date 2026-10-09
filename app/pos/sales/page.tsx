@@ -1621,7 +1621,7 @@ export default function POSSalesPage() {
                             <div className="mt-auto space-y-2 border-t border-border/50 pt-2.5">
                               <div className="flex items-end justify-between gap-2">
                                 <div className="space-y-0.5">
-                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Precio de compra</p>
+                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Precio de venta</p>
                                   <p className="text-lg font-extrabold leading-none text-primary">
                                     Bs {Number(product.price || 0).toFixed(2)}
                                   </p>
