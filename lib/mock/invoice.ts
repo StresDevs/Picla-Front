@@ -11,6 +11,7 @@ export interface PrintInvoiceParams {
   branchName: string
   cashierName: string
   paymentMethod: string
+  payments?: Array<{ method: string; amount: number }>
   currency: 'BOB' | 'USD'
   total: number
   lines: InvoiceLine[]
@@ -51,6 +52,7 @@ export function buildInvoiceHtml(input: PrintInvoiceParams, autoPrint = false) {
     branchName: escapeHtml(input.branchName),
     cashierName: escapeHtml(input.cashierName),
     paymentMethod: escapeHtml(input.paymentMethod),
+    payments: input.payments?.map((p) => ({ ...p, method: escapeHtml(p.method) })),
     customerDocument: escapeHtml(input.customerDocument || ''),
     customerPhone: escapeHtml(input.customerPhone || ''),
     notes: escapeHtml(input.notes || ''),
@@ -275,7 +277,7 @@ export function buildInvoiceHtml(input: PrintInvoiceParams, autoPrint = false) {
     </div>
     <div class="meta-row">
       <span class="meta-label">Método de pago:</span>
-      <span class="meta-value">${params.paymentMethod}${params.isCredit ? ' — Crédito' : ''}</span>
+      <span class="meta-value">${params.paymentMethod}${params.isCredit ? ' — Crédito' : ''}${params.payments?.map((p) => `<br>${p.method}: ${formatCurrency(p.amount, params.currency)}`).join('') || ''}</span>
     </div>
     <div class="meta-row">
       <span class="meta-label">Moneda:</span>

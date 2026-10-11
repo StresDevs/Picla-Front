@@ -1,10 +1,11 @@
 import type { POSSaleRecord, POSQueuedSale } from '@/lib/supabase/pos'
 import type { PrintInvoiceParams } from '@/lib/mock/invoice'
+import { paymentLabels, receiptPayments } from './pos-payments'
 
-export const salePaymentLabels: Record<string, string> = { cash: 'Efectivo', card: 'Tarjeta', qr: 'QR/Transferencia', credit: 'Crédito' }
+export const salePaymentLabels = paymentLabels
 
-export function getSalePaymentMethod(sale: POSSaleRecord) {
-  return sale.metadata?.payment_type === 'credit' ? 'credit' : sale.payment_method
+export function getSalePaymentMethod(sale: { metadata?: Record<string, unknown>; payment_method: string }) {
+  return ['credit', 'mixed'].includes(String(sale.metadata?.payment_type)) ? String(sale.metadata?.payment_type) : sale.payment_method
 }
 
 export function receiptFromQueuedSale(queue: POSQueuedSale, invoiceNumber: string, branchName: string): PrintInvoiceParams {
@@ -13,7 +14,8 @@ export function receiptFromQueuedSale(queue: POSQueuedSale, invoiceNumber: strin
     customerName: queue.customer_name || 'Mostrador',
     branchName,
     cashierName: queue.created_by ? `Usuario ${queue.created_by}` : 'No registrado',
-    paymentMethod: salePaymentLabels[queue.payment_method],
+    paymentMethod: salePaymentLabels[getSalePaymentMethod(queue)],
+    payments: receiptPayments(queue.metadata),
     currency: 'BOB',
     total: Number(queue.total_amount_bob),
     lines: queue.lines.map((line) => ({ name: line.part_name, quantity: Number(line.quantity), unitPrice: Number(line.unit_price) })),
@@ -33,6 +35,7 @@ export function receiptFromSale(sale: POSSaleRecord, invoiceNumber: string, bran
     branchName,
     cashierName: sale.sold_by_name || (sale.sold_by ? `Usuario ${sale.sold_by}` : 'No registrado'),
     paymentMethod: salePaymentLabels[getSalePaymentMethod(sale)] || sale.payment_method,
+    payments: receiptPayments(sale.metadata),
     currency: 'BOB',
     total: Number(sale.total_amount),
     lines: sale.items.map((item) => ({ code: item.part_code, name: item.part_name, quantity: Number(item.quantity), unitPrice: Number(item.unit_price) })),

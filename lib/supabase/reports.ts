@@ -1,6 +1,27 @@
 import { supabase } from './client'
 
+async function attachUniqueSaleCounts<T extends { sale_date: string; branch_id: string }>(rows: T[], input?: {
+  branch_id?: string | null; date_from?: string | null; date_to?: string | null; payment_method?: string | null
+}): Promise<Array<T & { unique_sale_count?: number }>> {
+  if (!rows.length) return rows
+  const { data, error } = await supabase.rpc('get_report_unique_sale_counts', {
+    p_branch_id: input?.branch_id ?? null, p_date_from: input?.date_from ?? null,
+    p_date_to: input?.date_to ?? null, p_payment_method: input?.payment_method ?? null,
+  })
+  if (error?.code === 'PGRST202') return rows
+  if (error) throw error
+  const counts = new Map<string, number>((data || []).map((r: { sale_date: string; branch_id: string; sale_count: number }) => [`${r.sale_date}/${r.branch_id}`, Number(r.sale_count)] as const))
+  const assigned = new Set<string>()
+  return rows.map((row) => {
+    const key = `${row.sale_date}/${row.branch_id}`
+    const count = assigned.has(key) ? 0 : counts.get(key) || 0
+    assigned.add(key)
+    return { ...row, unique_sale_count: count }
+  })
+}
+
 export interface ReportSaleDay {
+  unique_sale_count?: number
   sale_date: string
   branch_id: string
   branch_name: string
@@ -97,6 +118,7 @@ export interface ReportAgingSummary {
 }
 
 export interface ReportProfitDay {
+  unique_sale_count?: number
   sale_date: string
   branch_id: string
   branch_name: string
@@ -122,7 +144,7 @@ export const reportsService = {
     })
 
     if (error) throw error
-    return (data || []) as ReportSaleDay[]
+    return attachUniqueSaleCounts((data || []) as ReportSaleDay[], input)
   },
 
   async getProfitByDay(input?: {
@@ -139,7 +161,7 @@ export const reportsService = {
     })
 
     if (error) throw error
-    return (data || []) as ReportProfitDay[]
+    return attachUniqueSaleCounts((data || []) as ReportProfitDay[], input)
   },
 
   async getTopProducts(input?: {

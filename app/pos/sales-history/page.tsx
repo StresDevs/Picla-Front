@@ -31,6 +31,7 @@ interface SaleCreditInfo {
 import { generateSaleInvoicePdf, generateCashSessionPdf } from '@/lib/pdf/generators'
 import { exportToExcel } from '@/lib/excel/export'
 import { getSalePaymentMethod, receiptFromSale, receiptFromQueuedSale } from '@/lib/sale-receipt'
+import { receiptPayments } from '@/lib/pos-payments'
 import { type PrintInvoiceParams } from '@/lib/mock/invoice'
 import { SaleReceiptDialog } from '@/components/modules/pos/sale-receipt-dialog'
 import { getCachedAppSettings, loadAppSettings } from '@/lib/supabase/settings'
@@ -41,6 +42,7 @@ const paymentLabels: Record<string, string> = {
   cash: 'Efectivo',
   card: 'Tarjeta',
   qr: 'QR/Transferencia',
+  mixed: 'Pago mixto',
   credit: 'Crédito',
 }
 
@@ -261,7 +263,7 @@ export default function POSSalesHistoryPage() {
 
   const filteredQueue = useMemo(() => {
     return queuedSales.filter((q) => {
-      if (paymentFilter !== 'all' && q.payment_method !== paymentFilter) return false
+      if (paymentFilter !== 'all' && getSalePaymentMethod(q) !== paymentFilter) return false
       if (searchTerm) {
         const term = searchTerm.toLowerCase()
         const queueNumber = (queueNumberMap.get(q.queue_id) ?? '').toLowerCase()
@@ -524,6 +526,7 @@ export default function POSSalesHistoryPage() {
                   { value: 'cash', label: 'Efectivo' },
                   { value: 'card', label: 'Tarjeta' },
                   { value: 'qr', label: 'QR/Transferencia' },
+                  { value: 'mixed', label: 'Pago mixto' },
                   { value: 'credit', label: 'Crédito' },
                 ]}
                 placeholder="Todos los métodos"
@@ -594,6 +597,7 @@ export default function POSSalesHistoryPage() {
                       date: sale.created_at,
                       customer: sale.customer_name ?? 'Mostrador',
                       paymentMethod: paymentLabels[creditMap.has(sale.sale_id) ? 'credit' : getSalePaymentMethod(sale)] ?? sale.payment_method,
+                      payments: receiptPayments(sale.metadata),
                       items,
                       subtotalBob: subtotal,
                       discount: subtotal - total > 0.01 ? subtotal - total : 0,
@@ -631,13 +635,14 @@ export default function POSSalesHistoryPage() {
                       Number(item.unit_price || 0),
                       settings.usd_to_bob_rate > 0 ? bob / settings.usd_to_bob_rate : 0,
                       bob,
+                      receiptPayments(sale.metadata).map((p) => `${p.method}: Bs ${p.amount.toFixed(2)}`).join(' / ') || paymentLabels[getSalePaymentMethod(sale)],
                     ])
                   }
                 }
 
                 exportToExcel({
                   fileName: `cierre_caja_${branchName.replace(/\s+/g, '_')}`,
-                  headers: ['#', 'Venta', 'Vendedor', 'Codigo', 'Producto', 'Cant.', 'U.M.', 'P. Unit.', 'Total ($)', 'Total (Bs)'],
+                  headers: ['#', 'Venta', 'Vendedor', 'Codigo', 'Producto', 'Cant.', 'U.M.', 'P. Unit.', 'Total ($)', 'Total (Bs)', 'Pagos de la venta'],
                   rows,
                 })
               }}
@@ -740,6 +745,7 @@ export default function POSSalesHistoryPage() {
                               <div><span className="font-medium text-foreground">Modo:</span> {sale.sale_mode === 'advance' ? 'Adelantada' : 'Inmediata'}</div>
                               <div><span className="font-medium text-foreground">Entrega:</span> {deliveryLabels[sale.delivery_status] ?? sale.delivery_status}</div>
                               <div><span className="font-medium text-foreground">Método:</span> {paymentLabels[creditMap.has(sale.sale_id) ? 'credit' : getSalePaymentMethod(sale)] ?? sale.payment_method}</div>
+                              {receiptPayments(sale.metadata).map((p) => <div key={p.method}><span className="font-medium text-foreground">{p.method}:</span> Bs {p.amount.toFixed(2)}</div>)}
                             </div>
 
                             {creditMap.has(sale.sale_id) && (() => {
@@ -851,6 +857,7 @@ export default function POSSalesHistoryPage() {
                                       date: sale.created_at,
                                       customer: sale.customer_name ?? 'Mostrador',
                                       paymentMethod: paymentLabels[creditMap.has(sale.sale_id) ? 'credit' : getSalePaymentMethod(sale)] ?? sale.payment_method,
+                                      payments: receiptPayments(sale.metadata),
                                       branchName,
                                       cashier: sale.sold_by_name || sale.sold_by || 'No registrado',
                                       credit: creditMap.has(sale.sale_id) ? {
@@ -882,7 +889,7 @@ export default function POSSalesHistoryPage() {
                                   onClick={() => {
                                     exportToExcel({
                                       fileName: `recibo_${saleNumber}_${branchName.replace(/\s+/g, '_')}`,
-                                      headers: ['#', 'Venta', 'Vendedor', 'Codigo', 'Producto', 'Cant.', 'P. Unit.', 'Total', 'Pago inicial (Bs)', 'Pagado a la fecha (Bs)', 'Saldo actual (Bs)', 'Vencimiento', 'Responsable del credito', 'Notas'],
+                                      headers: ['#', 'Venta', 'Vendedor', 'Codigo', 'Producto', 'Cant.', 'P. Unit.', 'Total', 'Pago inicial (Bs)', 'Pagado a la fecha (Bs)', 'Saldo actual (Bs)', 'Vencimiento', 'Responsable del credito', 'Notas', 'Pagos de la venta'],
                                       rows: (sale.items || []).map((item, index) => [
                                         index + 1,
                                         saleNumber,
@@ -898,6 +905,7 @@ export default function POSSalesHistoryPage() {
                                         creditMap.get(sale.sale_id)?.due_date ?? '',
                                         creditMap.get(sale.sale_id)?.seller_name ?? '',
                                         creditMap.get(sale.sale_id)?.notes ?? '',
+                                        receiptPayments(sale.metadata).map((p) => `${p.method}: Bs ${p.amount.toFixed(2)}`).join(' / ') || paymentLabels[getSalePaymentMethod(sale)],
                                       ]),
                                     })
                                   }}
@@ -1020,7 +1028,7 @@ export default function POSSalesHistoryPage() {
                           </TableCell>
                           <TableCell className="text-sm">{q.customer_name ?? 'Mostrador'}</TableCell>
                           <TableCell className="text-xs">{q.created_by_role === 'admin' ? 'Administrador' : q.created_by_role === 'manager' ? 'Encargado' : q.created_by_role === 'employee' ? 'Empleado' : 'Solo lectura'}</TableCell>
-                          <TableCell className="text-sm">{paymentLabels[q.payment_method] ?? q.payment_method}</TableCell>
+                          <TableCell className="text-sm">{paymentLabels[getSalePaymentMethod(q)] ?? q.payment_method}{receiptPayments(q.metadata).map((p) => <div key={p.method} className="text-xs text-muted-foreground">{p.method}: Bs {p.amount.toFixed(2)}</div>)}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={`text-xs ${qs.className}`}>
                               {qs.label}

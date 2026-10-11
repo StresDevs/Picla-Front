@@ -14,6 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
 import { posService, type POSSaleRecord } from '@/lib/supabase/pos'
+import { getSalePaymentMethod } from '@/lib/sale-receipt'
+import { receiptPayments } from '@/lib/pos-payments'
 import { showConfirmAlert } from '@/lib/sweet-alert'
 import { toast } from '@/hooks/use-toast'
 import { Ban, AlertTriangle, Check, Undo2 } from 'lucide-react'
@@ -22,6 +24,8 @@ const paymentLabels: Record<string, string> = {
   cash: 'Efectivo',
   card: 'Tarjeta',
   qr: 'QR/Transferencia',
+  mixed: 'Pago mixto',
+  credit: 'Crédito',
 }
 
 export default function POSVoidSalesPage() {
@@ -266,7 +270,7 @@ export default function POSVoidSalesPage() {
                               {new Date(sale.created_at).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
                             </TableCell>
                             <TableCell className="text-sm">{sale.customer_name ?? 'Mostrador'}</TableCell>
-                            <TableCell className="text-xs">{paymentLabels[sale.payment_method] ?? sale.payment_method}</TableCell>
+                            <TableCell className="text-xs">{paymentLabels[getSalePaymentMethod(sale)] ?? sale.payment_method}</TableCell>
                             <TableCell className="text-sm font-semibold text-right">
                               Bs {Number(sale.total_amount || 0).toFixed(2)}
                             </TableCell>
@@ -301,7 +305,8 @@ export default function POSVoidSalesPage() {
                       </div>
                       <div className="rounded-md border border-border/40 bg-muted/20 px-3 py-2">
                         <p className="text-xs text-muted-foreground">Método</p>
-                        <p className="font-medium text-xs mt-0.5">{paymentLabels[selectedSale.payment_method] ?? selectedSale.payment_method}</p>
+                        <p className="font-medium text-xs mt-0.5">{paymentLabels[getSalePaymentMethod(selectedSale)] ?? selectedSale.payment_method}</p>
+                        {receiptPayments(selectedSale.metadata).map((p) => <p key={p.method} className="text-xs">{p.method}: Bs {p.amount.toFixed(2)}</p>)}
                       </div>
                     </div>
                     <div className="rounded-md border border-border/40 bg-muted/20 px-3 py-2">

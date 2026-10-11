@@ -476,6 +476,7 @@ export interface CashSessionSaleGroup {
   date: string
   customer: string
   paymentMethod: string
+  payments?: Array<{ method: string; amount: number }>
   seller?: string
   saleNumber?: string
   items: CashSessionSaleItem[]
@@ -517,13 +518,14 @@ export function generateCashSessionPdf(input: {
         `Bs ${fmtMoney(item.unitPrice)}`,
         `$${fmtMoney(item.totalUsd)}`,
         `Bs ${fmtMoney(item.totalBob)}`,
+        sale.payments?.map((p) => `${p.method}: Bs ${fmtMoney(p.amount)}`).join(' / ') || sale.paymentMethod,
       ])
     }
   }
 
   autoTable(doc, {
     startY,
-    head: [['#', 'Venta', 'Vendedor', 'Código', 'Producto', 'Cant.', 'U.M.', 'P. Unit.', 'Total ($)', 'Total (Bs)']],
+    head: [['#', 'Venta', 'Vendedor', 'Código', 'Producto', 'Cant.', 'U.M.', 'P. Unit.', 'Total ($)', 'Total (Bs)', 'Pagos de la venta']],
     body: allRows,
     styles: { fontSize: 7, cellPadding: 2 },
     headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: 'bold' },
@@ -576,6 +578,7 @@ export function generateSaleInvoicePdf(input: {
   date: string
   customer: string
   paymentMethod: string
+  payments?: Array<{ method: string; amount: number }>
   branchName: string
   cashier?: string
   items: InvoiceItem[]
@@ -603,6 +606,9 @@ export function generateSaleInvoicePdf(input: {
   doc.text(`Fecha: ${fmtDateTime(input.date)}`, 14, y); y += 5
   doc.text(`Cliente: ${input.customer}`, 14, y); y += 5
   doc.text(`Método de pago: ${input.paymentMethod}`, 14, y); y += 5
+  for (const payment of input.payments || []) {
+    doc.text(`${payment.method}: Bs ${fmtMoney(payment.amount)}`, 14, y); y += 5
+  }
   doc.text(`Sucursal: ${input.branchName}`, 14, y); y += 5
   if (input.cashier) { doc.text(`Funcionario: ${input.cashier}`, 14, y); y += 5 }
   if (input.credit) {

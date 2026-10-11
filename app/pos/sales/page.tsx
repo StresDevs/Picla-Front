@@ -21,6 +21,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Search, ShoppingCart, Plus, Trash2, ShieldCheck, CheckCircle2, DollarSign, CreditCard, QrCode, HandCoins, ChevronRight, ChevronUp, Truck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { resolvePOSPriceDraft } from '@/lib/pos-price'
+import { saleTotalBob, validateMixedPayments, paymentLabels, type POSPayment, type POSPaymentMethod } from '@/lib/pos-payments'
 import {
   ACTIVE_ROLE_EVENT,
   canRoleCompleteSale,
@@ -62,6 +63,7 @@ const PAYMENT_METHODS = [
   { id: 'cash', label: 'Efectivo', icon: DollarSign },
   { id: 'card', label: 'Tarjeta', icon: CreditCard },
   { id: 'qr', label: 'QR/Transferencia', icon: QrCode },
+  { id: 'mixed', label: 'Pago mixto', icon: HandCoins },
   { id: 'credit', label: 'Credito', icon: HandCoins },
 ] as const
 
@@ -131,7 +133,12 @@ export default function POSSalesPage() {
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({})
   const [priceChangesEnabled, setPriceChangesEnabled] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedPayment, setSelectedPayment] = useState<'cash' | 'card' | 'qr' | 'credit'>('cash')
+  const [selectedPayment, setSelectedPayment] = useState<'cash' | 'card' | 'qr' | 'credit' | 'mixed'>('cash')
+  const [firstPaymentMethod, setFirstPaymentMethod] = useState<POSPaymentMethod>('cash')
+  const [secondPaymentMethod, setSecondPaymentMethod] = useState<POSPaymentMethod>('qr')
+  const [firstPaymentAmount, setFirstPaymentAmount] = useState('')
+  const [secondPaymentAmount, setSecondPaymentAmount] = useState('')
+  const [autoSecondPayment, setAutoSecondPayment] = useState(true)
   const [paymentCurrency, setPaymentCurrency] = useState<'BOB' | 'USD'>('BOB')
   const [exchangeRate, setExchangeRate] = useState(6.96)
   const [activeRole, setActiveRole] = useState<AppUserRole>('employee')
@@ -358,12 +365,26 @@ export default function POSSalesPage() {
   }, [catalog, cart])
 
   const cartTotalBob = useMemo(
-    () => cart.reduce((sum, item) => sum + item.quantity * item.unit_price, 0),
+    () => saleTotalBob(cart),
     [cart],
   )
   const safeExchangeRate = exchangeRate > 0 ? exchangeRate : 1
   const cartTotalUsd = Number((cartTotalBob / safeExchangeRate).toFixed(2))
   const amountToCharge = paymentCurrency === 'USD' ? cartTotalUsd : cartTotalBob
+  const mixedPayments: POSPayment[] = [
+    { method: firstPaymentMethod, amount: Number(firstPaymentAmount) },
+    { method: secondPaymentMethod, amount: Number(secondPaymentAmount) },
+  ]
+  const mixedPaymentError = validateMixedPayments(mixedPayments, cartTotalBob)
+  const mixedPaid = mixedPayments.reduce((sum, p) => sum + (Number.isFinite(p.amount) ? p.amount : 0), 0)
+
+  useEffect(() => {
+    if (autoSecondPayment) setSecondPaymentAmount(Math.max(0, cartTotalBob - (Number(firstPaymentAmount) || 0)).toFixed(2))
+  }, [cartTotalBob, firstPaymentAmount, autoSecondPayment])
+
+  useEffect(() => {
+    if (selectedPayment === 'mixed') setPaymentCurrency('BOB')
+  }, [selectedPayment])
 
   useEffect(() => {
     if (anonymousSale) {
@@ -590,6 +611,11 @@ export default function POSSalesPage() {
       return false
     }
 
+    if (selectedPayment === 'mixed' && mixedPaymentError) {
+      toast({ title: 'Revisa los dos pagos', description: mixedPaymentError, variant: 'destructive' })
+      return false
+    }
+
     if (!anonymousSale && !selectedCustomer) {
       toast({
         title: 'Cliente requerido',
@@ -694,7 +720,8 @@ export default function POSSalesPage() {
         await posService.enqueueSale({
           branch_id: branchId,
           customer_name: resolvedCustomerName,
-          payment_method: (selectedPayment === 'credit' ? 'cash' : selectedPayment) as 'cash' | 'card' | 'qr',
+          payment_method: selectedPayment === 'credit' ? 'cash' : selectedPayment,
+          payments: selectedPayment === 'mixed' ? mixedPayments : undefined,
           payment_currency: paymentCurrency,
           exchange_rate: safeExchangeRate,
           sale_mode: saleMode,
@@ -703,6 +730,8 @@ export default function POSSalesPage() {
         })
 
         setCart([])
+        setFirstPaymentAmount('')
+        setAutoSecondPayment(true)
         await reloadPOSData(branchId)
         toast({
           title: 'Venta en cola',
@@ -724,6 +753,7 @@ export default function POSSalesPage() {
         branch_id: branchId,
         customer_name: resolvedCustomerName,
         payment_method: selectedPayment,
+        payments: selectedPayment === 'mixed' ? mixedPayments : undefined,
         payment_currency: paymentCurrency,
         exchange_rate: safeExchangeRate,
         sale_mode: saleMode,
@@ -738,6 +768,7 @@ export default function POSSalesPage() {
           customer_phone: selectedCustomer?.phone ?? null,
           customer_is_anonymous: anonymousSale,
           payment_type: isCreditSale ? 'credit' : selectedPayment,
+          ...(selectedPayment === 'mixed' && { payments: mixedPayments }),
           ...(isCreditSale && {
             credit_initial_payment: Number(creditInitialPayment) || 0,
             credit_initial_payment_method: creditInitialPaymentMethod,
@@ -834,6 +865,7 @@ export default function POSSalesPage() {
         branchName: activeBranchName,
         cashierName: activeUserName,
         paymentMethod: PAYMENT_METHODS.find((method) => method.id === selectedPayment)?.label || selectedPayment,
+        payments: selectedPayment === 'mixed' ? mixedPayments.map((p) => ({ method: paymentLabels[p.method], amount: p.amount })) : undefined,
         currency: isCreditSale ? 'BOB' : paymentCurrency,
         total: isCreditSale ? cartTotalBob : amountToCharge,
         customerDocument: selectedCustomer?.nit_ci,
@@ -860,6 +892,8 @@ export default function POSSalesPage() {
       })
 
       setCart([])
+      setFirstPaymentAmount('')
+      setAutoSecondPayment(true)
       try {
         await reloadPOSData(branchId)
       } catch {
@@ -1010,7 +1044,7 @@ export default function POSSalesPage() {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-primary">Bs {Number(queue.total_amount_bob || 0).toFixed(2)}</p>
-                          <p className="text-xs text-muted-foreground">{queue.payment_method.toUpperCase()}</p>
+                          <p className="text-xs text-muted-foreground">{queue.metadata?.payment_type === 'mixed' ? 'Pago mixto' : paymentLabels[queue.payment_method]}</p>
                         </div>
                       </div>
 
@@ -1285,20 +1319,20 @@ export default function POSSalesPage() {
                         <p className="text-base font-semibold">Método de pago</p>
                         <p className="text-sm text-muted-foreground">Selecciona cómo se registrará el cobro.</p>
                       </div>
-                      <Badge variant="outline" className="w-fit">{selectedPayment.toUpperCase()}</Badge>
+                      <Badge variant="outline" className="w-fit">{paymentLabels[selectedPayment]}</Badge>
                     </div>
 
                     <div className="mt-4 space-y-2">
                       <p className="text-sm font-semibold">Moneda</p>
                       <div className="grid grid-cols-2 gap-2">
                         <Button variant={paymentCurrency === 'BOB' ? 'default' : 'outline'} onClick={() => setPaymentCurrency('BOB')}>BOB</Button>
-                        <Button variant={paymentCurrency === 'USD' ? 'default' : 'outline'} onClick={() => setPaymentCurrency('USD')}>USD</Button>
+                        <Button disabled={selectedPayment === 'mixed'} variant={paymentCurrency === 'USD' ? 'default' : 'outline'} onClick={() => setPaymentCurrency('USD')}>USD</Button>
                       </div>
                       <p className="text-xs text-muted-foreground">Cobrar: {paymentCurrency === 'USD' ? `$${amountToCharge.toFixed(2)}` : `Bs ${amountToCharge.toFixed(2)}`}</p>
                     </div>
 
-                    <Tabs value={selectedPayment} onValueChange={(value) => setSelectedPayment(value as 'cash' | 'card' | 'qr' | 'credit')} className="mt-5">
-                      <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl p-2 sm:grid-cols-2 xl:grid-cols-4">
+                    <Tabs value={selectedPayment} onValueChange={(value) => setSelectedPayment(value as typeof selectedPayment)} className="mt-5">
+                      <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl p-2 sm:grid-cols-2 xl:grid-cols-5">
                         {availablePaymentMethods.map((method) => (
                           <TabsTrigger key={method.id} value={method.id} className="h-12 justify-center gap-2 rounded-xl py-3 text-sm">
                             <method.icon className="h-4 w-4" />
@@ -1320,12 +1354,38 @@ export default function POSSalesPage() {
                               ? 'Usa este modo para pagos con tarjeta.'
                               : method.id === 'qr'
                               ? 'Usa este modo para pagos por QR o transferencia.'
+                              : method.id === 'mixed'
+                              ? 'Divide el total en dos métodos de pago. Ambos importes se registran en bolivianos y la venta queda totalmente pagada.'
                               : 'La venta se registrará a crédito. Completa los detalles del crédito a continuación.'}
                           </p>
                           {method.id === 'qr' && paymentQr}
                         </TabsContent>
                       ))}
                     </Tabs>
+
+                    {selectedPayment === 'mixed' && (
+                      <div className="mt-5 space-y-4 rounded-2xl border border-border/60 p-5">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {[0, 1].map((index) => (
+                            <div key={index} className="space-y-2">
+                              <label className="text-sm font-semibold" htmlFor={`mixed-method-${index}`}>Pago {index + 1}</label>
+                              <Select value={index === 0 ? firstPaymentMethod : secondPaymentMethod} onValueChange={(value) => index === 0 ? setFirstPaymentMethod(value as POSPaymentMethod) : setSecondPaymentMethod(value as POSPaymentMethod)}>
+                                <SelectTrigger id={`mixed-method-${index}`}><SelectValue /></SelectTrigger>
+                                <SelectContent>{PAYMENT_METHODS.filter((p) => ['cash', 'card', 'qr'].includes(p.id)).map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}</SelectContent>
+                              </Select>
+                              <label className="text-xs text-muted-foreground" htmlFor={`mixed-amount-${index}`}>Monto (Bs)</label>
+                              <Input id={`mixed-amount-${index}`} type="number" inputMode="decimal" min="0.01" step="0.01" value={index === 0 ? firstPaymentAmount : secondPaymentAmount} onChange={(event) => {
+                                if (index === 0) { setFirstPaymentAmount(event.target.value); setAutoSecondPayment(true) }
+                                else { setSecondPaymentAmount(event.target.value); setAutoSecondPayment(false) }
+                              }} />
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-sm">Total pagado: <strong>Bs {mixedPaid.toFixed(2)}</strong> · {mixedPaid > cartTotalBob ? 'Excedente' : 'Falta'}: Bs {Math.abs(cartTotalBob - mixedPaid).toFixed(2)}</p>
+                        {mixedPaymentError && <p role="alert" className="text-sm text-destructive">{mixedPaymentError}</p>}
+                        {(firstPaymentMethod === 'qr' || secondPaymentMethod === 'qr') && paymentQr}
+                      </div>
+                    )}
 
                     {isCreditSale && Number(creditInitialPayment) > 0 && creditInitialPaymentMethod === 'qr' && paymentQr}
 
@@ -1531,7 +1591,7 @@ export default function POSSalesPage() {
                         const success = await completeOrQueueSale()
                         if (success) setIsCheckoutOpen(false)
                       }}
-                      disabled={isSubmitting || (!canCompleteSale && !canQueueSale)}
+                      disabled={isSubmitting || (!canCompleteSale && !canQueueSale) || (selectedPayment === 'mixed' && !!mixedPaymentError)}
                       className="h-11 px-5"
                     >
                       {canQueueSale ? 'Enviar venta a cola' : 'Confirmar venta'}

@@ -75,7 +75,7 @@ export default function ReportsProfitPage() {
   const totalRevenue = useMemo(() => rows.reduce((s, r) => s + Number(r.total_revenue ?? 0), 0), [rows])
   const totalCost = useMemo(() => rows.reduce((s, r) => s + Number(r.total_cost ?? 0), 0), [rows])
   const totalProfit = useMemo(() => rows.reduce((s, r) => s + Number(r.total_profit ?? 0), 0), [rows])
-  const totalCount = useMemo(() => rows.reduce((s, r) => s + Number(r.sale_count ?? 0), 0), [rows])
+  const totalCount = useMemo(() => rows.reduce((s, r) => s + Number(r.unique_sale_count ?? r.sale_count ?? 0), 0), [rows])
 
   const byBranch = useMemo(() => {
     const map = new Map<string, { name: string; revenue: number; cost: number; profit: number; count: number }>()
@@ -84,7 +84,7 @@ export default function ReportsProfitPage() {
       cur.revenue += Number(r.total_revenue ?? 0)
       cur.cost += Number(r.total_cost ?? 0)
       cur.profit += Number(r.total_profit ?? 0)
-      cur.count += Number(r.sale_count ?? 0)
+      cur.count += Number(r.unique_sale_count ?? r.sale_count ?? 0)
       map.set(r.branch_id, cur)
     })
     return [...map.values()].sort((a, b) => b.profit - a.profit)

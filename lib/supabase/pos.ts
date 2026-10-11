@@ -1,4 +1,5 @@
 import { supabase } from './client'
+import { saleTotalBob, validateMixedPayments, type POSPayment } from '../pos-payments'
 
 export interface POSCatalogItem {
   part_id: string
@@ -44,6 +45,7 @@ export interface POSPriceChange {
 }
 
 export interface POSQueuedSale {
+  metadata?: Record<string, unknown>
   price_changes?: POSPriceChange[]
   queue_id: string
   branch_id: string
@@ -209,24 +211,32 @@ export const posService = {
     const { data: metadata, error: metadataError } = await supabase
       .from('pos_sale_queue').select('id, metadata').in('id', queues.map((queue) => queue.queue_id))
     if (metadataError) throw metadataError
-    const changes = new Map((metadata || []).map((row) => [row.id, row.metadata?.price_changes]))
-    return queues.map((queue) => ({ ...queue, price_changes: changes.get(queue.queue_id) || [] }))
+    const details = new Map((metadata || []).map((row) => [row.id, row.metadata]))
+    return queues.map((queue) => ({ ...queue, metadata: details.get(queue.queue_id), price_changes: details.get(queue.queue_id)?.price_changes || [] }))
   },
 
   async enqueueSale(input: {
     branch_id: string | null
     customer_name?: string | null
-    payment_method: 'cash' | 'card' | 'qr'
+    payment_method: 'cash' | 'card' | 'qr' | 'mixed'
+    payments?: POSPayment[]
     payment_currency: 'BOB' | 'USD'
     exchange_rate: number
     sale_mode: 'immediate' | 'advance'
     advance_amount?: number
     items: POSQueueLineInput[]
   }) {
-    const { data, error } = await supabase.rpc('pos_enqueue_sale', {
+    const mixed = input.payment_method === 'mixed'
+    if (mixed) {
+      const message = validateMixedPayments(input.payments || [], saleTotalBob(input.items))
+      if (message) throw new Error(message)
+      if (input.payment_currency !== 'BOB' || input.sale_mode !== 'immediate') throw new Error('El pago mixto requiere una venta al contado en bolivianos.')
+    }
+    const { data, error } = await supabase.rpc(mixed ? 'pos_enqueue_mixed_sale' : 'pos_enqueue_sale', {
       p_branch_id: input.branch_id ?? null,
       p_customer_name: input.customer_name ?? null,
-      p_payment_method: input.payment_method,
+      p_payment_method: mixed ? 'cash' : input.payment_method,
+      ...(mixed ? { p_payments: input.payments } : {}),
       p_payment_currency: input.payment_currency,
       p_exchange_rate: input.exchange_rate,
       p_sale_mode: input.sale_mode,
@@ -241,7 +251,8 @@ export const posService = {
   async createSale(input: {
     branch_id: string | null
     customer_name?: string | null
-    payment_method: 'cash' | 'card' | 'qr' | 'credit'
+    payment_method: 'cash' | 'card' | 'qr' | 'credit' | 'mixed'
+    payments?: POSPayment[]
     payment_currency: 'BOB' | 'USD'
     exchange_rate: number
     sale_mode: 'immediate' | 'advance'
@@ -249,8 +260,14 @@ export const posService = {
     items: POSQueueLineInput[]
     metadata?: Record<string, unknown>
   }) {
-    const normalizedPaymentMethod = input.payment_method === 'credit' ? 'cash' : input.payment_method
-    const { data, error } = await supabase.rpc('pos_create_sale', {
+    const mixed = input.payment_method === 'mixed'
+    if (mixed) {
+      const message = validateMixedPayments(input.payments || [], saleTotalBob(input.items))
+      if (message) throw new Error(message)
+      if (input.payment_currency !== 'BOB' || input.sale_mode !== 'immediate') throw new Error('El pago mixto requiere una venta al contado en bolivianos.')
+    }
+    const normalizedPaymentMethod = input.payment_method === 'credit' || mixed ? 'cash' : input.payment_method
+    const { data, error } = await supabase.rpc(mixed ? 'pos_create_mixed_sale' : 'pos_create_sale', {
       p_branch_id: input.branch_id ?? null,
       p_customer_name: input.customer_name ?? null,
       p_payment_method: normalizedPaymentMethod,
@@ -260,7 +277,7 @@ export const posService = {
       p_advance_amount: input.advance_amount ?? 0,
       p_items: input.items,
       p_metadata: input.metadata ?? {},
-      p_sold_by_override: null,
+      ...(mixed ? { p_payments: input.payments } : { p_sold_by_override: null }),
     })
 
     if (error) throw error
