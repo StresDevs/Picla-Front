@@ -209,7 +209,7 @@ export default function POSSalesPage() {
   }, [priceChangesEnabled])
 
   const canCompleteSale = canRoleCompleteSale(activeRole)
-  const canQueueSale = activeRole === 'read_only'
+  const canQueueSale = activeRole === 'employee' || activeRole === 'read_only'
   const canApproveQueue = activeRole === 'admin' || activeRole === 'manager' || activeRole === 'employee'
   const isCreditSale = selectedPayment === 'credit'
   const availablePaymentMethods = useMemo(
