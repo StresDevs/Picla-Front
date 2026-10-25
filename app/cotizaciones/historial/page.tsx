@@ -24,7 +24,6 @@ import { generateQuotationPdf } from '@/lib/pdf/generators'
 
 const PAYMENT_METHODS = [
   { id: 'cash', label: 'Efectivo', icon: DollarSign },
-  { id: 'card', label: 'Tarjeta', icon: CreditCard },
   { id: 'qr', label: 'QR/Transferencia', icon: QrCode },
 ] as const
 
@@ -76,7 +75,7 @@ export default function QuotationsHistoryPage() {
   const [quotations, setQuotations] = useState<QuotationRecord[]>([])
   const [selectedQuotation, setSelectedQuotation] = useState<QuotationRecord | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'qr'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qr'>('cash')
   const [paymentCurrency, setPaymentCurrency] = useState<'BOB' | 'USD'>(
     () => getCachedAppSettings().default_currency,
   )
@@ -434,7 +433,7 @@ export default function QuotationsHistoryPage() {
 
                     <Tabs
                       value={paymentMethod}
-                      onValueChange={(value) => setPaymentMethod(value as 'cash' | 'card' | 'qr')}
+                      onValueChange={(value) => setPaymentMethod(value as 'cash' | 'qr')}
                       className="mt-5"
                     >
                       <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-2xl p-2 sm:grid-cols-3">

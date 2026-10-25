@@ -183,6 +183,11 @@ function parseSingleRpcRow<T>(data: T[] | T | null): T | null {
 }
 
 export const posService = {
+  async editSale(input: { sale_id: string; edit_id: string; expected_items: Array<{ id: string; part_id: string; quantity: number; unit_price: number }>; items: Array<POSQueueLineInput & { id: string | null }>; reason: string; payments: POSPayment[]; confirmed: boolean }) {
+    const { data, error } = await supabase.rpc('pos_edit_sale', { p_sale_id: input.sale_id, p_edit_id: input.edit_id, p_expected_items: input.expected_items, p_items: input.items, p_reason: input.reason, p_payments: input.payments, p_confirmed: input.confirmed })
+    if (error) throw error
+    return data
+  },
   async getCatalog(branchId?: string | null) {
     const [catalog, limits] = await Promise.all([
       supabase.rpc('pos_get_catalog', { p_branch_id: branchId ?? null }),
@@ -218,7 +223,7 @@ export const posService = {
   async enqueueSale(input: {
     branch_id: string | null
     customer_name?: string | null
-    payment_method: 'cash' | 'card' | 'qr' | 'mixed'
+    payment_method: 'cash' | 'qr' | 'mixed'
     payments?: POSPayment[]
     payment_currency: 'BOB' | 'USD'
     exchange_rate: number
@@ -251,7 +256,7 @@ export const posService = {
   async createSale(input: {
     branch_id: string | null
     customer_name?: string | null
-    payment_method: 'cash' | 'card' | 'qr' | 'credit' | 'mixed'
+    payment_method: 'cash' | 'qr' | 'credit' | 'mixed'
     payments?: POSPayment[]
     payment_currency: 'BOB' | 'USD'
     exchange_rate: number

@@ -5,7 +5,7 @@ import { paymentLabels, receiptPayments } from './pos-payments'
 export const salePaymentLabels = paymentLabels
 
 export function getSalePaymentMethod(sale: { metadata?: Record<string, unknown>; payment_method: string }) {
-  return ['credit', 'mixed'].includes(String(sale.metadata?.payment_type)) ? String(sale.metadata?.payment_type) : sale.payment_method
+  return ['credit', 'mixed', 'adjusted'].includes(String(sale.metadata?.payment_type)) ? String(sale.metadata?.payment_type) : sale.payment_method
 }
 
 export function receiptFromQueuedSale(queue: POSQueuedSale, invoiceNumber: string, branchName: string): PrintInvoiceParams {

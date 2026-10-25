@@ -304,12 +304,9 @@ export default function CashPage() {
 
   const paymentBreakdown = useMemo(() => {
     const salesQr = movements
-      .filter(m => m.movement_type === 'sale_qr')
-      .reduce((sum, m) => sum + Math.abs(Number(m.amount || 0)), 0)
-    const salesCard = movements
-      .filter(m => m.movement_type === 'sale_card')
-      .reduce((sum, m) => sum + Math.abs(Number(m.amount || 0)), 0)
-    return { salesQr, salesCard }
+      .filter(m => ['sale_qr', 'sale_return_qr'].includes(m.movement_type))
+      .reduce((sum, m) => sum + (m.movement_type === 'sale_return_qr' ? -1 : 1) * Math.abs(Number(m.amount || 0)), 0)
+    return { salesQr }
   }, [movements])
 
   const saleNumberMap = useMemo(() => {
@@ -951,12 +948,12 @@ export default function CashPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="bg-zinc-950/70">
             <CardContent className="pt-6">
               <p className="text-sm text-zinc-400">Ventas en Efectivo</p>
-              <p className="text-4xl font-semibold text-zinc-100 mt-6">{currency(totals.sales)}</p>
-              <p className="text-xs text-zinc-400 mt-2">Solo ventas en efectivo registradas en caja</p>
+              <p className="text-4xl font-semibold text-zinc-100 mt-6">{currency(totals.sales - totals.salesReturns)}</p>
+              <p className="text-xs text-zinc-400 mt-2">Neto de ventas y devoluciones en efectivo</p>
             </CardContent>
           </Card>
 
@@ -971,16 +968,6 @@ export default function CashPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-zinc-950/70">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-sky-400" />
-                <p className="text-sm text-zinc-400">Ventas por Tarjeta</p>
-              </div>
-              <p className="text-4xl font-semibold text-zinc-100 mt-6">{currency(paymentBreakdown.salesCard)}</p>
-              <p className="text-xs text-zinc-400 mt-2">Tarjeta de débito / crédito</p>
-            </CardContent>
-          </Card>
 
           <Card className="bg-zinc-950/70">
             <CardContent className="pt-6">

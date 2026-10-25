@@ -16,7 +16,7 @@ import {
   getActiveUserContext,
   type AppUserRole,
 } from '@/lib/mock/runtime-store'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil } from 'lucide-react'
 import type { Part, ProductKit, ProductKitItem } from '@/types/database'
 
 interface KitItemForm {
@@ -78,8 +78,10 @@ export default function InventoryKitsPage() {
   const [kits, setKits] = useState<ProductKit[]>([])
   const [products, setProducts] = useState<Part[]>([])
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeRole, setActiveRole] = useState<AppUserRole>(() => getActiveUserContext().role)
   const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
@@ -149,8 +151,8 @@ export default function InventoryKitsPage() {
   }, [activeBranchId])
 
   useEffect(() => {
-    setForm((prev) => ({ ...prev, code: resolvedCode }))
-  }, [resolvedCode])
+    if (!editingId) setForm((prev) => ({ ...prev, code: resolvedCode }))
+  }, [resolvedCode, editingId])
 
   const addItem = () => {
     const fallback = products[0]
@@ -195,15 +197,15 @@ export default function InventoryKitsPage() {
         quantity: Number(item.quantity),
         kit_price: Number(item.kit_price),
       }))
-      .filter((item) => item.part_id && item.quantity > 0 && item.kit_price >= 0)
+      .filter((item) => item.part_id && Number.isFinite(item.quantity) && item.quantity > 0 && Number.isFinite(item.kit_price) && item.kit_price >= 0)
 
-    if (items.length === 0) return
+    if (!form.name.trim() || items.length !== form.items.length || items.length === 0) { setError('Revisa el nombre, las cantidades y los precios de todos los componentes.'); return }
 
     setIsSaving(true)
     setError(null)
 
     try {
-      await kitsService.create({
+      await (editingId ? kitsService.update.bind(null, editingId) : kitsService.create)({
         code: form.code.trim(),
         name: form.name.trim(),
         description: form.description,
@@ -214,7 +216,8 @@ export default function InventoryKitsPage() {
 
       await refresh(activeBranchId)
       setIsOpen(false)
-      setForm(emptyKitForm(activeBranchId, products))
+      setEditingId(null)
+      setForm({ ...emptyKitForm(activeBranchId, products), code: buildNextKitCode('General', kits) })
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'No se pudo crear el kit')
     } finally {
@@ -223,15 +226,21 @@ export default function InventoryKitsPage() {
   }
 
   const deleteKit = async (kit: ProductKit) => {
-    if (!canModify) return
+    if (!canModify || isSaving || isDeleting) return
     const confirmation = window.confirm(`Eliminar kit "${kit.name}"? Esta accion es reversible desde base de datos.`)
     if (!confirmation) return
     setError(null)
+    setIsDeleting(true)
     try {
       await kitsService.softDelete(kit.id)
       await refresh(activeBranchId)
+      setIsOpen(false)
+      setEditingId(null)
+      setForm(emptyKitForm(activeBranchId, products))
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'No se pudo eliminar el kit')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -262,15 +271,15 @@ export default function InventoryKitsPage() {
           description="Combos de productos por sucursal"
           action={
             canModify ? (
-              <Dialog open={isOpen} onOpenChange={setIsOpen}>
+              <Dialog open={isOpen} onOpenChange={(open) => { if (!isSaving && !isDeleting) setIsOpen(open) }}>
                 <DialogTrigger asChild>
-                  <Button>
+                  <Button onClick={() => { setEditingId(null); setForm(emptyKitForm(activeBranchId, products)) }}>
                     <Plus className="mr-2 h-4 w-4" /> Nuevo kit
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto text-base">
                   <DialogHeader>
-                    <DialogTitle className="text-2xl">Registrar kit</DialogTitle>
+                    <DialogTitle className="text-2xl">{editingId ? 'Editar kit' : 'Registrar kit'}</DialogTitle>
                     <DialogDescription className="text-base">
                       Define productos, cantidades y precio kit por producto.
                     </DialogDescription>
@@ -386,9 +395,17 @@ export default function InventoryKitsPage() {
                     <span className="text-lg font-semibold">Bs {kitTotal.toFixed(2)}</span>
                   </div>
 
-                  <div className="flex justify-end gap-2">
-                    <Button variant="destructive" onClick={() => setIsOpen(false)}>Cancelar</Button>
-                    <Button onClick={() => void saveKit()} disabled={isSaving}>{isSaving ? 'Guardando...' : 'Guardar kit'}</Button>
+                  {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
+                  <div className="flex flex-col-reverse gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    {editingId ? (
+                      <Button type="button" variant="outline" className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={isSaving || isDeleting} onClick={() => { const kit = kits.find((item) => item.id === editingId); if (kit) void deleteKit(kit) }}>
+                        <Trash2 className="h-4 w-4" />{isDeleting ? 'Eliminando...' : 'Eliminar kit'}
+                      </Button>
+                    ) : <span />}
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSaving || isDeleting}>Cancelar</Button>
+                      <Button type="button" onClick={() => void saveKit()} disabled={isSaving || isDeleting}>{isSaving ? 'Guardando...' : 'Guardar kit'}</Button>
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -428,9 +445,7 @@ export default function InventoryKitsPage() {
                   <div className="flex items-center gap-2">
                     <Badge className="bg-primary/15 text-primary text-sm">Bs {kit.total.toFixed(2)}</Badge>
                     {canModify ? (
-                      <Button variant="ghost" size="icon" onClick={() => void deleteKit(kit)}>
-                        <Trash2 className="h-4 w-4 text-rose-500" />
-                      </Button>
+                      <Button aria-label={`Editar ${kit.name}`} variant="ghost" size="icon" onClick={() => { setError(null); setEditingId(kit.id); setForm({ code: kit.code, name: kit.name, description: kit.description || '', category: kit.category || 'General', branch_id: kit.branch_id, items: kit.items.map(item => ({ id: item.id, part_id: item.part_id, quantity: String(item.quantity), kit_price: String(item.kit_price) })) }); setIsOpen(true) }}><Pencil className="h-4 w-4" /></Button>
                     ) : null}
                   </div>
                 </div>

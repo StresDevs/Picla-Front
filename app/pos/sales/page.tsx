@@ -40,7 +40,11 @@ import { customersService, type CustomerRecord } from '@/lib/supabase/customers'
 import { toast } from '@/hooks/use-toast'
 import { ErrorAlertModal, parseErrorDetails, type ErrorAlertDetails } from '@/components/common/error-alert-modal'
 
+import { KitSalePicker } from '@/components/modules/pos/kit-sale-picker'
+
 interface CartItem {
+  source_type?: 'product' | 'kit_component'
+  source_kit_id?: string | null
   id: string
   part_id: string
   code: string
@@ -61,7 +65,6 @@ interface NewCustomerForm {
 
 const PAYMENT_METHODS = [
   { id: 'cash', label: 'Efectivo', icon: DollarSign },
-  { id: 'card', label: 'Tarjeta', icon: CreditCard },
   { id: 'qr', label: 'QR/Transferencia', icon: QrCode },
   { id: 'mixed', label: 'Pago mixto', icon: HandCoins },
   { id: 'credit', label: 'Credito', icon: HandCoins },
@@ -125,6 +128,7 @@ function toLocalDateKey(value: string) {
 }
 
 export default function POSSalesPage() {
+  const [catalogTab, setCatalogTab] = useState('products')
   const [catalog, setCatalog] = useState<POSCatalogItem[]>([])
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
   const [queuedSales, setQueuedSales] = useState<POSQueuedSale[]>([])
@@ -133,7 +137,7 @@ export default function POSSalesPage() {
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({})
   const [priceChangesEnabled, setPriceChangesEnabled] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedPayment, setSelectedPayment] = useState<'cash' | 'card' | 'qr' | 'credit' | 'mixed'>('cash')
+  const [selectedPayment, setSelectedPayment] = useState<'cash' | 'qr' | 'credit' | 'mixed'>('cash')
   const [firstPaymentMethod, setFirstPaymentMethod] = useState<POSPaymentMethod>('cash')
   const [secondPaymentMethod, setSecondPaymentMethod] = useState<POSPaymentMethod>('qr')
   const [firstPaymentAmount, setFirstPaymentAmount] = useState('')
@@ -156,7 +160,7 @@ export default function POSSalesPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [anonymousSale, setAnonymousSale] = useState(true)
   const [creditInitialPayment, setCreditInitialPayment] = useState('0')
-  const [creditInitialPaymentMethod, setCreditInitialPaymentMethod] = useState<'cash' | 'card' | 'qr'>('cash')
+  const [creditInitialPaymentMethod, setCreditInitialPaymentMethod] = useState<'cash' | 'qr'>('cash')
   const [creditDueDays, setCreditDueDays] = useState('10')
   const [creditReminderDate, setCreditReminderDate] = useState('')
   const [creditNotes, setCreditNotes] = useState('')
@@ -424,10 +428,12 @@ export default function POSSalesPage() {
     }
 
     setCart((prev) => {
-      const found = prev.find((item) => item.part_id === product.part_id)
+      const used = prev.filter(item => item.part_id === product.part_id).reduce((sum, item) => sum + item.quantity, 0)
+      if (used >= product.stock) return prev
+      const found = prev.find((item) => item.part_id === product.part_id && !item.source_kit_id)
       if (found) {
         return prev.map((item) =>
-          item.part_id === product.part_id
+          item.id === found.id
             ? { ...item, quantity: Math.min(item.quantity + 1, Number(product.stock || 0)) }
             : item,
         )
@@ -455,7 +461,7 @@ export default function POSSalesPage() {
   }
 
   const removeFromCart = (partId: string) => {
-    setCart((prev) => prev.filter((item) => item.part_id !== partId))
+    setCart((prev) => prev.filter((item) => item.id !== partId))
     setPriceDrafts((previous) => {
       const next = { ...previous }
       delete next[partId]
@@ -467,10 +473,10 @@ export default function POSSalesPage() {
     const qty = Number(value)
     if (!Number.isFinite(qty) || qty <= 0) return
 
-    const stock = Number(catalog.find((item) => item.part_id === partId)?.stock || 0)
+    const stock = Number(catalog.find((item) => item.part_id === cart.find(line => line.id === partId)?.part_id)?.stock || 0)
     setCart((prev) =>
       prev.map((item) =>
-        item.part_id === partId ? { ...item, quantity: Math.min(qty, Math.max(stock, 1)) } : item,
+        item.id === partId ? { ...item, quantity: Math.min(qty, Math.max(stock - prev.filter(other => other.part_id === item.part_id && other.id !== item.id).reduce((sum, other) => sum + other.quantity, 0), 0.001)) } : item,
       ),
     )
   }
@@ -487,10 +493,10 @@ export default function POSSalesPage() {
 
   const commitCartPrice = (partId: string, draft: string) => {
     if (!canEditPrices) return
-    const item = cart.find((entry) => entry.part_id === partId)
+    const item = cart.find((entry) => entry.id === partId)
     if (!item) return
     const result = resolvePOSPriceDraft(draft, item.unit_price, item.min_price, item.max_price)
-    setCart((previous) => previous.map((entry) => entry.part_id === partId
+    setCart((previous) => previous.map((entry) => entry.id === partId
       ? { ...entry, unit_price: result.price } : entry))
     setPriceDrafts((previous) => {
       const next = { ...previous }
@@ -502,7 +508,7 @@ export default function POSSalesPage() {
 
   const resolvePendingPrices = () => {
     const resolved = cart.map((item) => {
-      const draft = priceDrafts[item.part_id]
+      const draft = priceDrafts[item.id]
       if (draft === undefined) return item
       const result = resolvePOSPriceDraft(draft, item.unit_price, item.min_price, item.max_price)
       notifyPriceAdjustment(item, result)
@@ -524,8 +530,8 @@ export default function POSSalesPage() {
       part_id: item.part_id,
       quantity: item.quantity,
       unit_price: Number(item.unit_price.toFixed(2)),
-      source_type: 'product',
-      source_kit_id: null,
+      source_type: item.source_type || 'product',
+      source_kit_id: item.source_kit_id || null,
     }))
   }
 
@@ -1350,8 +1356,6 @@ export default function POSSalesPage() {
                           <p className="mt-2 text-sm text-muted-foreground">
                             {method.id === 'cash'
                               ? 'Registra el cobro con efectivo y valida el monto recibido.'
-                              : method.id === 'card'
-                              ? 'Usa este modo para pagos con tarjeta.'
                               : method.id === 'qr'
                               ? 'Usa este modo para pagos por QR o transferencia.'
                               : method.id === 'mixed'
@@ -1371,7 +1375,7 @@ export default function POSSalesPage() {
                               <label className="text-sm font-semibold" htmlFor={`mixed-method-${index}`}>Pago {index + 1}</label>
                               <Select value={index === 0 ? firstPaymentMethod : secondPaymentMethod} onValueChange={(value) => index === 0 ? setFirstPaymentMethod(value as POSPaymentMethod) : setSecondPaymentMethod(value as POSPaymentMethod)}>
                                 <SelectTrigger id={`mixed-method-${index}`}><SelectValue /></SelectTrigger>
-                                <SelectContent>{PAYMENT_METHODS.filter((p) => ['cash', 'card', 'qr'].includes(p.id)).map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}</SelectContent>
+                                <SelectContent>{PAYMENT_METHODS.filter((p) => ['cash', 'qr'].includes(p.id)).map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}</SelectContent>
                               </Select>
                               <label className="text-xs text-muted-foreground" htmlFor={`mixed-amount-${index}`}>Monto (Bs)</label>
                               <Input id={`mixed-amount-${index}`} type="number" inputMode="decimal" min="0.01" step="0.01" value={index === 0 ? firstPaymentAmount : secondPaymentAmount} onChange={(event) => {
@@ -1417,13 +1421,12 @@ export default function POSSalesPage() {
                             <label className="text-xs font-medium text-muted-foreground">Método del pago inicial</label>
                             <Select
                               value={creditInitialPaymentMethod}
-                              onValueChange={(value) => setCreditInitialPaymentMethod(value as 'cash' | 'card' | 'qr')}
+                              onValueChange={(value) => setCreditInitialPaymentMethod(value as 'cash' | 'qr')}
                               disabled={Number(creditInitialPayment) <= 0}
                             >
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="cash">Efectivo</SelectItem>
-                                <SelectItem value="card">Tarjeta</SelectItem>
                                 <SelectItem value="qr">QR/Transferencia</SelectItem>
                               </SelectContent>
                             </Select>
@@ -1491,7 +1494,7 @@ export default function POSSalesPage() {
                         <div role="status" className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
                           <p className="font-semibold">Cambios de precios en esta venta</p>
                           {changedPrices.map((item) => (
-                            <p key={item.part_id} className="mt-1 text-xs">
+                            <p key={item.id} className="mt-1 text-xs">
                               {item.name}: Bs {item.base_price.toFixed(2)} → Bs {item.unit_price.toFixed(2)} (x {item.quantity})
                             </p>
                           ))}
@@ -1502,7 +1505,7 @@ export default function POSSalesPage() {
                         {cart.map((item) => {
                           const forDelivery = deliverySet.has(item.part_id)
                           return (
-                            <div key={`checkout-${item.part_id}`} className="rounded-2xl bg-muted/40 overflow-hidden">
+                            <div key={`checkout-${item.id}`} className="rounded-2xl bg-muted/40 overflow-hidden">
                               <div className="flex items-start justify-between gap-4 px-4 pt-3 pb-2">
                                 <div className="min-w-0">
                                   <p className="font-medium leading-tight">{item.name}</p>
@@ -1639,7 +1642,14 @@ export default function POSSalesPage() {
 
         <div className="flex flex-col gap-6 items-start lg:flex-row">
           <section className="w-full flex-1 space-y-4 min-w-0">
-            <Card className="card-products">
+            <Tabs value={catalogTab} onValueChange={setCatalogTab}><TabsList><TabsTrigger value="products">Productos</TabsTrigger><TabsTrigger value="kits">Kits</TabsTrigger></TabsList></Tabs>
+            {catalogTab === 'kits' ? <KitSalePicker branchId={activeBranchId} catalog={catalog} onAdd={(kit, lines) => {
+              const unavailable = lines.some(line => { const product = catalog.find(p => p.part_id === line.part_id); const used = cart.filter(i => i.part_id === line.part_id).reduce((sum, i) => sum + i.quantity, 0); return !product || used + lines.filter(i => i.part_id === line.part_id).reduce((sum, i) => sum + i.quantity, 0) > product.stock })
+              if (unavailable) { toast({ title: 'Stock insuficiente para el kit', variant: 'destructive' }); return }
+              const instance = crypto.randomUUID()
+              setCart(prev => [...prev, ...lines.map((line, index) => { const product = catalog.find(p => p.part_id === line.part_id)!; return { ...line, id: instance + '-' + index, code: product.code, name: kit.name + ' · ' + product.name, base_price: line.unit_price, min_price: line.unit_price, max_price: line.unit_price } })])
+              toast({ title: 'Kit agregado a la venta' })
+            }} /> : <Card className="card-products">
               <CardHeader>
                 <CardTitle className="text-green-700 dark:text-green-300">📦 Productos de la sucursal</CardTitle>
               </CardHeader>
@@ -1763,7 +1773,7 @@ export default function POSSalesPage() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+            </Card>}
           </section>
 
           {mobileCartExpanded ? (
@@ -1888,7 +1898,7 @@ export default function POSSalesPage() {
                               className="h-8 w-8"
                               onClick={(event) => {
                                 event.stopPropagation()
-                                removeFromCart(item.part_id)
+                                removeFromCart(item.id)
                               }}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1900,7 +1910,7 @@ export default function POSSalesPage() {
                           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
                             <div>
                               <p className="text-xs text-muted-foreground">Cantidad</p>
-                              <Input type="number" min={1} value={item.quantity} onChange={(event) => updateCartQuantity(item.part_id, event.target.value)} />
+                              <Input type="number" min={1} value={item.quantity} onChange={(event) => updateCartQuantity(item.id, event.target.value)} />
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">
@@ -1912,14 +1922,14 @@ export default function POSSalesPage() {
                               <Input
                                 type="number"
                                 step="0.01"
-                                value={priceDrafts[item.part_id] ?? item.unit_price}
+                                value={priceDrafts[item.id] ?? item.unit_price}
                                 disabled={!canEditPrices}
                                 aria-label={'Precio unitario de ' + item.name}
                                 onChange={(event) => {
-                                  if (canEditPrices) setPriceDrafts((previous) => ({ ...previous, [item.part_id]: event.target.value }))
+                                  if (canEditPrices) setPriceDrafts((previous) => ({ ...previous, [item.id]: event.target.value }))
                                 }}
                                 onBlur={(event) => {
-                                  if (priceDrafts[item.part_id] !== undefined) commitCartPrice(item.part_id, event.target.value)
+                                  if (priceDrafts[item.id] !== undefined) commitCartPrice(item.id, event.target.value)
                                 }}
                                 onKeyDown={(event) => {
                                   if (event.key === 'Enter') {
@@ -1936,10 +1946,10 @@ export default function POSSalesPage() {
                             </div>
                             <div className="col-span-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                               <span>Precio original: Bs {item.base_price.toFixed(2)}</span>
-                              <Button type="button" size="sm" variant="ghost" disabled={!canEditPrices || (item.unit_price === item.base_price && priceDrafts[item.part_id] === undefined)}
+                              <Button type="button" size="sm" variant="ghost" disabled={!canEditPrices || (item.unit_price === item.base_price && priceDrafts[item.id] === undefined)}
                                 onClick={() => {
-                                  setCart((previous) => previous.map((entry) => entry.part_id === item.part_id ? { ...entry, unit_price: entry.base_price } : entry))
-                                  setPriceDrafts((previous) => { const next = { ...previous }; delete next[item.part_id]; return next })
+                                  setCart((previous) => previous.map((entry) => entry.id === item.id ? { ...entry, unit_price: entry.base_price } : entry))
+                                  setPriceDrafts((previous) => { const next = { ...previous }; delete next[item.id]; return next })
                                 }}>Restaurar precio</Button>
                             </div>
                             <p className="col-span-2 text-xs text-muted-foreground">

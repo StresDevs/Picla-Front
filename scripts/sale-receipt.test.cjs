@@ -18,7 +18,7 @@ function loadTs(relative, mocks = {}) {
 }
 
 const { buildInvoiceHtml, printMockInvoice } = loadTs('lib/mock/invoice.ts')
-const { receiptFromSale, getSalePaymentMethod } = loadTs('lib/sale-receipt.ts')
+const { receiptFromSale, getSalePaymentMethod } = loadTs('lib/sale-receipt.ts', { './pos-payments': loadTs('lib/pos-payments.ts') })
 const base = {
   invoiceNumber: 'N1', customerName: 'Cliente Uno', branchName: 'Centro', cashierName: 'Ana Perez',
   currency: 'BOB', total: 100, lines: [{ code: 'P1', name: 'Repuesto', quantity: 2, unitPrice: 50 }],
@@ -93,6 +93,7 @@ async function completeSale(payment, currency = 'BOB', overrides = {}) {
   const errors = []
   const noop = () => {}
   const scope = {
+    setFirstPaymentAmount: noop, setAutoSecondPayment: noop,
     isSubmitting: false, priceDrafts: {}, priceChangesEnabled: true, changedPrices: [], anonymousSale: false,
     cart: [{ part_id: 'p1', code: 'P1', name: 'Repuesto', quantity: 2, unit_price: 50, base_price: 50 }],
     selectedCustomer: { id: 'c1', full_name: 'Cliente Uno', nit_ci: '123', phone: '777' },
@@ -186,7 +187,7 @@ test('Excel general e individual preservan vendedor, columnas y extras de credit
     const { exportToExcel } = loadTs('lib/excel/export.ts')
     const sale = { sale_id: 's1', sold_by_name: 'Ana Perez', metadata: { credit_initial_payment: 30 },
       items: [{ part_code: 'P1', part_name: 'Repuesto', quantity: 2, unit_price: 50, line_total: 100 }] }
-    const scope = { exportToExcel, filteredSales: [sale], branches: [{ id: 'b1', name: 'Centro' }], activeBranchId: 'b1',
+    const scope = { ...loadTs('lib/pos-payments.ts'), getSalePaymentMethod, exportToExcel, filteredSales: [sale], branches: [{ id: 'b1', name: 'Centro' }], activeBranchId: 'b1',
       getCachedAppSettings: () => ({ usd_to_bob_rate: 10 }), resolveSaleNumber: () => 'N1', branchName: 'Centro', saleNumber: 'N1', sale,
       creditMap: new Map([['s1', { paid_amount: 30, balance: 70, due_date: '2026-10-19', seller_name: 'Luis Responsable', notes: 'Acuerdo' }]]) }
     for (const callback of callbacks) {
@@ -214,7 +215,7 @@ test('Historial une vendedores por identificador de venta sin mezclar filas', as
       { sale_id: 's1', sold_by_name: 'Ana Perez', metadata: {}, exchange_rate: 10 },
     ] }
   } }
-  const { posService } = loadTs('lib/supabase/pos.ts', { './client': { supabase } })
+  const { posService } = loadTs('lib/supabase/pos.ts', { './client': { supabase }, '../pos-payments': loadTs('lib/pos-payments.ts') })
   const result = await posService.getSales('b1', true)
   assert.deepEqual(result.map((sale) => sale.sold_by_name), ['Ana Perez', 'Luis Gomez'])
   assert.equal(calls[1][1].p_branch_id, 'b1')
@@ -228,7 +229,7 @@ test('Sin nueva consulta SQL usa nombre guardado y conserva ID cuando RLS oculta
       { id: 's2', metadata: {}, exchange_rate: 10 },
     ] }) }) }),
   }
-  const { posService } = loadTs('lib/supabase/pos.ts', { './client': { supabase } })
+  const { posService } = loadTs('lib/supabase/pos.ts', { './client': { supabase }, '../pos-payments': loadTs('lib/pos-payments.ts') })
   const result = await posService.getSales('b1')
   assert.deepEqual(result.map((sale) => sale.sold_by_name), ['Ana Perez', 'Usuario u2'])
 })

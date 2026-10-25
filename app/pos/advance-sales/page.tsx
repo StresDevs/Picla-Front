@@ -32,7 +32,7 @@ export default function POSAdvanceSalesPage() {
   const [partId, setPartId] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [advanceAmount, setAdvanceAmount] = useState('0')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'qr'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qr'>('cash')
   const [paymentCurrency, setPaymentCurrency] = useState<'BOB' | 'USD'>('BOB')
   const [exchangeRate, setExchangeRate] = useState(6.96)
   const [notes, setNotes] = useState('')
@@ -252,11 +252,10 @@ export default function POSAdvanceSalesPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-sm">Método de pago</Label>
-                    <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'card' | 'qr')}>
+                    <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'qr')}>
                       <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="cash">Efectivo</SelectItem>
-                        <SelectItem value="card">Tarjeta</SelectItem>
                         <SelectItem value="qr">QR/Transferencia</SelectItem>
                       </SelectContent>
                     </Select>

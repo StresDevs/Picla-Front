@@ -1247,6 +1247,10 @@ export const inventoryControlService = {
 }
 
 export const kitsService = {
+  async update(id: string, input: Omit<ProductKit, 'id' | 'created_at' | 'updated_at'>) {
+    const { error } = await supabase.rpc('update_product_kit', { p_kit_id: id, p_name: input.name, p_description: input.description, p_category: input.category, p_items: input.items })
+    if (error) throw error
+  },
   async getAll(branchId: string) {
     const { data, error } = await supabase
       .from('product_kits')

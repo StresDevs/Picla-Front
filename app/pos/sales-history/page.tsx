@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { SaleEditForm } from '@/components/modules/pos/sale-edit-form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ACTIVE_ROLE_EVENT, getActiveUserContext } from '@/lib/mock/runtime-store'
@@ -39,6 +40,7 @@ import { SearchableStringPick } from '@/components/modules/inventory/part-combob
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 
 const paymentLabels: Record<string, string> = {
+  adjusted: 'Venta modificada',
   cash: 'Efectivo',
   card: 'Tarjeta',
   qr: 'QR/Transferencia',
@@ -101,7 +103,7 @@ export default function POSSalesHistoryPage() {
   const [creditMap, setCreditMap] = useState<Map<string, SaleCreditInfo>>(new Map())
 
   const [editDialogSale, setEditDialogSale] = useState<POSSaleRecord | null>(null)
-  const [editSection, setEditSection] = useState<'return' | 'void'>('return')
+  const [editSection, setEditSection] = useState<'return' | 'void' | 'modify'>('return')
   const [editReturnChecked, setEditReturnChecked] = useState<Set<string>>(new Set())
   const [editReturnQtys, setEditReturnQtys] = useState<Record<string, string>>({})
   const [editReturnReason, setEditReturnReason] = useState('')
@@ -1168,7 +1170,7 @@ export default function POSSalesHistoryPage() {
       </Dialog>
 
       {/* Edit sale dialog — admin only */}
-      <Dialog open={editDialogSale !== null} onOpenChange={(open) => { if (!open) setEditDialogSale(null) }}>
+      <Dialog open={editDialogSale !== null} onOpenChange={(open) => { if (!open && !isSubmittingEdit) setEditDialogSale(null) }}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1188,23 +1190,25 @@ export default function POSSalesHistoryPage() {
                 </div>
 
                 {/* Section toggle */}
-                <div className="flex rounded-lg border border-border/60 overflow-hidden">
+
+                <div className="flex rounded-lg border border-border/60 overflow-hidden"><button type="button" className={`flex-1 py-2 text-sm font-medium ${editSection === 'modify' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} disabled={isSubmittingEdit} onClick={() => { setEditSection('modify'); setEditFeedback(null) }}>Modificar venta</button>
                   <button
                     type="button"
                     className={`flex-1 py-2 text-sm font-medium transition-colors ${editSection === 'return' ? 'bg-primary/10 text-primary border-r border-border/60' : 'text-muted-foreground hover:bg-muted/30 border-r border-border/60'}`}
-                    onClick={() => { setEditSection('return'); setEditFeedback(null) }}
+                    disabled={isSubmittingEdit} onClick={() => { setEditSection('return'); setEditFeedback(null) }}
                   >
                     Registrar devolución
                   </button>
                   <button
                     type="button"
                     className={`flex-1 py-2 text-sm font-medium transition-colors ${editSection === 'void' ? 'bg-rose-500/10 text-rose-400' : 'text-muted-foreground hover:bg-muted/30'}`}
-                    onClick={() => { setEditSection('void'); setEditFeedback(null) }}
+                    disabled={isSubmittingEdit} onClick={() => { setEditSection('void'); setEditFeedback(null) }}
                   >
                     Anular venta
                   </button>
                 </div>
 
+                {editSection === 'modify' && <SaleEditForm key={sale.sale_id} sale={sale} onBusyChange={setIsSubmittingEdit} onSaved={() => { setEditDialogSale(null); void loadData(branchFilter !== 'all' ? branchFilter : activeBranchId) }} />}
                 {editSection === 'return' && (
                   <div className="space-y-3">
                     <p className="text-xs text-muted-foreground">Marca los productos a devolver e ingresa la cantidad.</p>
@@ -1294,7 +1298,7 @@ export default function POSSalesHistoryPage() {
                   <Button variant="outline" onClick={() => setEditDialogSale(null)} disabled={isSubmittingEdit}>
                     Cancelar
                   </Button>
-                  {editSection === 'return' ? (
+                  {editSection === 'modify' ? null : editSection === 'return' ? (
                     <Button
                       onClick={() => void submitReturnFromEdit()}
                       disabled={isSubmittingEdit || editReturnChecked.size === 0}

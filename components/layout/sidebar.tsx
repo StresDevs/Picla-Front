@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { getNavigationForRole } from '@/lib/navigation'
+import { useActiveRole } from '@/hooks/use-active-role'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   BarChart3,
@@ -24,6 +26,7 @@ import {
   UserRound,
   KeyRound,
   Bell,
+  type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useEffect, useMemo, useState } from 'react'
@@ -52,119 +55,18 @@ function SidebarLogo() {
   )
 }
 
-interface MenuItem {
-  label: string
-  href?: string
-  icon: any
-  subItems?: Array<{
-    label: string
-    href: string
-  }>
+const navigationIcons: Record<string, LucideIcon> = {
+  '/dashboard': BarChart3,
+  inventory: Package,
+  pos: ShoppingCart,
+  '/cash': DollarSign,
+  cotizaciones: ClipboardList,
+  management: Users,
+  credits: CreditCard,
+  reports: FileText,
+  '/audit': Clock,
+  '/settings': Settings,
 }
-
-const menuItems: MenuItem[] = [
-  {
-    label: 'Panel principal',
-    href: '/dashboard',
-    icon: BarChart3,
-  },
-  {
-    label: 'Inventario',
-    href: '/inventory/entries',
-    icon: Package,
-    subItems: [
-      { label: 'Productos', href: '/inventory/products' },
-      { label: 'Categorías', href: '/inventory/categories' },
-      { label: 'Kits', href: '/inventory/kits' },
-      { label: 'Ingresos', href: '/inventory/entries' },
-      { label: 'Salidas', href: '/inventory/exits' },
-      { label: 'Traspasos', href: '/inventory/transfers' },
-      { label: 'Importación de catálogo', href: '/inventory/catalog-import' },
-      { label: 'Anulaciones', href: '/inventory/voids' },
-      { label: 'Historial de traspasos', href: '/inventory/history' },
-      { label: 'Historial de inventario', href: '/inventory/stock-history' },
-      { label: 'Control', href: '/inventory/control' },
-      { label: 'Recuperar productos', href: '/inventory/recovery' },
-      { label: 'Matriz de precios', href: '/inventory/price-matrix' },
-    ],
-  },
-  {
-    label: 'Punto de Venta',
-    href: '/pos/sales',
-    icon: ShoppingCart,
-    subItems: [
-      { label: 'Ventas', href: '/pos/sales' },
-      { label: 'Historial de Ventas', href: '/pos/sales-history' },
-      { label: 'Anulación Ventas', href: '/pos/void-sales' },
-      { label: 'Venta Adelantada', href: '/pos/advance-sales' },
-      { label: 'Por Entregar', href: '/pos/deliveries' },
-      { label: 'Devoluciones', href: '/pos/returns' },
-    ],
-  },
-  {
-    label: 'Caja',
-    href: '/cash',
-    icon: DollarSign,
-  },
-  {
-    label: 'Cotizaciones',
-    href: '/cotizaciones/cotizacion',
-    icon: ClipboardList,
-    subItems: [
-      { label: 'Cotización', href: '/cotizaciones/cotizacion' },
-      { label: 'Historial de Cotizaciones', href: '/cotizaciones/historial' },
-    ],
-  },
-  {
-    label: 'Gestión',
-    href: '/management/users',
-    icon: Users,
-    subItems: [
-      { label: 'Usuarios', href: '/management/users' },
-      { label: 'Dispositivos', href: '/management/devices' },
-      { label: 'Clientes', href: '/management/customers' },
-      { label: 'Sucursales', href: '/management/branches' },
-      { label: 'Planilla de Sueldos', href: '/management/payroll' },
-    ],
-  },
-  {
-    label: 'Créditos',
-    href: '/credits/new',
-    icon: CreditCard,
-    subItems: [
-      { label: 'Nuevo Crédito', href: '/credits/new' },
-      { label: 'Cartera', href: '/credits/portfolio' },
-      { label: 'Pagos', href: '/credits/payments' },
-      { label: 'Alertas', href: '/credits/alerts' },
-      { label: 'Historial de cobros', href: '/credits/kardex' },
-    ],
-  },
-  {
-    label: 'Reportes',
-    href: '/reports/profit',
-    icon: FileText,
-    subItems: [
-      { label: 'Ganancias', href: '/reports/profit' },
-      { label: 'Capital', href: '/reports/capital' },
-      { label: 'Productos más vendidos', href: '/reports/top-products' },
-      { label: 'Cuentas por Cobrar', href: '/reports/aging' },
-      { label: 'Sueldos', href: '/reports/payroll' },
-    ],
-  },
-  {
-    label: 'Auditoría',
-    href: '/audit',
-    icon: Clock,
-  },
-  {
-    label: 'Configuración',
-    href: '/settings',
-    icon: Settings,
-  },
-]
-
-const inventoryBasicRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
-const inventoryAdminRoutes = new Set(['/inventory/recovery', '/inventory/price-matrix'])
 
 interface SidebarProps {
   desktopOpen?: boolean
@@ -175,7 +77,7 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
-  const [activeRole, setActiveRole] = useState<AppUserRole>('employee')
+  const activeRole = useActiveRole()
   const [activeUserName, setActiveUserName] = useState('Usuario Demo')
   const [activeBranchId, setActiveBranchId] = useState('')
   const [activeBranchName, setActiveBranchName] = useState('Sin sucursal')
@@ -189,7 +91,6 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
   useEffect(() => {
     const syncRole = () => {
       const context = getActiveUserContext()
-      setActiveRole(context.role)
       setActiveUserName(context.user_name)
       setActiveBranchId(context.branch_id)
     }
@@ -295,56 +196,10 @@ export function Sidebar({ desktopOpen = true, onDesktopToggle }: SidebarProps) {
     return () => clearInterval(interval)
   }, [activeRole])
 
-  const visibleMenuItems = useMemo(() => {
-    if (activeRole === 'read_only') {
-      return [
-        {
-          label: 'Punto de Venta',
-          href: '/pos/sales',
-          icon: ShoppingCart,
-          subItems: [
-            { label: 'Ventas (Cola)', href: '/pos/sales' },
-            { label: 'Historial de Ventas', href: '/pos/sales-history' },
-          ],
-        },
-        {
-          label: 'Inventario',
-          href: '/inventory/products',
-          icon: Package,
-          subItems: [
-            { label: 'Productos', href: '/inventory/products' },
-            { label: 'Categorías', href: '/inventory/categories' },
-            { label: 'Kits', href: '/inventory/kits' },
-          ],
-        },
-      ]
-    }
-
-    if (activeRole === 'manager' || activeRole === 'employee') {
-      const hiddenModules = new Set(['Panel principal', 'Gestión', 'Reportes', 'Auditoría', 'Configuración'])
-      return menuItems
-        .filter((item) => !hiddenModules.has(item.label))
-        .map((item) => {
-          if (item.label === 'Inventario') {
-            return {
-              ...item,
-              href: '/inventory/products',
-              subItems: [{ label: 'Productos', href: '/inventory/products' }],
-            }
-          }
-          if (item.label === 'Punto de Venta') {
-            return {
-              ...item,
-              subItems: (item.subItems || []).filter((sub) => sub.href !== '/pos/void-sales'),
-            }
-          }
-          return item
-        })
-    }
-
-    // admin only path
-    return menuItems
-  }, [activeRole])
+  const visibleMenuItems = useMemo(() => (activeRole ? getNavigationForRole(activeRole) : []).map(item => ({
+    ...item,
+    icon: navigationIcons[item.module || item.href],
+  })), [activeRole])
 
   useEffect(() => {
     const sectionToExpand = visibleMenuItems

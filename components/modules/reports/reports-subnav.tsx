@@ -1,15 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { ModuleSubnav } from '@/components/layout/module-subnav'
+import { useActiveRole } from '@/hooks/use-active-role'
+import { getModuleNavigation } from '@/lib/navigation'
 import { usePathname } from 'next/navigation'
-
-const items = [
-  { label: 'Ganancias', href: '/reports/profit' },
-  { label: 'Capital', href: '/reports/capital' },
-  { label: 'Productos más vendidos', href: '/reports/top-products' },
-  { label: 'Cuentas por Cobrar', href: '/reports/aging' },
-  { label: 'Sueldos', href: '/reports/payroll' },
-]
 
 const capitalSubItems = [
   { label: 'Resumen', href: '/reports/capital' },
@@ -19,30 +14,13 @@ const capitalSubItems = [
 
 export function ReportsSubnav() {
   const pathname = usePathname()
+  const role = useActiveRole()
+  if (!role || !getModuleNavigation(role, 'reports').length) return null
   const isCapitalSection = pathname.startsWith('/reports/capital')
 
   return (
     <div className="space-y-2 mb-6">
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible">
-        {items.map((item) => {
-          const isActive = item.href === '/reports/capital'
-            ? isCapitalSection
-            : pathname === item.href
-          return (
-            <Link key={item.href} href={item.href}>
-              <button
-                className={`px-4 py-2 text-sm font-medium rounded-full transition-colors duration-150 ${
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted'
-                } whitespace-nowrap`}
-              >
-                {item.label}
-              </button>
-            </Link>
-          )
-        })}
-      </div>
+      <ModuleSubnav module="reports" className="mb-0" />
       {isCapitalSection && (
         <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:flex-wrap sm:overflow-visible">
           {capitalSubItems.map((sub) => {

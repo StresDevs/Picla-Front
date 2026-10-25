@@ -109,7 +109,7 @@ export const quotationsService = {
 
   async convertToSale(input: {
     quotation_id: string
-    payment_method: 'cash' | 'card' | 'qr'
+    payment_method: 'cash' | 'qr'
     payment_currency: 'BOB' | 'USD'
     exchange_rate: number
     sale_mode?: 'immediate' | 'advance'

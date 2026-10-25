@@ -9,8 +9,9 @@ import { QueuedSaleNotification } from './queued-sale-notification'
 import { PayrollAlertNotification } from './payroll-alert-notification'
 import { getCurrentAuthUser, getCurrentSession } from '@/lib/supabase/auth'
 import { supabase } from '@/lib/supabase/client'
+import { useActiveRole } from '@/hooks/use-active-role'
+import { canAccessPage, getRoleHomePage } from '@/lib/navigation'
 import {
-  ACTIVE_ROLE_EVENT,
   getActiveUserContext,
   setActiveUserContext,
   type AppUserRole,
@@ -35,46 +36,14 @@ export function MainLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [missingBranch, setMissingBranch] = useState(false)
 
+  const activeRole = useActiveRole()
+  const routeAllowed = activeRole !== null && canAccessPage(activeRole, pathname)
+
   useEffect(() => {
-    const basicInventoryRoutes = new Set(['/inventory/products', '/inventory/kits', '/inventory/categories'])
-    const managerEmployeeRestrictedRoutes = ['/management', '/reports', '/audit', '/settings', '/pos/void-sales']
-
-    const enforceRouteAccess = () => {
-      const context = getActiveUserContext()
-
-      if (context.role === 'manager' || context.role === 'employee') {
-        if (pathname === '/dashboard' || managerEmployeeRestrictedRoutes.some((r) => pathname.startsWith(r))) {
-          router.replace('/inventory/products')
-          return
-        }
-        if (pathname.startsWith('/inventory') && pathname !== '/inventory/products') {
-          router.replace('/inventory/products')
-          return
-        }
-        return
-      }
-
-      if (context.role === 'read_only') {
-        if (pathname === '/dashboard') {
-          router.replace('/pos/sales')
-          return
-        }
-        if (!basicInventoryRoutes.has(pathname) && pathname.startsWith('/inventory')) {
-          router.replace('/inventory/products')
-        }
-      }
+    if (!isChecking && activeRole && !routeAllowed) {
+      router.replace(getRoleHomePage(activeRole))
     }
-
-    enforceRouteAccess()
-
-    window.addEventListener(ACTIVE_ROLE_EVENT, enforceRouteAccess)
-    window.addEventListener('focus', enforceRouteAccess)
-
-    return () => {
-      window.removeEventListener(ACTIVE_ROLE_EVENT, enforceRouteAccess)
-      window.removeEventListener('focus', enforceRouteAccess)
-    }
-  }, [pathname, router])
+  }, [activeRole, isChecking, routeAllowed, router])
 
   useEffect(() => {
     let mounted = true
@@ -130,7 +99,7 @@ export function MainLayout({
           } else {
             setMissingBranch(!branchId)
             const current = getActiveUserContext()
-            if (branchId && (current.branch_id !== branchId || current.role !== role)) {
+            if (current.branch_id !== branchId || current.role !== role) {
               setActiveUserContext({ role, branch_id: branchId })
             }
           }
@@ -158,7 +127,7 @@ export function MainLayout({
     }
   }, [router, pathname])
 
-  if (isChecking) {
+  if (isChecking || !routeAllowed) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
