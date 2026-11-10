@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="270" viewBox="0 0 900 270">
+<rect width="900" height="270" rx="18" fill="#f1f5f9"/><g font-family="Arial, sans-serif" fill="#0f172a">
+<text x="30" y="39" font-size="23" font-weight="bold">Pago mixto · Total de la venta: Bs 150,00</text>
+<rect x="30" y="65" width="390" height="112" rx="12" fill="#d1fae5"/><rect x="480" y="65" width="390" height="112" rx="12" fill="#dbeafe"/>
+<text x="55" y="101" font-size="19">Efectivo aplicado a la compra</text><text x="55" y="148" font-size="34" font-weight="bold">Bs 50,00</text>
+<text x="505" y="101" font-size="19">QR / Transferencia</text><text x="505" y="148" font-size="34" font-weight="bold">Bs 100,00</text>
+<text x="438" y="132" font-size="32">+</text><text x="30" y="213" font-size="18" font-weight="bold">50,00 + 100,00 = 150,00 · El desglose debe coincidir exactamente.</text>
+<text x="30" y="245" font-size="14" fill="#475569">Ejemplo ilustrativo · Al contado en BOB · El efectivo no incluye vuelto · Comprueba el pago QR.</text></g></svg>

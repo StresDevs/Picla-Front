@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { branchesService, kitsService, partsService } from '@/lib/supabase/inventory'
+import { buildNextKitCode, getKitErrorMessage } from '@/lib/kit-code'
 import {
   ACTIVE_ROLE_EVENT,
   getActiveUserContext,
@@ -42,26 +43,6 @@ const createKitItemForm = (partId = '', kitPrice = ''): KitItemForm => ({
   kit_price: kitPrice,
 })
 
-function normalizeKitCategory(category: string) {
-  return category.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-}
-
-function extractTrailingNumber(value: string) {
-  const match = value.match(/(\d+)(?!.*\d)/)
-  return match ? Number(match[1]) : 0
-}
-
-function buildNextKitCode(category: string, kits: ProductKit[]) {
-  const normalizedCategory = category.trim() || 'General'
-  const categoryKey = normalizedCategory.toLowerCase()
-  const prefix = normalizeKitCategory(normalizedCategory) || 'KIT'
-  const maxValue = kits
-    .filter((kit) => (kit.category || 'General').toLowerCase() === categoryKey)
-    .reduce((max, kit) => Math.max(max, extractTrailingNumber(kit.code || '')), 0)
-  const next = maxValue + 1
-  return `${prefix}-${String(next).padStart(3, '0')}`
-}
-
 function emptyKitForm(branchId: string, products: Part[]): KitForm {
   const first = products[0]
   return {
@@ -87,6 +68,7 @@ export default function InventoryKitsPage() {
   const [activeBranchId, setActiveBranchId] = useState(() => getActiveUserContext().branch_id)
   const [form, setForm] = useState<KitForm>(() => emptyKitForm(getActiveUserContext().branch_id, []))
   const resolvedCode = useMemo(() => buildNextKitCode(form.category || 'General', kits), [form.category, kits])
+  const kitCode = editingId ? form.code : resolvedCode
   const kitTotal = useMemo(() => {
     return form.items.reduce((sum, item) => {
       const qty = Number(item.quantity || 0)
@@ -121,7 +103,7 @@ export default function InventoryKitsPage() {
         }
       })
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar kits')
+      setError(getKitErrorMessage(loadError, 'No se pudo cargar kits'))
     }
   }
 
@@ -149,10 +131,6 @@ export default function InventoryKitsPage() {
   useEffect(() => {
     void refresh(activeBranchId)
   }, [activeBranchId])
-
-  useEffect(() => {
-    if (!editingId) setForm((prev) => ({ ...prev, code: resolvedCode }))
-  }, [resolvedCode, editingId])
 
   const addItem = () => {
     const fallback = products[0]
@@ -187,8 +165,12 @@ export default function InventoryKitsPage() {
   }
 
   const saveKit = async () => {
-    if (!canModify) return
-    if (!form.code || !form.name || !form.branch_id || form.items.length === 0) return
+    if (isSaving || isDeleting) return
+    if (!canModify) { setError('Solo admin puede crear o editar kits.'); return }
+    if (!kitCode || !form.name.trim() || !form.branch_id || form.items.length === 0) {
+      setError('Completa el nombre, la sucursal y al menos un producto del kit.')
+      return
+    }
 
     const items: ProductKitItem[] = form.items
       .map((item) => ({
@@ -200,13 +182,17 @@ export default function InventoryKitsPage() {
       .filter((item) => item.part_id && Number.isFinite(item.quantity) && item.quantity > 0 && Number.isFinite(item.kit_price) && item.kit_price >= 0)
 
     if (!form.name.trim() || items.length !== form.items.length || items.length === 0) { setError('Revisa el nombre, las cantidades y los precios de todos los componentes.'); return }
+    if (new Set(items.map((item) => item.part_id)).size !== items.length) {
+      setError('Hay productos repetidos. Usa una sola fila por producto y ajusta su cantidad.')
+      return
+    }
 
     setIsSaving(true)
     setError(null)
 
     try {
       await (editingId ? kitsService.update.bind(null, editingId) : kitsService.create)({
-        code: form.code.trim(),
+        code: kitCode.trim(),
         name: form.name.trim(),
         description: form.description,
         category: form.category || 'General',
@@ -217,9 +203,9 @@ export default function InventoryKitsPage() {
       await refresh(activeBranchId)
       setIsOpen(false)
       setEditingId(null)
-      setForm({ ...emptyKitForm(activeBranchId, products), code: buildNextKitCode('General', kits) })
+      setForm(emptyKitForm(activeBranchId, products))
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'No se pudo crear el kit')
+      setError(getKitErrorMessage(saveError, 'No se pudo guardar el kit'))
     } finally {
       setIsSaving(false)
     }
@@ -238,7 +224,7 @@ export default function InventoryKitsPage() {
       setEditingId(null)
       setForm(emptyKitForm(activeBranchId, products))
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'No se pudo eliminar el kit')
+      setError(getKitErrorMessage(deleteError, 'No se pudo eliminar el kit'))
     } finally {
       setIsDeleting(false)
     }
@@ -273,7 +259,7 @@ export default function InventoryKitsPage() {
             canModify ? (
               <Dialog open={isOpen} onOpenChange={(open) => { if (!isSaving && !isDeleting) setIsOpen(open) }}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => { setEditingId(null); setForm(emptyKitForm(activeBranchId, products)) }}>
+                  <Button onClick={() => { setError(null); setEditingId(null); setForm(emptyKitForm(activeBranchId, products)) }}>
                     <Plus className="mr-2 h-4 w-4" /> Nuevo kit
                   </Button>
                 </DialogTrigger>
@@ -288,7 +274,7 @@ export default function InventoryKitsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-base font-medium text-foreground">Codigo</label>
-                      <Input className="h-11 text-base" value={form.code} disabled placeholder="KIT-001" />
+                      <Input className="h-11 text-base" value={kitCode} disabled placeholder="KIT-001" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-base font-medium text-foreground">Nombre</label>

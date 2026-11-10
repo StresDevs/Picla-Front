@@ -1,4 +1,5 @@
 import { supabase } from './client'
+import { buildNextKitCode, getKitErrorMessage } from '@/lib/kit-code'
 import {
   Inventory,
   InventoryCategory,
@@ -1275,45 +1276,77 @@ export const kitsService = {
   },
 
   async create(input: Omit<ProductKit, 'id' | 'created_at' | 'updated_at'>) {
-    const { data: createdKit, error: kitError } = await supabase
-      .from('product_kits')
-      .insert([
-        {
-          code: input.code,
-          name: input.name,
-          description: input.description,
-          category: input.category || 'General',
-          branch_id: input.branch_id,
-        },
-      ])
-      .select('*')
-      .single()
-
-    if (kitError) throw kitError
-
-    const rows = input.items.map((item) => ({
-      kit_id: createdKit.id,
-      part_id: item.part_id,
-      quantity: item.quantity,
-      kit_price: item.kit_price,
-    }))
-
-    if (rows.length > 0) {
-      const { error: itemError } = await supabase.from('product_kit_items').insert(rows)
-      if (itemError) throw itemError
+    if (!input.items.length) throw new Error('Agrega al menos un producto al kit.')
+    if (new Set(input.items.map((item) => item.part_id)).size !== input.items.length) {
+      throw new Error('Hay productos repetidos. Usa una sola fila por producto y ajusta su cantidad.')
     }
 
-    return {
-      id: createdKit.id,
-      code: createdKit.code,
-      name: createdKit.name,
-      description: createdKit.description,
-      category: createdKit.category || 'General',
-      branch_id: createdKit.branch_id,
-      items: input.items,
-      created_at: createdKit.created_at,
-      updated_at: createdKit.updated_at,
-    } as ProductKit
+    let code = input.code.trim() || buildNextKitCode(input.category || 'General', [])
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data: createdKit, error: kitError } = await supabase
+        .from('product_kits')
+        .insert([
+          {
+            code,
+            name: input.name,
+            description: input.description,
+            category: input.category || 'General',
+            branch_id: input.branch_id,
+          },
+        ])
+        .select('*')
+        .single()
+
+      if (kitError) {
+        if (kitError.code !== '23505' || !kitError.message.includes('product_kits_branch_id_code_key')) {
+          throw kitError
+        }
+        // Los eliminados siguen reservando su codigo. Consultar tambien esos
+        // registros y reintentar si otro administrador uso el mismo codigo.
+        const codes: Array<{ code: string }> = []
+        const pageSize = 500
+        for (let offset = 0; ; offset += pageSize) {
+          const { data, error } = await supabase.from('product_kits')
+            .select('code').eq('branch_id', input.branch_id)
+            .order('id').range(offset, offset + pageSize - 1)
+          if (error) throw error
+          codes.push(...(data || []))
+          if (!data || data.length < pageSize) break
+        }
+        code = buildNextKitCode(input.category || 'General', codes)
+        continue
+      }
+
+      const rows = input.items.map((item) => ({
+        kit_id: createdKit.id,
+        part_id: item.part_id,
+        quantity: item.quantity,
+        kit_price: item.kit_price,
+      }))
+
+      const { error: itemError } = await supabase.from('product_kit_items').insert(rows)
+      if (itemError) {
+        // Deshacer solo la cabecera de este intento para no dejar kits vacios.
+        const { error: cleanupError } = await supabase.from('product_kits').delete().eq('id', createdKit.id)
+        if (cleanupError) {
+          throw new Error(`No se pudieron guardar los componentes del kit ${createdKit.code}. Revisa ese kit antes de reintentar. ${getKitErrorMessage(itemError, '')}`)
+        }
+        throw itemError
+      }
+
+      return {
+        id: createdKit.id,
+        code: createdKit.code,
+        name: createdKit.name,
+        description: createdKit.description,
+        category: createdKit.category || 'General',
+        branch_id: createdKit.branch_id,
+        items: input.items,
+        created_at: createdKit.created_at,
+        updated_at: createdKit.updated_at,
+      } as ProductKit
+    }
+    throw new Error('Otro usuario esta creando kits al mismo tiempo. Intenta guardar nuevamente.')
   },
 
   async softDelete(id: string) {

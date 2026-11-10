@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="290" viewBox="0 0 1000 290">
+<rect width="1000" height="290" rx="18" fill="#f1f5f9"/><g font-family="Arial, sans-serif" fill="#0f172a">
+<text x="30" y="38" font-size="23" font-weight="bold">Traspaso de 3 unidades: reservar y completar son momentos distintos</text>
+<g fill="#fff" stroke="#cbd5e1"><rect x="30" y="65" width="280" height="158" rx="12"/><rect x="360" y="65" width="280" height="158" rx="12"/><rect x="690" y="65" width="280" height="158" rx="12"/></g>
+<text x="50" y="99" font-size="19" font-weight="bold">Antes</text><text x="50" y="134" font-size="17">Origen: 10 en stock</text><text x="50" y="164" font-size="17">Disponibles: 10</text><text x="50" y="194" font-size="17">Destino: 0</text>
+<text x="380" y="99" font-size="19" font-weight="bold" fill="#92400e">Pendiente</text><text x="380" y="134" font-size="17">Origen: 10; reservadas: 3</text><text x="380" y="164" font-size="17">Disponibles: 7</text><text x="380" y="194" font-size="17">Destino: aún 0</text>
+<text x="710" y="99" font-size="19" font-weight="bold" fill="#047857">Completado</text><text x="710" y="134" font-size="17">Origen: 7 en stock</text><text x="710" y="164" font-size="17">Reserva liberada</text><text x="710" y="194" font-size="17">Destino: 3 en stock</text>
+<text x="320" y="152" font-size="28">→</text><text x="650" y="152" font-size="28">→</text><text x="30" y="258" font-size="16" fill="#475569">Ejemplo sin otros movimientos · Completa después de verificar la recepción física.</text></g></svg>

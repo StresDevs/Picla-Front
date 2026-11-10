@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="250" viewBox="0 0 1000 250">
+<rect width="1000" height="250" rx="18" fill="#f1f5f9"/>
+<g font-family="Arial, sans-serif" fill="#0f172a">
+<text x="30" y="38" font-size="23" font-weight="bold">Venta en cola: falta la aprobación</text>
+<g fill="#fff" stroke="#cbd5e1"><rect x="30" y="70" width="270" height="130" rx="12"/><rect x="365" y="70" width="270" height="130" rx="12"/><rect x="700" y="70" width="270" height="130" rx="12"/></g>
+<text x="50" y="102" font-size="19" font-weight="bold">1. Preparar</text><text x="50" y="135" font-size="16">Productos, cliente y pago</text><text x="50" y="169" font-size="16">Empleado / Solo lectura</text>
+<text x="385" y="102" font-size="19" font-weight="bold" fill="#92400e">2. Pendiente en cola</text><text x="385" y="135" font-size="16">Revisar antes de aprobar</text><text x="385" y="169" font-size="16">Puede aprobarse o rechazarse</text>
+<text x="720" y="102" font-size="19" font-weight="bold" fill="#047857">3. Venta aprobada</text><text x="720" y="135" font-size="16">Se genera la venta</text><text x="720" y="169" font-size="16">Consultar su comprobante</text>
+<text x="319" y="144" font-size="32">→</text><text x="654" y="144" font-size="32">→</text><text x="30" y="229" font-size="14" fill="#475569">Esquema explicativo · El permiso de aprobación depende del rol y de la instalación.</text></g></svg>
